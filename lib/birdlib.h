@@ -122,10 +122,10 @@ typedef struct buffer {
 
 #define log log_msg
 void log_commit(int class, buffer *buf);
-void log_msg(char *msg, ...);
-void log_rl(struct tbf *rl, char *msg, ...);
-void die(char *msg, ...) NORET;
-void bug(char *msg, ...) NORET;
+void log_msg(const char *msg, ...);
+void log_rl(struct tbf *rl, const char *msg, ...);
+void die(const char *msg, ...) NORET;
+void bug(const char *msg, ...) NORET;
 
 #define L_DEBUG "\001"			/* Debugging messages */
 #define L_TRACE "\002"			/* Protocol tracing */
@@ -137,7 +137,7 @@ void bug(char *msg, ...) NORET;
 #define L_FATAL "\010"			/* Fatal errors */
 #define L_BUG "\011"			/* BIRD bugs */
 
-void debug(char *msg, ...);		/* Printf to debug output */
+void debug(const char *msg, ...);		/* Printf to debug output */
 
 /* Debugging */
 

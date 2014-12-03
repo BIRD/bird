@@ -17,7 +17,7 @@
 /* Client versions of logging functions */
 
 static void
-vlog(char *msg, va_list args)
+vlog(const char *msg, va_list args)
 {
   char buf[1024];
 
@@ -28,7 +28,7 @@ vlog(char *msg, va_list args)
 }
 
 void
-bug(char *msg, ...)
+bug(const char *msg, ...)
 {
   va_list args;
 
@@ -41,7 +41,7 @@ bug(char *msg, ...)
 }
 
 void
-die(char *msg, ...)
+die(const char *msg, ...)
 {
   va_list args;
 

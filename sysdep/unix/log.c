@@ -163,7 +163,7 @@ vlog(int class, const char *msg, va_list args)
  * It is essentially a sequence of log_reset(), logn() and log_commit().
  */
 void
-log_msg(char *msg, ...)
+log_msg(const char *msg, ...)
 {
   int class = 1;
   va_list args;
@@ -176,7 +176,7 @@ log_msg(char *msg, ...)
 }
 
 void
-log_rl(struct tbf *f, char *msg, ...)
+log_rl(struct tbf *f, const char *msg, ...)
 {
   int last_hit = f->mark;
   int class = 1;
@@ -202,7 +202,7 @@ log_rl(struct tbf *f, char *msg, ...)
  * of the program.
  */
 void
-bug(char *msg, ...)
+bug(const char *msg, ...)
 {
   va_list args;
 
@@ -219,7 +219,7 @@ bug(char *msg, ...)
  * of the program.
  */
 void
-die(char *msg, ...)
+die(const char *msg, ...)
 {
   va_list args;
 
@@ -236,7 +236,7 @@ die(char *msg, ...)
  * to the debugging output. No newline character is appended.
  */
 void
-debug(char *msg, ...)
+debug(const char *msg, ...)
 {
   va_list args;
   char buf[1024];
