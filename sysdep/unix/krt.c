@@ -277,15 +277,15 @@ kif_copy_config(struct proto_config *dest, struct proto_config *src)
 
 
 struct protocol proto_unix_iface = {
-  name:		"Device",
-  template:	"device%d",
-  preference:	DEF_PREF_DIRECT,
-  preconfig:	kif_preconfig,
-  init:		kif_init,
-  start:	kif_start,
-  shutdown:	kif_shutdown,
-  reconfigure:	kif_reconfigure,
-  copy_config:	kif_copy_config
+  .name = "Device",
+  .template = "device%d",
+  .preference = DEF_PREF_DIRECT,
+  .preconfig = kif_preconfig,
+  .init = kif_init,
+  .start = kif_start,
+  .shutdown = kif_shutdown,
+  .reconfigure = kif_reconfigure,
+  .copy_config = kif_copy_config
 };
 
 /*
@@ -1198,20 +1198,20 @@ krt_get_attr(eattr * a, byte * buf, int buflen UNUSED)
 
 
 struct protocol proto_unix_kernel = {
-  name:		"Kernel",
-  template:	"kernel%d",
-  attr_class:	EAP_KRT,
-  preference:	DEF_PREF_INHERITED,
-  preconfig:	krt_preconfig,
-  postconfig:	krt_postconfig,
-  init:		krt_init,
-  start:	krt_start,
-  shutdown:	krt_shutdown,
-  reconfigure:	krt_reconfigure,
-  copy_config:	krt_copy_config,
-  get_attr:	krt_get_attr,
+  .name = "Kernel",
+  .template = "kernel%d",
+  .attr_class = EAP_KRT,
+  .preference = DEF_PREF_INHERITED,
+  .preconfig = krt_preconfig,
+  .postconfig = krt_postconfig,
+  .init = krt_init,
+  .start = krt_start,
+  .shutdown = krt_shutdown,
+  .reconfigure = krt_reconfigure,
+  .copy_config = krt_copy_config,
+  .get_attr = krt_get_attr,
 #ifdef KRT_ALLOW_LEARN
-  dump:		krt_dump,
-  dump_attrs:	krt_dump_attrs,
+  .dump = krt_dump,
+  .dump_attrs = krt_dump_attrs,
 #endif
 };

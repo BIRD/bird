@@ -336,16 +336,16 @@ pipe_show_proto_info(struct proto *P)
 
 
 struct protocol proto_pipe = {
-  name:			"Pipe",
-  template:		"pipe%d",
-  multitable:		1,
-  preference:		DEF_PREF_PIPE,
-  postconfig:		pipe_postconfig,
-  init:			pipe_init,
-  start:		pipe_start,
-  cleanup:		pipe_cleanup,
-  reconfigure:		pipe_reconfigure,
-  copy_config:  	pipe_copy_config,
-  get_status:		pipe_get_status,
-  show_proto_info:	pipe_show_proto_info
+  .name = "Pipe",
+  .template = "pipe%d",
+  .multitable = 1,
+  .preference = DEF_PREF_PIPE,
+  .postconfig = pipe_postconfig,
+  .init = pipe_init,
+  .start = pipe_start,
+  .cleanup = pipe_cleanup,
+  .reconfigure = pipe_reconfigure,
+  .copy_config =   	pipe_copy_config,
+  .get_status = pipe_get_status,
+  .show_proto_info = pipe_show_proto_info
 };

@@ -1046,16 +1046,16 @@ rip_copy_config(struct proto_config *dest, struct proto_config *src)
 
 
 struct protocol proto_rip = {
-  name: "RIP",
-  template: "rip%d",
-  attr_class: EAP_RIP,
-  preference: DEF_PREF_RIP,
-  get_route_info: rip_get_route_info,
-  get_attr: rip_get_attr,
+  .name =  "RIP",
+  .template =  "rip%d",
+  .attr_class =  EAP_RIP,
+  .preference =  DEF_PREF_RIP,
+  .get_route_info =  rip_get_route_info,
+  .get_attr =  rip_get_attr,
 
-  init: rip_init,
-  dump: rip_dump,
-  start: rip_start,
-  reconfigure: rip_reconfigure,
-  copy_config: rip_copy_config
+  .init =  rip_init,
+  .dump =  rip_dump,
+  .start =  rip_start,
+  .reconfigure =  rip_reconfigure,
+  .copy_config =  rip_copy_config
 };
