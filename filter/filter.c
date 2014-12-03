@@ -1016,7 +1016,7 @@ interpret(struct f_inst *what)
     ONEARG;
     if (v1.type != T_INT)
       runtime( "Can't set preference to non-integer" );
-    if ((v1.val.i < 0) || (v1.val.i > 0xFFFF))
+    if (v1.val.i > 0xFFFF)
       runtime( "Setting preference value out of bounds" );
     f_rte_cow();
     (*f_rte)->pref = v1.val.i;
