@@ -1,6 +1,7 @@
 How to install BIRD
 ===================
 
+$ autoconf
 $ ./configure
 $ make
 # make install
