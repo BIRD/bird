@@ -1,5 +1,5 @@
 /*
- *	BIRD -- Unix Routing Table Syncing
+ *	BIRD -- BSD Routing Table Syncing
  *
  *	(c) 2004 Ondrej Filip <feela@network.cz>
  *
@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -34,18 +35,112 @@
 #include "lib/socket.h"
 
 
-#ifndef RTAX_MAX
-#define RTAX_MAX        8
+/*
+ * There are significant differences in multiple tables support between BSD variants.
+ *
+ * OpenBSD has table_id field for routes in route socket protocol, therefore all
+ * tables could be managed by one kernel socket. FreeBSD lacks such field,
+ * therefore multiple sockets (locked to specific table using SO_SETFIB socket
+ * option) must be used.
+ *
+ * Both FreeBSD and OpenBSD uses separate scans for each table. In OpenBSD,
+ * table_id is specified explicitly as sysctl scan argument, while in FreeBSD it
+ * is handled implicitly by changing default table using setfib() syscall.
+ *
+ * KRT_SHARED_SOCKET	- use shared kernel socked instead of one for each krt_proto
+ * KRT_USE_SETFIB_SCAN	- use setfib() for sysctl() route scan
+ * KRT_USE_SETFIB_SOCK	- use SO_SETFIB socket option for kernel sockets
+ * KRT_USE_SYSCTL_7	- use 7-th arg of sysctl() as table id for route scans
+ * KRT_USE_SYSCTL_NET_FIBS - use net.fibs sysctl() for dynamic max number of fibs
+ */
+
+#ifdef __FreeBSD__
+#define KRT_MAX_TABLES 256
+#define KRT_USE_SETFIB_SCAN
+#define KRT_USE_SETFIB_SOCK
+#define KRT_USE_SYSCTL_NET_FIBS
 #endif
 
-struct ks_msg
+#ifdef __OpenBSD__
+#define KRT_MAX_TABLES (RT_TABLEID_MAX+1)
+#define KRT_SHARED_SOCKET
+#define KRT_USE_SYSCTL_7
+#endif
+
+#ifndef KRT_MAX_TABLES
+#define KRT_MAX_TABLES 1
+#endif
+
+
+
+/* Dynamic max number of tables */
+
+int krt_max_tables;
+
+#ifdef KRT_USE_SYSCTL_NET_FIBS
+
+static int
+krt_get_max_tables(void)
 {
-  struct rt_msghdr rtm;
-  struct sockaddr_storage buf[RTAX_MAX];
-};
+  int fibs;
+  size_t fibs_len = sizeof(fibs);
+
+  if (sysctlbyname("net.fibs", &fibs, &fibs_len, NULL, 0) < 0)
+  {
+    log(L_WARN "KRT: unable to get max number of fib tables: %m");
+    return 1;
+  }
+
+  return MIN(fibs, KRT_MAX_TABLES);
+}
+
+#else
+
+static int
+krt_get_max_tables(void)
+{
+  return KRT_MAX_TABLES;
+}
+
+#endif /* KRT_USE_SYSCTL_NET_FIBS */
 
 
-static int rt_sock = 0;
+/* setfib() syscall for FreeBSD scans */
+
+#ifdef KRT_USE_SETFIB_SCAN
+
+/*
+static int krt_default_fib;
+
+static int
+krt_get_active_fib(void)
+{
+  int fib;
+  size_t fib_len = sizeof(fib);
+
+  if (sysctlbyname("net.my_fibnum", &fib, &fib_len, NULL, 0) < 0)
+  {
+    log(L_WARN "KRT: unable to get active fib number: %m");
+    return 0;
+  }
+
+  return fib;
+}
+*/
+
+extern int setfib(int fib);
+
+#endif /* KRT_USE_SETFIB_SCAN */
+
+
+/* table_id -> krt_proto map */
+
+#ifdef KRT_SHARED_SOCKET
+static struct krt_proto *krt_table_map[KRT_MAX_TABLES];
+#endif
+
+
+/* Route socket message processing */
 
 int
 krt_capable(rte *e)
@@ -65,6 +160,16 @@ krt_capable(rte *e)
      );
 }
 
+#ifndef RTAX_MAX
+#define RTAX_MAX 8
+#endif
+
+struct ks_msg
+{
+  struct rt_msghdr rtm;
+  struct sockaddr_storage buf[RTAX_MAX];
+};
+
 #define ROUNDUP(a) \
         ((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
 
@@ -81,7 +186,7 @@ krt_capable(rte *e)
     body += l;}
 
 static int
-krt_sock_send(int cmd, rte *e)
+krt_send_route(struct krt_proto *p, int cmd, rte *e)
 {
   net *net = e->net;
   rta *a = e->attrs;
@@ -103,13 +208,13 @@ krt_sock_send(int cmd, rte *e)
   msg.rtm.rtm_flags = RTF_UP | RTF_PROTO1;
 
   if (net->n.pxlen == MAX_PREFIX_LENGTH)
-  {
     msg.rtm.rtm_flags |= RTF_HOST;
-  }
   else
-  {
     msg.rtm.rtm_addrs |= RTA_NETMASK;
-  }
+
+#ifdef KRT_SHARED_SOCKET
+  msg.rtm.rtm_tableid = KRT_CF->sys.table_id;
+#endif
 
 #ifdef RTF_REJECT
   if(a->dest == RTD_UNREACHABLE)
@@ -146,9 +251,9 @@ krt_sock_send(int cmd, rte *e)
     _I0(gw) = 0xfe800000 | (i->index & 0x0000ffff);
 #endif
 
-  fill_in_sockaddr(&dst, net->n.prefix, NULL, 0);
-  fill_in_sockaddr(&mask, ipa_mkmask(net->n.pxlen), NULL, 0);
-  fill_in_sockaddr(&gate, gw, NULL, 0);
+  sockaddr_fill(&dst,  BIRD_AF, net->n.prefix, NULL, 0);
+  sockaddr_fill(&mask, BIRD_AF, ipa_mkmask(net->n.pxlen), NULL, 0);
+  sockaddr_fill(&gate, BIRD_AF, gw, NULL, 0);
 
   switch (a->dest)
   {
@@ -156,6 +261,7 @@ krt_sock_send(int cmd, rte *e)
       msg.rtm.rtm_flags |= RTF_GATEWAY;
       msg.rtm.rtm_addrs |= RTA_GATEWAY;
       break;
+
 #ifdef RTF_REJECT
     case RTD_UNREACHABLE:
 #endif
@@ -175,7 +281,7 @@ krt_sock_send(int cmd, rte *e)
           return -1;
         }
 
-        fill_in_sockaddr(&gate, i->addr->ip, NULL, 0);
+	sockaddr_fill(&gate, BIRD_AF, i->addr->ip, NULL, 0);
         msg.rtm.rtm_addrs |= RTA_GATEWAY;
       }
       break;
@@ -192,7 +298,7 @@ krt_sock_send(int cmd, rte *e)
   l = body - (char *)&msg;
   msg.rtm.rtm_msglen = l;
 
-  if ((l = write(rt_sock, (char *)&msg, l)) < 0) {
+  if ((l = write(p->sys.sk->fd, (char *)&msg, l)) < 0) {
     log(L_ERR "KRT: Error sending route %I/%d to kernel: %m", net->n.prefix, net->n.pxlen);
     return -1;
   }
@@ -201,16 +307,16 @@ krt_sock_send(int cmd, rte *e)
 }
 
 void
-krt_replace_rte(struct krt_proto *p UNUSED, net *n, rte *new, rte *old,
+krt_replace_rte(struct krt_proto *p, net *n, rte *new, rte *old,
 		struct ea_list *eattrs UNUSED)
 {
   int err = 0;
 
   if (old)
-    krt_sock_send(RTM_DELETE, old);
+    krt_send_route(p, RTM_DELETE, old);
 
   if (new)
-    err = krt_sock_send(RTM_ADD, new);
+    err = krt_send_route(p, RTM_ADD, new);
 
   if (err < 0)
     n->n.flags |= KRF_SYNC_ERROR;
@@ -221,8 +327,10 @@ krt_replace_rte(struct krt_proto *p UNUSED, net *n, rte *new, rte *old,
 #define SKIP(ARG...) do { DBG("KRT: Ignoring route - " ARG); return; } while(0)
 
 static void
-krt_read_rt(struct ks_msg *msg, struct krt_proto *p, int scan)
+krt_read_route(struct ks_msg *msg, struct krt_proto *p, int scan)
 {
+  /* p is NULL iff KRT_SHARED_SOCKET and !scan */
+
   rte *e;
   net *net;
   sockaddr dst, gate, mask;
@@ -244,24 +352,31 @@ krt_read_rt(struct ks_msg *msg, struct krt_proto *p, int scan)
   if (flags & RTF_LLINFO)
     SKIP("link-local\n");
 
+#ifdef KRT_SHARED_SOCKET
+  if (!scan)
+  {
+    int table_id = msg->rtm.rtm_tableid;
+    p = (table_id < KRT_MAX_TABLES) ? krt_table_map[table_id] : NULL;
+
+    if (!p)
+      SKIP("unknown table id %d\n", table_id);
+  }
+#endif
+
   GETADDR(&dst, RTA_DST);
   GETADDR(&gate, RTA_GATEWAY);
   GETADDR(&mask, RTA_NETMASK);
 
-  if (sa_family_check(&dst))
-    get_sockaddr(&dst, &idst, NULL, NULL, 0);
-  else
+  if (dst.sa.sa_family != BIRD_AF)
     SKIP("invalid DST");
 
-  /* We will check later whether we have valid gateway addr */
-  if (sa_family_check(&gate))
-    get_sockaddr(&gate, &igate, NULL, NULL, 0);
-  else
-    igate = IPA_NONE;
+  idst  = ipa_from_sa(&dst);
+  imask = ipa_from_sa(&mask);
+  igate = (gate.sa.sa_family == BIRD_AF) ? ipa_from_sa(&gate) : IPA_NONE;
 
   /* We do not test family for RTA_NETMASK, because BSD sends us
      some strange values, but interpreting them as IPv4/IPv6 works */
-  get_sockaddr(&mask, &imask, NULL, NULL, 0);
+
 
   int c = ipa_classify_net(idst);
   if ((c < 0) || !(c & IADDR_HOST) || ((c & IADDR_SCOPE_MASK) <= SCOPE_LINK))
@@ -314,7 +429,7 @@ krt_read_rt(struct ks_msg *msg, struct krt_proto *p, int scan)
   net = net_get(p->p.table, idst, pxlen);
 
   rta a = {
-    .proto = &p->p,
+    .src = p->p.main_source,
     .source = RTS_INHERIT,
     .scope = SCOPE_UNIVERSE,
     .cast = RTC_UNICAST
@@ -417,7 +532,7 @@ krt_read_ifannounce(struct ks_msg *msg)
 }
 
 static void
-krt_read_ifinfo(struct ks_msg *msg)
+krt_read_ifinfo(struct ks_msg *msg, int scan)
 {
   struct if_msghdr *ifm = (struct if_msghdr *)&msg->rtm;
   void *body = (void *)(ifm + 1);
@@ -490,11 +605,14 @@ krt_read_ifinfo(struct ks_msg *msg)
   else
     f.flags |= IF_MULTIACCESS;      /* NBMA */
 
-  if_update(&f);
+  iface = if_update(&f);
+
+  if (!scan)
+    if_end_partial_update(iface);
 }
 
 static void
-krt_read_addr(struct ks_msg *msg)
+krt_read_addr(struct ks_msg *msg, int scan)
 {
   struct ifa_msghdr *ifam = (struct ifa_msghdr *)&msg->rtm;
   void *body = (void *)(ifam + 1);
@@ -527,26 +645,35 @@ krt_read_addr(struct ks_msg *msg)
   GETADDR (&brd, RTA_BRD);
 
   /* Some other family address */
-  if (!sa_family_check(&addr))
+  if (addr.sa.sa_family != BIRD_AF)
     return;
 
-  get_sockaddr(&addr, &iaddr, NULL, NULL, 0);
-  get_sockaddr(&mask, &imask, NULL, NULL, 0);
-  get_sockaddr(&brd, &ibrd, NULL, NULL, 0);
+  iaddr = ipa_from_sa(&addr);
+  imask = ipa_from_sa(&mask);
+  ibrd  = ipa_from_sa(&brd);
+
 
   if ((masklen = ipa_mklen(imask)) < 0)
   {
-    log("Invalid masklen");
+    log(L_ERR "KIF: Invalid masklen %I for %s", imask, iface->name);
     return;
   }
 
+#ifdef IPV6
+  /* Clean up embedded interface ID returned in link-local address */
+
+  if (ipa_has_link_scope(iaddr))
+    _I0(iaddr) = 0xfe800000;
+
+  if (ipa_has_link_scope(ibrd))
+    _I0(ibrd) = 0xfe800000;
+#endif
+
+
   bzero(&ifa, sizeof(ifa));
-
   ifa.iface = iface;
-
-  memcpy(&ifa.ip, &iaddr, sizeof(ip_addr));
+  ifa.ip = iaddr;
   ifa.pxlen = masklen;
-  memcpy(&ifa.brd, &ibrd, sizeof(ip_addr));
 
   scope = ipa_classify(ifa.ip);
   if (scope < 0)
@@ -556,23 +683,9 @@ krt_read_addr(struct ks_msg *msg)
   }
   ifa.scope = scope & IADDR_SCOPE_MASK;
 
-#ifdef IPV6
-  /* Clean up embedded interface ID returned in link-local address */
-  if (ipa_has_link_scope(ifa.ip))
-    _I0(ifa.ip) = 0xfe800000;
-#endif
-
-#ifdef IPV6
-  /* Why not the same check also for IPv4? */
-  if ((iface->flags & IF_MULTIACCESS) || (masklen != BITS_PER_IP_ADDRESS))
-#else
-  if (iface->flags & IF_MULTIACCESS)
-#endif
+  if (masklen < BITS_PER_IP_ADDRESS)
   {
     ifa.prefix = ipa_and(ifa.ip, ipa_mkmask(masklen));
-
-    if (masklen == BITS_PER_IP_ADDRESS)
-      ifa.flags |= IA_HOST;
 
     if (masklen == (BITS_PER_IP_ADDRESS - 1))
       ifa.opposite = ipa_opposite_m1(ifa.ip);
@@ -581,117 +694,208 @@ krt_read_addr(struct ks_msg *msg)
     if (masklen == (BITS_PER_IP_ADDRESS - 2))
       ifa.opposite = ipa_opposite_m2(ifa.ip);
 #endif
+
+    if (iface->flags & IF_BROADCAST)
+      ifa.brd = ibrd;
+
+    if (!(iface->flags & IF_MULTIACCESS))
+      ifa.opposite = ibrd;
   }
-  else         /* PtP iface */
+  else if (!(iface->flags & IF_MULTIACCESS) && ipa_nonzero(ibrd))
   {
+    ifa.prefix = ifa.opposite = ibrd;
     ifa.flags |= IA_PEER;
-    ifa.prefix = ifa.opposite = ifa.brd;
+  }
+  else
+  {
+    ifa.prefix = ifa.ip;
+    ifa.flags |= IA_HOST;
   }
 
   if (new)
     ifa_update(&ifa);
   else
     ifa_delete(&ifa);
+
+  if (!scan)
+    if_end_partial_update(iface);
 }
 
-
-void
+static void
 krt_read_msg(struct proto *p, struct ks_msg *msg, int scan)
 {
+  /* p is NULL iff KRT_SHARED_SOCKET and !scan */
+
   switch (msg->rtm.rtm_type)
   {
     case RTM_GET:
       if(!scan) return;
     case RTM_ADD:
     case RTM_DELETE:
-      krt_read_rt(msg, (struct krt_proto *)p, scan);
+      krt_read_route(msg, (struct krt_proto *)p, scan);
       break;
     case RTM_IFANNOUNCE:
       krt_read_ifannounce(msg);
       break;
     case RTM_IFINFO:
-      krt_read_ifinfo(msg);
+      krt_read_ifinfo(msg, scan);
       break;
     case RTM_NEWADDR:
     case RTM_DELADDR:
-      krt_read_addr(msg);
+      krt_read_addr(msg, scan);
       break;
     default:
       break;
   }
 }
 
-static void
-krt_sysctl_scan(struct proto *p, pool *pool, byte **buf, size_t *bl, int cmd)
+
+/* Sysctl based scans */
+
+static byte *krt_buffer;
+static size_t krt_buflen, krt_bufmin;
+static struct proto *krt_buffer_owner;
+
+static byte *
+krt_buffer_update(struct proto *p, size_t *needed)
 {
-  byte *next;
-  int mib[6];
-  size_t obl, needed;
+  size_t req = *needed;
+
+  if ((req > krt_buflen) ||
+      ((p == krt_buffer_owner) && (req < krt_bufmin)))
+  {
+    /* min buflen is 32 kB, step is 8 kB, or 128 kB if > 1 MB */
+    size_t step = (req < 0x100000) ? 0x2000 : 0x20000;
+    krt_buflen = (req < 0x6000) ? 0x8000 : (req + step);
+    krt_bufmin = (req < 0x8000) ? 0 : (req - 2*step);
+
+    if (krt_buffer) 
+      mb_free(krt_buffer);
+    krt_buffer = mb_alloc(krt_pool, krt_buflen);
+    krt_buffer_owner = p;
+  }
+
+  *needed = krt_buflen;
+  return krt_buffer;
+}
+
+static void
+krt_buffer_release(struct proto *p)
+{
+  if (p == krt_buffer_owner)
+  {
+    mb_free(krt_buffer);
+    krt_buffer = NULL;
+    krt_buflen = 0;
+    krt_buffer_owner = 0;
+  }
+}
+
+static void
+krt_sysctl_scan(struct proto *p, int cmd, int table_id)
+{
+  byte *buf, *next;
+  int mib[7], mcnt;
+  size_t needed;
   struct ks_msg *m;
   int retries = 3;
+  int rv;
 
   mib[0] = CTL_NET;
   mib[1] = PF_ROUTE;
   mib[2] = 0;
-  mib[3] = BIRD_PF;
+  mib[3] = BIRD_AF;
   mib[4] = cmd;
   mib[5] = 0;
+  mcnt = 6;
 
- try:
-  if (sysctl(mib, 6 , NULL , &needed, NULL, 0) < 0)
-    die("krt_sysctl_scan 1: %m");
-
-  obl = *bl;
-
-  while (needed > *bl) *bl *= 2;
-  while (needed < (*bl/2)) *bl /= 2;
-
-  if ((obl!=*bl) || !*buf)
+#ifdef KRT_USE_SYSCTL_7
+  if (table_id >= 0)
   {
-    if (*buf) mb_free(*buf);
-    if ((*buf = mb_alloc(pool, *bl)) == NULL) die("RT scan buf alloc");
+    mib[6] = table_id;
+    mcnt = 7;
   }
+#endif
 
-  if (sysctl(mib, 6 , *buf, &needed, NULL, 0) < 0)
-  {
-    if (errno == ENOMEM)
+#ifdef KRT_USE_SETFIB_SCAN
+  if (table_id > 0)
+    if (setfib(table_id) < 0)
     {
-      /* The buffer size changed since last sysctl ('needed' is not changed) */
-      if (retries--)
-	goto try;
-
-      log(L_ERR "KRT: Route scan failed");
+      log(L_ERR "KRT: setfib(%d) failed: %m", table_id);
       return;
     }
-    die("krt_sysctl_scan 2: %m");
+#endif
+
+ try:
+  rv = sysctl(mib, mcnt, NULL, &needed, NULL, 0);
+  if (rv < 0)
+  {
+    /* OpenBSD returns EINVAL for not yet used tables */
+    if ((errno == EINVAL) && (table_id > 0))
+      goto exit;
+
+    log(L_ERR "KRT: Route scan estimate failed: %m");
+    goto exit;
   }
 
-  for (next = *buf; next < (*buf + needed); next += m->rtm.rtm_msglen)
+  /* The table is empty */
+  if (needed == 0)
+    goto exit;
+
+  buf = krt_buffer_update(p, &needed);
+
+  rv = sysctl(mib, mcnt, buf, &needed, NULL, 0);
+  if (rv < 0)
+  {
+    /* The buffer size changed since last sysctl ('needed' is not changed) */
+    if ((errno == ENOMEM) && retries--)
+      goto try;
+
+    log(L_ERR "KRT: Route scan failed: %m");
+    goto exit;
+  }
+
+#ifdef KRT_USE_SETFIB_SCAN
+  if (table_id > 0)
+    if (setfib(0) < 0)
+      die("KRT: setfib(%d) failed: %m", 0);
+#endif
+
+  /* Process received messages */
+  for (next = buf; next < (buf + needed); next += m->rtm.rtm_msglen)
   {
     m = (struct ks_msg *)next;
     krt_read_msg(p, m, 1);
   }
-}
 
-static byte *krt_buffer = NULL;
-static byte *kif_buffer = NULL;
-static size_t krt_buflen = 32768;
-static size_t kif_buflen = 4096;
+  return;
+
+ exit:
+  krt_buffer_release(p);
+
+#ifdef KRT_USE_SETFIB_SCAN
+  if (table_id > 0)
+    if (setfib(0) < 0)
+      die("KRT: setfib(%d) failed: %m", 0);
+#endif
+}
 
 void
 krt_do_scan(struct krt_proto *p)
 {
-  krt_sysctl_scan((struct proto *)p, p->krt_pool, &krt_buffer, &krt_buflen, NET_RT_DUMP);
+  krt_sysctl_scan(&p->p, NET_RT_DUMP, KRT_CF->sys.table_id);
 }
 
 void
 kif_do_scan(struct kif_proto *p)
 {
-  struct proto *P = (struct proto *)p;
   if_start_update();
-  krt_sysctl_scan(P, P->pool, &kif_buffer, &kif_buflen, NET_RT_IFLIST);
+  krt_sysctl_scan(&p->p, NET_RT_IFLIST, -1);
   if_end_update();
 }
+
+
+/* Kernel sockets */
 
 static int
 krt_sock_hook(sock *sk, int size UNUSED)
@@ -699,49 +903,153 @@ krt_sock_hook(sock *sk, int size UNUSED)
   struct ks_msg msg;
   int l = read(sk->fd, (char *)&msg, sizeof(msg));
 
-  if(l <= 0)
+  if (l <= 0)
     log(L_ERR "krt-sock: read failed");
   else
-  krt_read_msg((struct proto *)sk->data, &msg, 0);
+    krt_read_msg((struct proto *) sk->data, &msg, 0);
 
   return 0;
 }
 
-void
-krt_sys_start(struct krt_proto *x, int first UNUSED)
+static sock *
+krt_sock_open(pool *pool, void *data, int table_id)
 {
-  sock *sk_rt;
-  static int ks_open_tried = 0;
+  sock *sk;
+  int fd;
 
-  if (ks_open_tried)
-    return;
-
-  ks_open_tried = 1;
-
-  DBG("KRT: Opening kernel socket\n");
-
-  if( (rt_sock = socket(PF_ROUTE, SOCK_RAW, AF_UNSPEC)) < 0)
+  fd = socket(PF_ROUTE, SOCK_RAW, AF_UNSPEC);
+  if (fd < 0)
     die("Cannot open kernel socket for routes");
 
-  sk_rt = sk_new(krt_pool);
-  sk_rt->type = SK_MAGIC;
-  sk_rt->rx_hook = krt_sock_hook;
-  sk_rt->fd = rt_sock;
-  sk_rt->data = x;
-  if (sk_open(sk_rt))
+#ifdef KRT_USE_SETFIB_SOCK
+  if (table_id > 0)
+  {
+    if (setsockopt(fd, SOL_SOCKET, SO_SETFIB, &table_id, sizeof(table_id)) < 0)
+      die("Cannot set FIB %d for kernel socket: %m", table_id);
+  }
+#endif
+
+  sk = sk_new(pool);
+  sk->type = SK_MAGIC;
+  sk->rx_hook = krt_sock_hook;
+  sk->fd = fd;
+  sk->data = data;
+
+  if (sk_open(sk) < 0)
     bug("krt-sock: sk_open failed");
+
+  return sk;
+}
+
+
+#ifdef KRT_SHARED_SOCKET
+
+static sock *krt_sock;
+static int krt_sock_count;
+
+
+static void
+krt_sock_open_shared(void)
+{
+  if (!krt_sock_count)
+    krt_sock = krt_sock_open(krt_pool, NULL, -1);
+  
+  krt_sock_count++;
+}
+
+static void
+krt_sock_close_shared(void)
+{
+  krt_sock_count--;
+
+  if (!krt_sock_count)
+  {
+    rfree(krt_sock);
+    krt_sock = NULL;
+  }
 }
 
 void
-krt_sys_shutdown(struct krt_proto *x UNUSED, int last UNUSED)
+krt_sys_start(struct krt_proto *p)
 {
-  if (!krt_buffer)
-    return;
+  krt_table_map[KRT_CF->sys.table_id] = p;
 
-  mb_free(krt_buffer);
-  krt_buffer = NULL;
+  krt_sock_open_shared();
+  p->sys.sk = krt_sock;
 }
 
+void
+krt_sys_shutdown(struct krt_proto *p)
+{
+  krt_sock_close_shared();
+  p->sys.sk = NULL;
+
+  krt_table_map[KRT_CF->sys.table_id] = NULL;
+
+  krt_buffer_release(&p->p);
+}
+
+#else
+
+void
+krt_sys_start(struct krt_proto *p)
+{
+  p->sys.sk = krt_sock_open(p->p.pool, p, KRT_CF->sys.table_id);
+}
+
+void
+krt_sys_shutdown(struct krt_proto *p)
+{
+  rfree(p->sys.sk);
+  p->sys.sk = NULL;
+
+  krt_buffer_release(&p->p);
+}
+
+#endif /* KRT_SHARED_SOCKET */
+
+
+/* KRT configuration callbacks */
+
+static u32 krt_table_cf[(KRT_MAX_TABLES+31) / 32];
+
+int
+krt_sys_reconfigure(struct krt_proto *p UNUSED, struct krt_config *n, struct krt_config *o)
+{
+  return n->sys.table_id == o->sys.table_id;
+}
+
+void
+krt_sys_preconfig(struct config *c UNUSED)
+{
+  krt_max_tables = krt_get_max_tables();
+  bzero(&krt_table_cf, sizeof(krt_table_cf));
+}
+
+void
+krt_sys_postconfig(struct krt_config *x)
+{
+  u32 *tbl = krt_table_cf;
+  int id = x->sys.table_id;
+
+  if (tbl[id/32] & (1 << (id%32)))
+    cf_error("Multiple kernel syncers defined for table #%d", id);
+
+  tbl[id/32] |= (1 << (id%32));
+}
+
+void krt_sys_init_config(struct krt_config *c)
+{
+  c->sys.table_id = 0; /* Default table */
+}
+
+void krt_sys_copy_config(struct krt_config *d, struct krt_config *s)
+{
+  d->sys.table_id = s->sys.table_id;
+}
+
+
+/* KIF misc code */
 
 void
 kif_sys_start(struct kif_proto *p UNUSED)
@@ -749,12 +1057,41 @@ kif_sys_start(struct kif_proto *p UNUSED)
 }
 
 void
-kif_sys_shutdown(struct kif_proto *p UNUSED)
+kif_sys_shutdown(struct kif_proto *p)
 {
-  if (!kif_buffer)
-    return;
-
-  mb_free(kif_buffer);
-  kif_buffer = NULL;
+  krt_buffer_release(&p->p);
 }
 
+
+struct ifa *
+kif_get_primary_ip(struct iface *i)
+{
+#ifndef IPV6
+  static int fd = -1;
+  
+  if (fd < 0)
+    fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+  struct ifreq ifr;
+  memset(&ifr, 0, sizeof(ifr));
+  strncpy(ifr.ifr_name, i->name, IFNAMSIZ);
+
+  int rv = ioctl(fd, SIOCGIFADDR, (char *) &ifr);
+  if (rv < 0)
+    return NULL;
+
+  ip_addr addr;
+  struct sockaddr_in *sin = (struct sockaddr_in *) &ifr.ifr_addr;
+  memcpy(&addr, &sin->sin_addr.s_addr, sizeof(ip_addr));
+  ipa_ntoh(addr);
+
+  struct ifa *a;
+  WALK_LIST(a, i->addrs)
+  {
+    if (ipa_equal(a->ip, addr))
+      return a;
+  }
+#endif
+
+  return NULL;
+}

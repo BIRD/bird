@@ -115,6 +115,7 @@ struct rip_interface {
   struct rip_connection *busy;
   int metric;			/* You don't want to put struct rip_patt *patt here -- think about reconfigure */
   int mode;
+  int check_ttl;		/* Check incoming packets for TTL 255 */
   int triggered;
   struct object_lock *lock;
   int multicast;
@@ -129,6 +130,9 @@ struct rip_patt {
 #define IM_QUIET 4
 #define IM_NOLISTEN 8
 #define IM_VERSION1 16
+  int tx_tos;
+  int tx_priority;
+  int ttl_security;	/* bool + 2 for TX only (send, but do not check on RX) */
 };
 
 struct rip_proto_config {
@@ -174,7 +178,6 @@ struct rip_proto {
 #endif
 
 
-void rip_init_instance(struct proto *p);
 void rip_init_config(struct rip_proto_config *c);
 
 /* Authentication functions */

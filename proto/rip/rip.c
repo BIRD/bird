@@ -61,6 +61,7 @@
 #define P ((struct rip_proto *) p)
 #define P_CF ((struct rip_proto_config *)p->cf)
 
+#undef TRACE
 #define TRACE(level, msg, args...) do { if (p->debug & level) { log(L_TRACE "%s: " msg, p->name , ## args); } } while(0)
 
 static struct rip_interface *new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
@@ -331,7 +332,7 @@ advertise_entry( struct proto *p, struct rip_block *b, ip_addr whotoldme, struct
     /* New route arrived */
     rta A;
     bzero(&A, sizeof(A));
-    A.proto = p;
+    A.src= p->main_source;
     A.source = RTS_RIP;
     A.scope = SCOPE_UNIVERSE;
     A.cast = RTC_UNICAST;
@@ -364,7 +365,7 @@ advertise_entry( struct proto *p, struct rip_block *b, ip_addr whotoldme, struct
 
     add_head( &P->garbage, NODE &e->gb );
 
-    rte_update(p->table, n, p, p, r);
+    rte_update(p->table, n, r);
     DBG("New route %I/%d from %I met=%d\n", b->network, pxlen, whotoldme, metric);
   }
   else
@@ -507,6 +508,14 @@ rip_rx(sock *s, int size)
   iface = i->iface;
 #endif
 
+  if (i->check_ttl && (s->rcv_ttl < 255))
+  {
+    log( L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %s",
+	 p->name, s->rcv_ttl, s->faddr, i->iface->name);
+    return 1;
+  }
+
+
   CHK_MAGIC;
   DBG( "RIP: message came: %d bytes from %I via %s\n", size, s->faddr, i->iface ? i->iface->name : "(dummy)" );
   size -= sizeof( struct rip_packet_heading );
@@ -637,8 +646,6 @@ rip_start(struct proto *p)
   add_head( &P->interfaces, NODE rif );
   CHK_MAGIC;
 
-  rip_init_instance(p);
-
   DBG( "RIP: ...done\n");
   return PS_UP;
 }
@@ -718,6 +725,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
     rif->mode = PATT->mode;
     rif->metric = PATT->metric;
     rif->multicast = (!(PATT->mode & IM_BROADCAST)) && (flags & IF_MULTICAST);
+    rif->check_ttl = (PATT->ttl_security == 1);
   }
   /* lookup multicasts over unnumbered links - no: rip is not defined over unnumbered links */
 
@@ -738,15 +746,15 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   rif->sock->dport = P_CF->port;
   if (new)
     {
-      rif->sock->ttl = 1;
-      rif->sock->tos = IP_PREC_INTERNET_CONTROL;
-      rif->sock->flags = SKF_LADDR_RX;
+      rif->sock->tos = PATT->tx_tos;
+      rif->sock->priority = PATT->tx_priority;
+      rif->sock->ttl = PATT->ttl_security ? 255 : 1;
+      rif->sock->flags = SKF_LADDR_RX | (rif->check_ttl ? SKF_TTL_RX : 0);
     }
 
   if (new) {
     if (new->addr->flags & IA_PEER)
       log( L_WARN "%s: rip is not defined over unnumbered links", p->name );
-    rif->sock->saddr = IPA_NONE;
     if (rif->multicast) {
 #ifndef IPV6
       rif->sock->daddr = ipa_from_u32(0xe0000009);
@@ -763,7 +771,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
       log( L_WARN "%s: interface %s is too strange for me", p->name, rif->iface->name );
   } else {
 
-    if (sk_open(rif->sock)<0)
+    if (sk_open(rif->sock) < 0)
       goto err;
 
     if (rif->multicast)
@@ -775,7 +783,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
       }
     else
       {
-	if (sk_set_broadcast(rif->sock, 1) < 0)
+	if (sk_setup_broadcast(rif->sock) < 0)
 	  goto err;
       }
   }
@@ -785,7 +793,8 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   return rif;
 
  err:
-  log( L_ERR "%s: could not create socket for %s", p->name, rif->iface ? rif->iface->name : "(dummy)" );
+  sk_log_error(rif->sock, p->name);
+  log(L_ERR "%s: Cannot open socket for %s", p->name, rif->iface ? rif->iface->name : "(dummy)" );
   if (rif->iface) {
     rfree(rif->sock);
     mb_free(rif);
@@ -876,7 +885,7 @@ rip_gen_attrs(struct linpool *pool, int metric, u16 tag)
 static int
 rip_import_control(struct proto *p, struct rte **rt, struct ea_list **attrs, struct linpool *pool)
 {
-  if ((*rt)->attrs->proto == p)	/* Ignore my own routes */
+  if ((*rt)->attrs->src->proto == p)	/* Ignore my own routes */
     return -1;
 
   if ((*rt)->attrs->source != RTS_RIP) {
@@ -930,7 +939,7 @@ rip_rt_notify(struct proto *p, struct rtable *table UNUSED, struct network *net,
     if (e->metric > P_CF->infinity)
       e->metric = P_CF->infinity;
 
-    if (new->attrs->proto == p)
+    if (new->attrs->src->proto == p)
       e->whotoldme = new->attrs->from;
 
     if (!e->metric)	/* That's okay: this way user can set his own value for external
@@ -961,7 +970,7 @@ rip_rte_same(struct rte *new, struct rte *old)
 static int
 rip_rte_better(struct rte *new, struct rte *old)
 {
-  struct proto *p = new->attrs->proto;
+  struct proto *p = new->attrs->src->proto;
 
   if (ipa_equal(old->attrs->from, new->attrs->from))
     return 1;
@@ -972,7 +981,7 @@ rip_rte_better(struct rte *new, struct rte *old)
   if (old->u.rip.metric > new->u.rip.metric)
     return 1;
 
-  if (old->attrs->proto == new->attrs->proto)		/* This does not make much sense for different protocols */
+  if (old->attrs->src->proto == new->attrs->src->proto)		/* This does not make much sense for different protocols */
     if ((old->u.rip.metric == new->u.rip.metric) &&
 	((now - old->lastmod) > (P_CF->timeout_time / 2)))
       return 1;
@@ -1020,7 +1029,9 @@ static int
 rip_pat_compare(struct rip_patt *a, struct rip_patt *b)
 {
   return ((a->metric == b->metric) &&
-	  (a->mode == b->mode));
+	  (a->mode == b->mode) &&
+	  (a->tx_tos == b->tx_tos) &&
+	  (a->tx_priority == b->tx_priority));
 }
 
 static int

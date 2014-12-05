@@ -11,7 +11,7 @@ static-dirs := nest filter $(addprefix proto/,$(protocols))
 static-dir-paths := $(addprefix $(srcdir)/,$(static-dirs))
 dynamic-dirs := lib conf
 dynamic-dir-paths := $(dynamic-dirs)
-client-dirs := @CLIENT@
+client-dirs := client
 client-dir-paths := $(client-dirs)
 doc-dirs := doc
 doc-dir-paths := $(doc-dirs)
@@ -75,8 +75,12 @@ endif
 %.o: $(src-path)%.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
+ifndef source-dep
+source-dep := $(source)
+endif
+
 depend:
-	$(CC) $(CPPFLAGS) -MM $(addprefix $(src-path),$(source)) >depend
+	$(CC) $(CPPFLAGS) -MM $(addprefix $(src-path),$(source-dep)) >depend
 
 ifneq ($(wildcard depend),)
 include depend

@@ -72,10 +72,12 @@ CF_DECLS
 %token <t> TEXT
 %type <iface> ipa_scope
 
-%type <i> expr bool pxlen
+%type <i> expr bool pxlen ipa_port
+%type <i32> expr_us
 %type <time> datetime
 %type <a> ipa
 %type <px> prefix prefix_or_ipa
+%type <t> text
 %type <t> text_or_none
 
 %nonassoc PREFIX_DUMMY
@@ -86,7 +88,7 @@ CF_DECLS
 %left '!'
 %nonassoc '.'
 
-CF_KEYWORDS(DEFINE, ON, OFF, YES, NO)
+CF_KEYWORDS(DEFINE, ON, OFF, YES, NO, S, MS, US, PORT)
 
 CF_GRAMMAR
 
@@ -103,27 +105,35 @@ conf_entries:
 
 CF_ADDTO(conf, ';')
 
+
 /* Constant expressions */
+
+CF_ADDTO(conf, definition)
+definition:
+   DEFINE SYM '=' term ';' {
+     struct f_val *val = cfg_alloc(sizeof(struct f_val));
+     *val = f_eval($4, cfg_mem);
+     if (val->type == T_RETURN) cf_error("Runtime error");
+     cf_define_symbol($2, SYM_CONSTANT | val->type, val);
+   }
+ ;
 
 expr:
    NUM
  | '(' term ')' { $$ = f_eval_int($2); }
- | SYM { if ($1->class != SYM_NUMBER) cf_error("Number expected"); else $$ = $1->aux; }
+ | SYM {
+     if ($1->class != (SYM_CONSTANT | T_INT)) cf_error("Number expected");
+     $$ = SYM_VAL($1).i; }
+ ;
+
+
+expr_us:
+   expr S  { $$ = (u32) $1 * 1000000; }
+ | expr MS { $$ = (u32) $1 * 1000; }
+ | expr US { $$ = (u32) $1 * 1; }
  ;
 
 /* expr_u16: expr { check_u16($1); $$ = $1; }; */
-
-CF_ADDTO(conf, definition)
-definition:
-   DEFINE SYM '=' expr ';' {
-     cf_define_symbol($2, SYM_NUMBER, NULL);
-     $2->aux = $4;
-   }
- | DEFINE SYM '=' IPA ';' {
-     cf_define_symbol($2, SYM_IPA, cfg_alloc(sizeof(ip_addr)));
-     *(ip_addr *)$2->def = $4;
-   }
- ;
 
 /* Switches */
 
@@ -141,14 +151,22 @@ bool:
 ipa:
    IPA
  | SYM {
-     if ($1->class != SYM_IPA) cf_error("IP address expected");
-     $$ = *(ip_addr *)$1->def;
+     if ($1->class != (SYM_CONSTANT | T_IP)) cf_error("IP address expected");
+     $$ = SYM_VAL($1).px.ip;
    }
  ;
 
 ipa_scope:
    /* empty */ { $$ = NULL; }
  | '%' SYM { $$ = if_get_by_name($2->name); }
+ ;
+
+ipa_port:
+   /* empty */ { $$ = 0; }
+ | PORT expr {
+     if (($2 < 1) || ($2 > 65535)) cf_error("Invalid port number");
+     $$ = $2;
+   }
  ;
 
 prefix:
@@ -179,6 +197,14 @@ datetime:
      $$ = tm_parse_datetime($1);
      if (!$$)
        cf_error("Invalid date and time");
+   }
+ ;
+
+text:
+   TEXT
+ | SYM {
+     if ($1->class != (SYM_CONSTANT | T_STRING)) cf_error("String expected");
+     $$ = SYM_VAL($1).s;
    }
  ;
 

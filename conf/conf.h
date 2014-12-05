@@ -38,6 +38,7 @@ struct config {
   struct timeformat tf_proto;		/* Time format for 'show protocol' */
   struct timeformat tf_log;		/* Time format for the logfile */
   struct timeformat tf_base;		/* Time format for other purposes */
+  u32 gr_wait;				/* Graceful restart wait timeout */
 
   int cli_debug;			/* Tracing of CLI connections and commands */
   char *err_msg;			/* Parser error message */
@@ -110,15 +111,17 @@ struct symbol {
 /* Remember to update cf_symbol_class_name() */
 #define SYM_VOID 0
 #define SYM_PROTO 1
-#define SYM_NUMBER 2
+#define SYM_TEMPLATE 2
 #define SYM_FUNCTION 3
 #define SYM_FILTER 4
 #define SYM_TABLE 5
-#define SYM_IPA 6
-#define SYM_TEMPLATE 7
-#define SYM_ROA 8
+#define SYM_ROA 6
 
 #define SYM_VARIABLE 0x100	/* 0x100-0x1ff are variable types */
+#define SYM_CONSTANT 0x200	/* 0x200-0x2ff are variable types */
+
+#define SYM_TYPE(s) (((struct f_val *) (s)->def)->type)
+#define SYM_VAL(s) (((struct f_val *) (s)->def)->val)
 
 struct include_file_stack {
   void *buffer;				/* Internal lexer state */
@@ -136,6 +139,8 @@ extern struct include_file_stack *ifs;
 
 int cf_lex(void);
 void cf_lex_init(int is_cli, struct config *c);
+void cf_lex_unwind(void);
+
 struct symbol *cf_find_symbol(byte *c);
 struct symbol *cf_default_name(char *template, int *counter);
 struct symbol *cf_define_symbol(struct symbol *symbol, int type, void *def);
@@ -143,6 +148,10 @@ void cf_push_scope(struct symbol *);
 void cf_pop_scope(void);
 struct symbol *cf_walk_symbols(struct config *cf, struct symbol *sym, int *pos);
 char *cf_symbol_class_name(struct symbol *sym);
+
+static inline int cf_symbol_is_constant(struct symbol *sym)
+{ return (sym->class & 0xff00) == SYM_CONSTANT; }
+
 
 /* Parser */
 

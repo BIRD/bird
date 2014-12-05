@@ -25,6 +25,8 @@
  * to 16bit slot (like in 16bit AS_PATH). See RFC 4893 for details
  */
 
+struct f_tree;
+
 struct adata *as_path_prepend(struct linpool *pool, struct adata *olda, u32 as);
 int as_path_convert_to_old(struct adata *path, byte *dst, int *new_used);
 int as_path_convert_to_new(struct adata *path, byte *dst, int req_as);
@@ -33,7 +35,10 @@ int as_path_getlen(struct adata *path);
 int as_path_getlen_int(struct adata *path, int bs);
 int as_path_get_first(struct adata *path, u32 *orig_as);
 int as_path_get_last(struct adata *path, u32 *last_as);
-int as_path_is_member(struct adata *path, u32 as);
+int as_path_contains(struct adata *path, u32 as, int min);
+int as_path_match_set(struct adata *path, struct f_tree *set);
+struct adata *as_path_filter(struct linpool *pool, struct adata *path, struct f_tree *set, u32 key, int pos);
+
 
 #define PM_ASN		0
 #define PM_QUESTION	1
@@ -63,6 +68,9 @@ int as_path_match(struct adata *path, struct f_path_mask *mask);
 
 static inline int int_set_get_size(struct adata *list)
 { return list->length / 4; }
+
+static inline int ec_set_get_size(struct adata *list)
+{ return list->length / 8; }
 
 static inline u32 *int_set_get_data(struct adata *list)
 { return (u32 *) list->data; }

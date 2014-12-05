@@ -22,12 +22,18 @@ CF_DEFINES
 #define RIP_CFG ((struct rip_proto_config *) this_proto)
 #define RIP_IPATT ((struct rip_patt *) this_ipatt)
 
+#ifdef IPV6
+#define RIP_DEFAULT_TTL_SECURITY 2
+#else
+#define RIP_DEFAULT_TTL_SECURITY 0
+#endif
+
 CF_DECLS
 
 CF_KEYWORDS(RIP, INFINITY, METRIC, PORT, PERIOD, GARBAGE, TIMEOUT,
 	    MODE, BROADCAST, MULTICAST, QUIET, NOLISTEN, VERSION1, 
-	    AUTHENTICATION, NONE, PLAINTEXT, MD5,
-	    HONOR, NEVER, NEIGHBOR, ALWAYS,
+	    AUTHENTICATION, NONE, PLAINTEXT, MD5, TTL, SECURITY,
+	    HONOR, NEVER, NEIGHBOR, ALWAYS, TX, PRIORITY, ONLY,
 	    RIP_METRIC, RIP_TAG)
 
 %type <i> rip_mode rip_auth
@@ -76,6 +82,10 @@ rip_mode:
 rip_iface_item:
  | METRIC expr { RIP_IPATT->metric = $2; }
  | MODE rip_mode { RIP_IPATT->mode |= $2; }
+ | TX tos { RIP_IPATT->tx_tos = $2; }
+ | TX PRIORITY expr { RIP_IPATT->tx_priority = $3; }
+ | TTL SECURITY bool { RIP_IPATT->ttl_security = $3; }
+ | TTL SECURITY TX ONLY { RIP_IPATT->ttl_security = 2; }
  ;
 
 rip_iface_opts: 
@@ -94,10 +104,13 @@ rip_iface_init:
      add_tail(&RIP_CFG->iface_list, NODE this_ipatt);
      init_list(&this_ipatt->ipn_list);
      RIP_IPATT->metric = 1;
+     RIP_IPATT->tx_tos = IP_PREC_INTERNET_CONTROL;
+     RIP_IPATT->tx_priority = sk_priority_control;
+     RIP_IPATT->ttl_security = RIP_DEFAULT_TTL_SECURITY;
    }
  ;
 
-rip_iface:
+rip_iface:	/* TODO: switch to iface_patt_list_nopx */
    rip_iface_init iface_patt_list rip_iface_opt_list
  ;
 

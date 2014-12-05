@@ -31,6 +31,8 @@ Reply codes of BIRD command-line interface
 0020	Configuration OK
 0021	Undo requested
 0022	Undo scheduled
+0023	Evaluation of expression
+0024	Graceful restart status report
 
 1000	BIRD version
 1001	Interface list
@@ -52,6 +54,7 @@ Reply codes of BIRD command-line interface
 1017	Show ospf lsadb
 1018	Show memory
 1019	Show ROA list
+1020	Show BFD sessions
 
 8000	Reply too long
 8001	Route not found
@@ -61,6 +64,7 @@ Reply codes of BIRD command-line interface
 8005	Protocol is down => cannot dump
 8006	Reload failed
 8007	Access denied
+8008	Evaluation runtime error
 
 9000	Command too long
 9001	Parse error

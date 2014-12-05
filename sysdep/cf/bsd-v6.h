@@ -10,8 +10,10 @@
 
 #define CONFIG_AUTO_ROUTES
 #define CONFIG_SELF_CONSCIOUS
+#define CONFIG_MULTIPLE_TABLES
 
 #define CONFIG_SKIP_MC_BIND
+#define CONFIG_NO_IFACE_BIND
 
 /*
 Link: sysdep/unix

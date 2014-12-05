@@ -9,13 +9,14 @@
 #ifndef _BIRD_KRT_SYS_H_
 #define _BIRD_KRT_SYS_H_
 
+struct birdsock;
 
 /* Kernel interfaces */
 
 struct kif_params {
 };
 
-struct kif_status {
+struct kif_state {
 };
 
 
@@ -30,20 +31,18 @@ static inline void kif_sys_copy_config(struct kif_config *d UNUSED, struct kif_c
 
 /* Kernel routes */
 
+extern int krt_max_tables;
+
 struct krt_params {
+  int table_id;				/* Kernel table ID we sync with */
 };
 
-struct krt_status {
+struct krt_state {
+  struct birdsock *sk;
 };
 
 
 static inline void krt_sys_init(struct krt_proto *p UNUSED) { }
-static inline int krt_sys_reconfigure(struct krt_proto *p UNUSED, struct krt_config *n UNUSED, struct krt_config *o UNUSED) { return 1; }
-
-static inline void krt_sys_preconfig(struct config *c UNUSED) { }
-static inline void krt_sys_postconfig(struct krt_config *c UNUSED) { }
-static inline void krt_sys_init_config(struct krt_config *c UNUSED) { }
-static inline void krt_sys_copy_config(struct krt_config *d UNUSED, struct krt_config *s UNUSED) { }
 
 
 #endif

@@ -3,21 +3,30 @@
 
 include Rules
 
-.PHONY: all daemon client subdir depend clean distclean tags docs userdocs progdocs
+.PHONY: all daemon birdc birdcl subdir depend clean distclean tags docs userdocs progdocs
 
-all: sysdep/paths.h .dep-stamp subdir daemon @CLIENT@
+all: sysdep/paths.h .dep-stamp subdir daemon birdcl @CLIENT@
 
 daemon: $(exedir)/bird
 
-client: $(exedir)/birdc
+birdc: $(exedir)/birdc
+
+birdcl: $(exedir)/birdcl
 
 bird-dep := $(addsuffix /all.o, $(static-dirs)) conf/all.o lib/birdlib.a
 
 $(bird-dep): sysdep/paths.h .dep-stamp subdir
 
-birdc-dep := client/all.o lib/birdlib.a
+birdc-dep := client/birdc.o client/all.o lib/birdlib.a
 
 $(birdc-dep): sysdep/paths.h .dep-stamp subdir
+
+birdcl-dep := client/birdcl.o client/all.o lib/birdlib.a
+
+$(birdcl-dep): sysdep/paths.h .dep-stamp subdir
+
+
+export client := @CLIENT@
 
 depend: sysdep/paths.h .dir-stamp
 	set -e ; for a in $(dynamic-dirs) ; do $(MAKE) -C $$a $@ ; done
@@ -32,6 +41,9 @@ $(exedir)/bird: $(bird-dep)
 
 $(exedir)/birdc: $(birdc-dep)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS) $(CLIENT_LIBS)
+
+$(exedir)/birdcl: $(birdcl-dep)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 .dir-stamp: sysdep/paths.h
 	mkdir -p $(static-dirs) $(client-dirs) $(doc-dirs)
@@ -57,9 +69,10 @@ tags:
 
 install: all
 	$(INSTALL) -d $(DESTDIR)/$(sbindir) $(DESTDIR)/$(sysconfdir) $(DESTDIR)/@runtimedir@
-	$(INSTALL_PROGRAM) -s $(exedir)/bird $(DESTDIR)/$(sbindir)/bird@SUFFIX@
+	$(INSTALL_PROGRAM) $(exedir)/bird $(DESTDIR)/$(sbindir)/bird@SUFFIX@
+	$(INSTALL_PROGRAM) $(exedir)/birdcl $(DESTDIR)/$(sbindir)/birdcl@SUFFIX@
 	if test -n "@CLIENT@" ; then								\
-		$(INSTALL_PROGRAM) -s $(exedir)/birdc $(DESTDIR)/$(sbindir)/birdc@SUFFIX@ ;	\
+		$(INSTALL_PROGRAM) $(exedir)/birdc $(DESTDIR)/$(sbindir)/birdc@SUFFIX@ ;	\
 	fi
 	if ! test -f $(DESTDIR)/@CONFIG_FILE@ ; then						\
 		$(INSTALL_DATA) $(srcdir)/doc/bird.conf.example $(DESTDIR)/@CONFIG_FILE@ ;	\
@@ -74,7 +87,7 @@ install-docs:
 clean:
 	find . -name "*.[oa]" -o -name core -o -name depend -o -name "*.html" | xargs rm -f
 	rm -f conf/cf-lex.c conf/cf-parse.* conf/commands.h conf/keywords.h
-	rm -f $(exedir)/bird $(exedir)/birdc $(exedir)/bird.ctl $(exedir)/bird6.ctl .dep-stamp
+	rm -f $(exedir)/bird $(exedir)/birdcl $(exedir)/birdc $(exedir)/bird.ctl $(exedir)/bird6.ctl .dep-stamp
 
 distclean: clean
 	rm -f config.* configure sysdep/autoconf.h sysdep/paths.h Makefile Rules

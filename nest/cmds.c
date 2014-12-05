@@ -7,12 +7,14 @@
  */
 
 #include "nest/bird.h"
+#include "nest/protocol.h"
 #include "nest/route.h"
 #include "nest/cli.h"
 #include "conf/conf.h"
 #include "nest/cmds.h"
 #include "lib/string.h"
 #include "lib/resource.h"
+#include "filter/filter.h"
 
 extern int shutting_down;
 extern int configuring;
@@ -30,6 +32,8 @@ cmd_show_status(void)
   cli_msg(-1011, "Last reboot on %s", tim);
   tm_format_datetime(tim, &config->tf_base, config->load_time);
   cli_msg(-1011, "Last reconfiguration on %s", tim);
+
+  graceful_restart_show_status();
 
   if (shutting_down)
     cli_msg(13, "Shutdown in progress");
@@ -89,4 +93,21 @@ cmd_show_memory(void)
   print_size("Protocols:", rmemsize(proto_pool));
   print_size("Total:", rmemsize(&root_pool));
   cli_msg(0, "");
+}
+
+void
+cmd_eval(struct f_inst *expr)
+{
+  struct f_val v = f_eval(expr, this_cli->parser_pool);
+
+  if (v.type == T_RETURN)
+    {
+      cli_msg(8008, "runtime error");
+      return;
+    }
+
+  buffer buf;
+  LOG_BUFFER_INIT(buf);
+  val_format(v, &buf);
+  cli_msg(23, "%s", buf.start);
 }

@@ -10,13 +10,13 @@ CF_HDR
 
 CF_DECLS
 
-CF_KEYWORDS(ASYNC, KERNEL, TABLE, KRT_PREFSRC, KRT_REALM)
+CF_KEYWORDS(KERNEL, TABLE, KRT_PREFSRC, KRT_REALM)
 
 CF_GRAMMAR
 
-CF_ADDTO(kern_proto, kern_proto nl_item ';')
+CF_ADDTO(kern_proto, kern_proto kern_sys_item ';')
 
-nl_item:
+kern_sys_item:
    KERNEL TABLE expr {
 	if ($3 <= 0 || $3 >= NL_NUM_TABLES)
 	  cf_error("Kernel routing table number out of range");
