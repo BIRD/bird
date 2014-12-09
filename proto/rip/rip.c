@@ -646,6 +646,8 @@ rip_start(struct proto *p)
   add_head( &P->interfaces, NODE rif );
   CHK_MAGIC;
 
+  rip_init_instance(p);
+
   DBG( "RIP: ...done\n");
   return PS_UP;
 }
