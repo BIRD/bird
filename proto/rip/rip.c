@@ -365,7 +365,7 @@ advertise_entry( struct proto *p, struct rip_block *b, ip_addr whotoldme, struct
 
     add_head( &P->garbage, NODE &e->gb );
 
-    rte_update(p->table, n, r);
+    rte_update(p, n, r);
     DBG("New route %I/%d from %I met=%d\n", b->network, pxlen, whotoldme, metric);
   }
   else
@@ -572,7 +572,7 @@ rip_timer(timer *t)
     re = SKIP_BACK( struct rip_entry, gb, e );
 
     nt = net_find( p->table, re->n.prefix, re->n.pxlen);
-    if (nt) rte = rte_find(nt, p);
+    if (nt) rte = rte_find(nt, p->main_source);
 
     CHK_MAGIC;
 
