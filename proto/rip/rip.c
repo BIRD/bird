@@ -738,7 +738,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   rif->sock->rx_hook = rip_rx;
   rif->sock->data = rif;
   rif->sock->rbsize = 10240;
-  rif->sock->iface = new;		/* Automagically works for dummy interface */
+  rif->sock->iface = new;		/* Automatically works for dummy interface */
   rif->sock->tbuf = mb_alloc( p->pool, sizeof( struct rip_packet ));
   rif->sock->tx_hook = rip_tx;
   rif->sock->err_hook = rip_tx_err;
