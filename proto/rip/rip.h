@@ -24,6 +24,10 @@
 #define RIP_PORT	521	/* RIPng */
 #endif
 
+
+#define OK		1
+#define FAIL		0
+
 struct rip_connection
 {
   node n;

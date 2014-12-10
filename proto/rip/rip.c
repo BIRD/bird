@@ -77,7 +77,7 @@ rip_tx_err(sock *s, int err)
 {
   struct rip_connection *c = ((struct rip_interface *) (s->data))->busy;
   struct proto *p = c->proto;
-  log( L_ERR "%s: Unexpected error at rip transmit: %M", p->name, err);
+  log(L_ERR "%s: Unexpected error at rip transmit: %M", p->name, err);
 }
 
 /*
@@ -296,19 +296,10 @@ advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct 
   pxlen = b->pxlen;
 #endif
 
-  /* No need to look if destination looks valid - ie not net 0 or 127 -- core will do for us. */
-
   neighbor = neigh_find2(p, &gw, iface, 0);
-  if (!neighbor)
-  {
-    log( L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->name, whotoldme, b->network, pxlen, gw);
+
+  if (!rip_shloud_we_advertise_entry(p, b, whotoldme, pxlen, gw, neighbor))
     return;
-  }
-  if (neighbor->scope == SCOPE_HOST)
-  {
-    DBG("Self-destined route, ignoring.\n");
-    return;
-  }
 
   if (!(rif = neighbor->data))
   {
@@ -317,15 +308,9 @@ advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct 
   if (!rif)
     bug("Route packet using unknown interface? No.");
 
-  if (pxlen == -1)
-  {
-    log( L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->name, whotoldme, b->network);
-    return;
-  }
-
 #ifndef IPV6
   metric = ntohl(b->metric) + rif->metric;
-#else  
+#else
   metric = b->metric + rif->metric;
 #endif
   if (metric > P_CF->infinity)
@@ -361,6 +346,30 @@ advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct 
     }
   }
   DBG("done\n");
+}
+
+int
+rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, int pxlen, ip_addr gw,
+			      neighbor *neighbor)
+{
+  /* No need to look if destination looks valid - ie not net 0 or 127 -- core will do for us. */
+  if (!neighbor)
+  {
+    log(L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->name, whotoldme, b->network, pxlen, gw);
+    return FAIL;
+  }
+  if (neighbor->scope == SCOPE_HOST)
+  {
+    DBG("Self-destined route, ignoring.\n");
+    return FAIL;
+  }
+  if (pxlen == -1)
+  {
+    log(L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->name, whotoldme, b->network);
+    return FAIL;
+  }
+
+  return OK;
 }
 
 rta
@@ -425,16 +434,16 @@ process_block(struct proto *p, struct rip_block *block, ip_addr whotoldme, struc
   {
 #ifdef IPV6 /* Someone is sending us nexthop and we are ignoring it */
     if (metric == 0xff)
-    { DBG( "IPv6 nexthop ignored" ); return;}
+    { DBG("IPv6 nexthop ignored"); return; }
 #endif
-    log( L_WARN "%s: Got metric %d from %I", p->name, metric, whotoldme);
+    log(L_WARN "%s: Got metric %d from %I", p->name, metric, whotoldme);
     return;
   }
 
   advertise_entry(p, block, whotoldme, iface);
 }
 
-#define BAD(x) { log( L_REMOTE "%s: " x, p->name ); return 1; }
+#define BAD(x) { log(L_REMOTE "%s: " x, p->name); return 1; }
 
 /*
  * rip_process_packet - this is main routine for incoming packets.
@@ -476,13 +485,13 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
       DBG("*** Rtable from %I\n", whotoldme);
       if (port != P_CF->port)
       {
-	log( L_REMOTE "%s: %I send me routing info from port %d", p->name, whotoldme, port);
+	log(L_REMOTE "%s: %I send me routing info from port %d", p->name, whotoldme, port);
 	return 1;
       }
 
       if (!(neighbor = neigh_find2(p, &whotoldme, iface, 0)) || neighbor->scope == SCOPE_HOST)
       {
-	log( L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->name, whotoldme);
+	log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->name, whotoldme);
 	return 0;
       }
 
@@ -610,7 +619,7 @@ rip_timer(timer *t)
   CHK_MAGIC;
   DBG("RIP: tick tock\n");
 
-  WALK_LIST_DELSAFE( e, et, P->garbage )
+  WALK_LIST_DELSAFE(e, et, P->garbage )
   {
     rte *rte = NULL;
     net *nt;
@@ -623,7 +632,7 @@ rip_timer(timer *t)
 
     CHK_MAGIC;
 
-    //DBG( "Garbage: (%p)", rte ); rte_dump( rte );
+    //DBG("Garbage: (%p)", rte); rte_dump(rte);
 
     if (re->changed && (now - re->updated > P_CF->timeout_time))
     {
@@ -700,7 +709,7 @@ rip_start(struct proto *p)
   P->timer->data = p;
   P->timer->recurrent = 1;
   P->timer->hook = rip_timer;
-  tm_start( P->timer, 2);
+  tm_start(P->timer, 2);
   rif = new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
   add_head(&P->interfaces, NODE rif);
   CHK_MAGIC;
@@ -821,7 +830,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   if (new)
   {
     if (new->addr->flags & IA_PEER)
-      log( L_WARN "%s: rip is not defined over unnumbered links", p->name);
+      log(L_WARN "%s: rip is not defined over unnumbered links", p->name);
     if (rif->multicast)
     {
 #ifndef IPV6
@@ -839,7 +848,7 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   if (!ipa_nonzero(rif->sock->daddr))
   {
     if (rif->iface)
-      log( L_WARN "%s: interface %s is too strange for me", p->name, rif->iface->name);
+      log(L_WARN "%s: interface %s is too strange for me", p->name, rif->iface->name);
   }
   else
   {
