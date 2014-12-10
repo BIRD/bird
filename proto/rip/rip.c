@@ -281,9 +281,6 @@ find_interface(struct proto *p, struct iface *what)
 static void
 advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct iface *iface)
 {
-  rta *a;
-  rte *r;
-  net *n;
   neighbor *neighbor;
   struct rip_interface *rif;
   int pxlen, metric;
@@ -339,44 +336,21 @@ advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct 
   if (!e || (e->metric > metric) || (ipa_equal(whotoldme, e->whotoldme) && (metric != e->metric)))
   {
     /* New route arrived */
-    rta A;
-    bzero(&A, sizeof(A));
-    A.src = p->main_source;
-    A.source = RTS_RIP;
-    A.scope = SCOPE_UNIVERSE;
-    A.cast = RTC_UNICAST;
-    A.dest = RTD_ROUTER;
-    A.flags = 0;
-    A.gw = gw;
-    A.from = whotoldme;
-    A.iface = neighbor->iface;
-
-    n = net_get(p->table, b->network, pxlen);
-
-    a = rta_lookup(&A);
-    r = rte_get_temp(a);
-    r->u.rip.metric = metric;
-
-    r->u.rip.tag = ntohl(b->tag);
-    r->net = n;
-    r->pflags = 0; /* Here go my flags */
+    rta A = rip_create_rta(p, gw, whotoldme, neighbor);
 
     if (e)
       rem_node(NODE &e->gb);
-    e = fib_get(&P->rtable, &b->network, pxlen);
 
+    e = fib_get(&P->rtable, &b->network, pxlen);
     e->nexthop = gw;
     e->metric = metric;
     e->whotoldme = whotoldme;
-    e->tag = r->u.rip.tag;
+    e->tag = ntohl(b->tag);
 
     e->updated = e->changed = now;
     e->flags = 0;
 
-    add_head(&P->garbage, NODE &e->gb);
-
-    rte_update(p, n, r);
-    DBG("New route %I/%d from %I met=%d\n", b->network, pxlen, whotoldme, metric);
+    rip_add_route(p, b, e, &A);
   }
   else
   {
@@ -387,6 +361,43 @@ advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct 
     }
   }
   DBG("done\n");
+}
+
+rta
+rip_create_rta(struct proto *p, ip_addr gw, ip_addr whotoldme, neighbor *neighbor)
+{
+  rta A;
+  bzero(&A, sizeof(A));
+  A.src = p->main_source;
+  A.source = RTS_RIP;
+  A.scope = SCOPE_UNIVERSE;
+  A.cast = RTC_UNICAST;
+  A.dest = RTD_ROUTER;
+  A.flags = 0;
+  A.gw = gw;
+  A.from = whotoldme;
+  A.iface = neighbor->iface;
+
+  return A;
+}
+
+void
+rip_add_route(struct proto *p, struct rip_block *b, struct rip_entry *e, rta *A)
+{
+  net *n = net_get(p->table, b->network, e->n.pxlen);
+  rta *a = rta_lookup(A);
+  rte *r = rte_get_temp(a);
+
+  r->u.rip.metric = e->metric;
+
+  r->u.rip.tag = ntohl(b->tag);
+  r->net = n;
+  r->pflags = 0; /* Here go my flags */
+
+  add_head(&P->garbage, NODE &e->gb);
+
+  rte_update(p, n, r);
+  DBG("New route %I/%d from %I met=%d\n", b->network, e->n.pxlen, e->whotoldme, e->metric);
 }
 
 /*
@@ -423,7 +434,7 @@ process_block(struct proto *p, struct rip_block *block, ip_addr whotoldme, struc
   advertise_entry(p, block, whotoldme, iface);
 }
 
-#define BAD( x ) { log( L_REMOTE "%s: " x, p->name ); return 1; }
+#define BAD(x) { log( L_REMOTE "%s: " x, p->name ); return 1; }
 
 /*
  * rip_process_packet - this is main routine for incoming packets.
@@ -541,7 +552,7 @@ rip_rx(sock *s, int size)
 
   if (i->check_ttl && (s->rcv_ttl < 255))
   {
-    log( L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %s", p->name, s->rcv_ttl, s->faddr,
+    log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %s", p->name, s->rcv_ttl, s->faddr,
 	i->iface->name);
     return 1;
   }
@@ -644,7 +655,7 @@ rip_timer(timer *t)
     else
       P->rnd_count = P->tx_count % P_CF->period;
 
-    WALK_LIST( rif, P->interfaces )
+    WALK_LIST(rif, P->interfaces)
     {
       struct iface *iface = rif->iface;
 
@@ -716,18 +727,19 @@ rip_dump(struct proto *p)
   struct rip_interface *rif;
 
   CHK_MAGIC;
-  WALK_LIST( w, P->connections )
+  WALK_LIST(w, P->connections)
   {
     struct rip_connection *n = (void *) w;
     debug("RIP: connection #%d: %I\n", n->num, n->addr);
   }
   i = 0;
-  FIB_WALK( &P->rtable, e )
-{      debug( "RIP: entry #%d: ", i++ );
-      rip_dump_entry( (struct rip_entry *)e );
-    }FIB_WALK_END;
+  FIB_WALK(&P->rtable, e)
+  {
+    debug("RIP: entry #%d: ", i++);
+    rip_dump_entry((struct rip_entry *) e);
+  } FIB_WALK_END;
   i = 0;
-  WALK_LIST( rif, P->interfaces )
+  WALK_LIST(rif, P->interfaces)
   {
     debug("RIP: interface #%d: %s, %I, busy = %x\n", i++, rif->iface ? rif->iface->name : "(dummy)", rif->sock->daddr,
 	  rif->busy);
@@ -813,9 +825,9 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
     if (rif->multicast)
     {
 #ifndef IPV6
-      rif->sock->daddr = ipa_from_u32(0xe0000009);
+      rif->sock->daddr = ipa_from_u32(0xe0000009);	// 0xe0000009, WTF?
 #else
-      rif->sock->daddr = ipa_build(0xff020000, 0, 0, 9);
+      rif->sock->daddr = ipa_build(0xff020000, 0, 0, 9); // '0xff020000, 0, 0, 9' WTF?
 #endif
     }
     else
@@ -831,7 +843,6 @@ new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_
   }
   else
   {
-
     if (sk_open(rif->sock) < 0)
       goto err;
 
@@ -918,12 +929,14 @@ rip_if_notify(struct proto *p, unsigned c, struct iface *iface)
 
     lock = olock_new(p->pool);
     if (!(PATT->mode & IM_BROADCAST) && (iface->flags & IF_MULTICAST))
+    {
 #ifndef IPV6
       lock->addr = ipa_from_u32(0xe0000009);
 #else
       ip_pton("FF02::9", &lock->addr);
 #endif
-      else
+    }
+    else
       lock->addr = iface->addr->brd;
     lock->port = P_CF->port;
     lock->iface = iface;
@@ -1015,8 +1028,7 @@ rip_rt_notify(struct proto *p, struct rtable *table UNUSED, struct network *net,
     if (new->attrs->src->proto == p)
       e->whotoldme = new->attrs->from;
 
-    if (!e->metric) /* That's okay: this way user can set his own value for external
-     routes in rip. */
+    if (!e->metric) /* That's okay: this way user can set his own value for external routes in rip. */
       e->metric = 5;
 
     e->updated = e->changed = 0; /* External routes do not age */
@@ -1040,7 +1052,6 @@ rip_rte_same(struct rte *new, struct rte *old)
   /* new->attrs == old->attrs always */
   return new->u.rip.metric == old->u.rip.metric;
 }
-
 
 static int
 rip_rte_better(struct rte *new, struct rte *old)

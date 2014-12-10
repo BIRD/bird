@@ -188,13 +188,12 @@ struct rip_proto
 #define CHK_MAGIC do { } while (0)
 #endif
 
-void
-rip_init_config(struct rip_proto_config *c);
+rta rip_create_rta(struct proto *p, ip_addr gw, ip_addr whotoldme, neighbor *neighbor);
+void rip_add_route(struct proto *p, struct rip_block *b, struct rip_entry *e, rta *A);
+void rip_init_instance(struct proto *p);
+void rip_init_config(struct rip_proto_config *c);
 
 /* Authentication functions */
 
-int
-rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num,
-			    ip_addr whotoldme);
-int
-rip_outgoing_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num);
+int rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr whotoldme);
+int rip_outgoing_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num);
