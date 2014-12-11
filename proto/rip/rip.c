@@ -75,8 +75,8 @@ static struct rip_interface *new_iface(struct proto *p, struct iface *new, unsig
 static void
 rip_tx_err(sock *s, int err)
 {
-  struct rip_connection *c = ((struct rip_interface *) (s->data))->busy;
-  struct proto *p = c->proto;
+  struct rip_connection *conn = ((struct rip_interface *) (s->data))->busy;
+  struct proto *p = conn->proto;
   log(L_ERR "%s: Unexpected error at rip transmit: %M", p->name, err);
 }
 
@@ -90,35 +90,35 @@ rip_tx_err(sock *s, int err)
  * that could be fixed but it is not real problem).
  */
 static int
-rip_tx_prepare(struct proto *p, struct rip_block *b, struct rip_entry *e, struct rip_interface *rif, int pos)
+rip_tx_prepare(struct proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_interface *rif, int pos)
 {
   int metric;
   DBG(".");
-  b->tag = htons(e->tag);
-  b->network = e->n.prefix;
-  metric = e->metric;
-  if (neigh_connected_to(p, &e->whotoldme, rif->iface))
+  block->tag = htons(entry->tag);
+  block->network = entry->n.prefix;
+  metric = entry->metric;
+  if (neigh_connected_to(p, &entry->whotoldme, rif->iface))
   {
     DBG("(split horizon)");
     metric = P_CF->infinity;
   }
 #ifndef IPV6
-  b->family = htons(2); /* AF_INET */
-  b->netmask = ipa_mkmask(e->n.pxlen);
-  ipa_hton(b->netmask);
+  block->family = htons(2); /* AF_INET */
+  block->netmask = ipa_mkmask(entry->n.pxlen);
+  ipa_hton(block->netmask);
 
-  if (neigh_connected_to(p, &e->nexthop, rif->iface))
-    b->nexthop = e->nexthop;
+  if (neigh_connected_to(p, &entry->nexthop, rif->iface))
+    block->nexthop = entry->nexthop;
   else
-    b->nexthop = IPA_NONE;
-  ipa_hton(b->nexthop);
-  b->metric = htonl(metric);
+    block->nexthop = IPA_NONE;
+  ipa_hton(block->nexthop);
+  block->metric = htonl(metric);
 #else
-  b->pxlen = e->n.pxlen;
-  b->metric = metric; /* it is u8 */
+  block->pxlen = entry->n.pxlen;
+  block->metric = metric; /* it is u8 */
 #endif
 
-  ipa_hton(b->network);
+  ipa_hton(block->network);
 
   return pos + 1;
 }
@@ -127,19 +127,19 @@ rip_tx_prepare(struct proto *p, struct rip_block *b, struct rip_entry *e, struct
  * rip_tx - send one rip packet to the network
  */
 static void
-rip_tx(sock *s)
+rip_tx(sock *sock)
 {
-  struct rip_interface *rif = s->data;
-  struct rip_connection *c = rif->busy;
-  struct proto *p = c->proto;
-  struct rip_packet *packet = (void *) s->tbuf;
+  struct rip_interface *rif = sock->data;
+  struct rip_connection *conn = rif->busy;
+  struct proto *p = conn->proto;
+  struct rip_packet *packet = (void *) sock->tbuf;
   int i, packetlen;
   int maxi, nullupdate = 1;
 
-  DBG("Sending to %I\n", s->daddr);
+  DBG("Sending to %I\n", sock->daddr);
   do
   {
-    if (c->done)
+    if (conn->done)
       goto done;
 
     DBG("Preparing packet to send: ");
@@ -159,22 +159,22 @@ rip_tx(sock *s)
     maxi = 5; /* We need to have at least reserve of one at end of packet */
 #endif
 
-    FIB_ITERATE_START(&P->rtable, &c->iter, z)
+    FIB_ITERATE_START(&P->rtable, &conn->iter, z)
 	  {
-	    struct rip_entry *e = (struct rip_entry *) z;
+	    struct rip_entry *entry = (struct rip_entry *) z;
 
-	    if (!rif->triggered || (e->changed >= now - 2))
+	    if (!rif->triggered || (entry->changed >= now - 2))
 	    { /* FIXME: Should be probably 1 or some different algorithm */
 	      nullupdate = 0;
-	      i = rip_tx_prepare(p, packet->block + i, e, rif, i);
+	      i = rip_tx_prepare(p, packet->block + i, entry, rif, i);
 	      if (i >= maxi)
 	      {
-		FIB_ITERATE_PUT(&c->iter, z);
+		FIB_ITERATE_PUT(&conn->iter, z);
 		goto break_loop;
 	      }
 	    }
 	  }FIB_ITERATE_END(z);
-    c->done = 1;
+    conn->done = 1;
 
     break_loop:
 
@@ -184,28 +184,28 @@ rip_tx(sock *s)
     if (nullupdate)
     {
       DBG("not sending NULL update\n");
-      c->done = 1;
+      conn->done = 1;
       goto done;
     }
-    if (ipa_nonzero(c->daddr))
-      i = sk_send_to(s, packetlen, c->daddr, c->dport);
+    if (ipa_nonzero(conn->daddr))
+      i = sk_send_to(sock, packetlen, conn->daddr, conn->dport);
     else
-      i = sk_send(s, packetlen);
+      i = sk_send(sock, packetlen);
 
     DBG("it wants more\n");
 
   } while (i > 0);
 
   if (i < 0)
-    rip_tx_err(s, i);
+    rip_tx_err(sock, i);
   DBG("blocked\n");
   return;
 
   done:
   DBG("Looks like I'm");
-  c->rif->busy = NULL;
-  rem_node(NODE c);
-  mb_free(c);
+  conn->rif->busy = NULL;
+  rem_node(NODE conn);
+  mb_free(conn);
   DBG(" done\n");
   return;
 }
@@ -219,7 +219,7 @@ static void
 rip_sendto(struct proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
 {
   struct iface *iface = rif->iface;
-  struct rip_connection *c;
+  struct rip_connection *conn;
   static int num = 0;
 
   if (rif->busy)
@@ -227,28 +227,28 @@ rip_sendto(struct proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
     log(L_WARN "%s: Interface %s is much too slow, dropping request", p->name, iface->name);
     return;
   }
-  c = mb_alloc(p->pool, sizeof(struct rip_connection));
-  rif->busy = c;
+  conn = mb_alloc(p->pool, sizeof(struct rip_connection));
+  rif->busy = conn;
 
-  c->addr = daddr;
-  c->proto = p;
-  c->num = num++;
-  c->rif = rif;
+  conn->addr = daddr;
+  conn->proto = p;
+  conn->num = num++;
+  conn->rif = rif;
 
-  c->dport = dport;
-  c->daddr = daddr;
-  if (c->rif->sock->data != rif)
+  conn->dport = dport;
+  conn->daddr = daddr;
+  if (conn->rif->sock->data != rif)
     bug("not enough send magic");
 
-  c->done = 0;
-  FIB_ITERATE_INIT(&c->iter, &P->rtable);
-  add_head(&P->connections, NODE c);
+  conn->done = 0;
+  FIB_ITERATE_INIT(&conn->iter, &P->rtable);
+  add_head(&P->connections, NODE conn);
   if (ipa_nonzero(daddr))
     TRACE(D_PACKETS, "Sending my routing table to %I:%d on %s", daddr, dport, rif->iface->name);
   else
     TRACE(D_PACKETS, "Broadcasting routing table to %s", rif->iface->name);
 
-  rip_tx(c->rif->sock);
+  rip_tx(conn->rif->sock);
 }
 
 static struct rip_interface*
@@ -262,100 +262,54 @@ find_interface(struct proto *p, struct iface *what)
   return NULL;
 }
 
-/*
- * Input processing
- *
- * This part is responsible for any updates that come from network 
- */
-
-//static void
-//rip_rte_update_if_better(rtable *tab, net *net, struct proto *p, rte *new)
-
-/*
- * advertise_entry - let main routing table know about our new entry
- * @b: entry in network format
- *
- * This basically translates @b to format used by bird core and feeds
- * bird core with this route.
- */
-static void
-advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, struct iface *iface)
+int
+rip_get_metric_with_interface(struct proto *p, struct rip_block *block, struct rip_interface *rif)
 {
-  neighbor *neighbor;
-  struct rip_interface *rif;
-  int pxlen, metric;
-  ip_addr gw;
-  struct rip_entry *e;
+  int metric;
+
+  int rif_metric;
+  if(rif == NULL)
+    rif_metric = 0;
+  else
+    rif_metric = rif->metric;
 
 #ifndef IPV6
-  gw = ipa_nonzero(b->nexthop) ? b->nexthop : whotoldme;
-  pxlen = ipa_mklen(b->netmask);
+  metric = ntohl(block->metric) + rif_metric;
 #else
-  /* FIXME: next hop is in other packet for v6 */
-  gw = whotoldme;
-  pxlen = b->pxlen;
+  metric = block->metric + rif_metric;
 #endif
 
-  neighbor = neigh_find2(p, &gw, iface, 0);
-
-  if (!rip_shloud_we_advertise_entry(p, b, whotoldme, pxlen, gw, neighbor))
-    return;
-
-  if (!(rif = neighbor->data))
-  {
-    rif = neighbor->data = find_interface(p, neighbor->iface);
-  }
-  if (!rif)
-    bug("Route packet using unknown interface? No.");
-
-#ifndef IPV6
-  metric = ntohl(b->metric) + rif->metric;
-#else
-  metric = b->metric + rif->metric;
-#endif
   if (metric > P_CF->infinity)
     metric = P_CF->infinity;
-  /* set to: interface of nexthop */
-  e = fib_find(&P->rtable, &b->network, pxlen);
-
-  if (!e || (e->metric > metric) || (ipa_equal(whotoldme, e->whotoldme) && (metric != e->metric)))
-  {
-    /* New route arrived */
-    rta A = rip_create_rta(p, gw, whotoldme, neighbor);
-
-    if (e)
-      rem_node(NODE &e->gb);
-
-    e = fib_get(&P->rtable, &b->network, pxlen);
-    e->nexthop = gw;
-    e->metric = metric;
-    e->whotoldme = whotoldme;
-    e->tag = ntohl(b->tag);
-
-    e->updated = e->changed = now;
-    e->flags = 0;
-
-    rip_add_route(p, b, e, &A);
-  }
-  else
-  {
-    if ((ipa_equal(whotoldme, e->whotoldme) && (metric == e->metric)))
-    {
-      e->updated = now; /* Renew */
-      DBG("Route renewed %I/%d from %I met=%d\n", b->network, pxlen, whotoldme, metric);
-    }
-  }
-  DBG("done\n");
+  return metric;
 }
 
 int
-rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *b, ip_addr whotoldme, int pxlen, ip_addr gw,
+rip_get_metric(struct proto *p, struct rip_block *block)
+{
+  return rip_get_metric_with_interface(p, block, NULL);
+}
+
+int
+rip_get_pxlen(struct rip_block *block)
+{
+  int pxlen;
+#ifndef IPV6
+  pxlen = ipa_mklen(block->netmask);
+#else
+  pxlen = block->pxlen;
+#endif
+  return pxlen;
+}
+
+int
+rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *block, ip_addr whotoldme, int pxlen, ip_addr gw,
 			      neighbor *neighbor)
 {
   /* No need to look if destination looks valid - ie not net 0 or 127 -- core will do for us. */
   if (!neighbor)
   {
-    log(L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->name, whotoldme, b->network, pxlen, gw);
+    log(L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->name, whotoldme, block->network, pxlen, gw);
     return FAIL;
   }
   if (neighbor->scope == SCOPE_HOST)
@@ -365,11 +319,26 @@ rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *b, ip_addr whot
   }
   if (pxlen == -1)
   {
-    log(L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->name, whotoldme, b->network);
+    log(L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->name, whotoldme, block->network);
     return FAIL;
   }
 
   return OK;
+}
+
+/*
+ * Input processing
+ *
+ * This part is responsible for any updates that come from network 
+ */
+
+//static void
+//rip_rte_update_if_better(rtable *tab, net *net, struct proto *p, rte *new)
+
+int
+rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr whotoldme)
+{
+  return (!entry || (entry->metric > metric) || (ipa_equal(whotoldme, entry->whotoldme) && (metric != entry->metric)));
 }
 
 rta
@@ -391,22 +360,92 @@ rip_create_rta(struct proto *p, ip_addr gw, ip_addr whotoldme, neighbor *neighbo
 }
 
 void
-rip_add_route(struct proto *p, struct rip_block *b, struct rip_entry *e, rta *A)
+rip_add_route(struct proto *p, struct rip_block *block, struct rip_entry *entry, rta *A)
 {
-  net *n = net_get(p->table, b->network, e->n.pxlen);
+  net *n = net_get(p->table, block->network, entry->n.pxlen);
   rta *a = rta_lookup(A);
   rte *r = rte_get_temp(a);
 
-  r->u.rip.metric = e->metric;
+  r->u.rip.metric = entry->metric;
 
-  r->u.rip.tag = ntohl(b->tag);
+  r->u.rip.tag = ntohl(block->tag);
   r->net = n;
   r->pflags = 0; /* Here go my flags */
 
-  add_head(&P->garbage, NODE &e->gb);
+  add_head(&P->garbage, NODE &entry->gb);
 
   rte_update(p, n, r);
-  DBG("New route %I/%d from %I met=%d\n", b->network, e->n.pxlen, e->whotoldme, e->metric);
+  DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->whotoldme, entry->metric);
+}
+
+/*
+ * advertise_entry - let main routing table know about our new entry
+ * @b: entry in network format
+ *
+ * This basically translates @b to format used by bird core and feeds
+ * bird core with this route.
+ */
+static void
+advertise_entry(struct proto *p, struct rip_block *block, ip_addr whotoldme, struct iface *iface)
+{
+  neighbor *neighbor;
+  struct rip_interface *rif;
+  int pxlen, metric;
+  ip_addr gw;
+  struct rip_entry *entry;
+
+#ifndef IPV6
+  gw = ipa_nonzero(block->nexthop) ? block->nexthop : whotoldme;
+#else
+  /* FIXME: next hop is in other packet for v6 */
+  gw = whotoldme;
+#endif
+  pxlen = rip_get_pxlen(block);
+
+  neighbor = neigh_find2(p, &gw, iface, 0);
+
+  if (!rip_shloud_we_advertise_entry(p, block, whotoldme, pxlen, gw, neighbor))
+    return;
+
+  if (!(rif = neighbor->data))
+  {
+    rif = neighbor->data = find_interface(p, neighbor->iface);
+  }
+  if (!rif)
+    bug("Route packet using unknown interface? No.");
+
+  metric = rip_get_metric_with_interface(p, block, rif);
+
+  /* set to: interface of nexthop */
+  entry = fib_find(&P->rtable, &block->network, pxlen);
+
+  if (rip_route_update_arrived(entry, metric, whotoldme))
+  {
+    rta A = rip_create_rta(p, gw, whotoldme, neighbor);
+
+    if (entry)
+      rem_node(NODE &entry->gb);
+
+    entry = fib_get(&P->rtable, &block->network, pxlen);
+    entry->nexthop = gw;
+    entry->metric = metric;
+    entry->whotoldme = whotoldme;
+    entry->tag = ntohl(block->tag);
+
+    entry->updated = entry->changed = now;
+    entry->flags = 0;
+
+    rip_add_route(p, block, entry, &A);
+  }
+  else
+  {
+    if ((ipa_equal(whotoldme, entry->whotoldme) && (metric == entry->metric)))
+    {
+      entry->updated = now; /* Renew */
+      DBG("Route renewed %I/%d from %I met=%d\n", block->network, pxlen, whotoldme, metric);
+    }
+  }
+  DBG("done\n");
 }
 
 /*
@@ -417,13 +456,9 @@ process_block(struct proto *p, struct rip_block *block, ip_addr whotoldme, struc
 {
   int metric, pxlen;
 
-#ifndef IPV6
-  metric = ntohl(block->metric);
-  pxlen = ipa_mklen(block->netmask);
-#else
-  metric = block->metric;
-  pxlen = block->pxlen;
-#endif
+  metric = rip_get_metric(p, block);
+  pxlen  = rip_get_pxlen(block);
+
   ip_addr network = block->network;
 
   CHK_MAGIC;
@@ -432,9 +467,13 @@ process_block(struct proto *p, struct rip_block *block, ip_addr whotoldme, struc
 
   if ((!metric) || (metric > P_CF->infinity))
   {
-#ifdef IPV6 /* Someone is sending us nexthop and we are ignoring it */
+#ifdef IPV6
     if (metric == 0xff)
-    { DBG("IPv6 nexthop ignored"); return; }
+    {
+      /* Someone is sending us nexthop and we are ignoring it */
+      DBG("IPv6 nexthop ignored");
+      return;
+    }
 #endif
     log(L_WARN "%s: Got metric %d from %I", p->name, metric, whotoldme);
     return;
@@ -443,13 +482,11 @@ process_block(struct proto *p, struct rip_block *block, ip_addr whotoldme, struc
   advertise_entry(p, block, whotoldme, iface);
 }
 
-#define BAD(x) { log(L_REMOTE "%s: " x, p->name); return 1; }
-
 /*
  * rip_process_packet - this is main routine for incoming packets.
  */
 static int
-rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr whotoldme, int port,
+rip_process_packet(struct proto *p, struct rip_packet *packet, int num_blocks, ip_addr whotoldme, int port,
 		   struct iface *iface)
 {
   int i;
@@ -465,8 +502,7 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
       DBG("Rip2: ");
       break;
     default:
-      BAD("Unknown version")
-      ;
+      BAD("Unknown version");
   }
 
   switch (packet->heading.command)
@@ -474,11 +510,9 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
     case RIPCMD_REQUEST:
       DBG("Asked to send my routing table\n");
       if (P_CF->honor == HO_NEVER)
-	BAD("They asked me to send routing table, but I was told not to do it")
-      ;
+	BAD("They asked me to send routing table, but I was told not to do it");
       if ((P_CF->honor == HO_NEIGHBOR) && (!neigh_find2(p, &whotoldme, iface, 0)))
-	BAD("They asked me to send routing table, but he is not my neighbor")
-      ;
+	BAD("They asked me to send routing table, but he is not my neighbor");
       rip_sendto(p, whotoldme, port, HEAD(P->interfaces)); /* no broadcast */
       break;
     case RIPCMD_RESPONSE:
@@ -495,7 +529,7 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
 	return 0;
       }
 
-      for (i = 0; i < num; i++)
+      for (i = 0; i < num_blocks; i++)
       {
 	struct rip_block *block = &packet->block[i];
 #ifndef IPV6
@@ -504,7 +538,7 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
 	{
 	  if (i)
 	    continue; /* md5 tail has this family */
-	  if (rip_incoming_authentication(p, (void *) block, packet, num, whotoldme))
+	  if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, whotoldme))
 	    BAD("Authentication failed");
 	  authenticated = 1;
 	  continue;
@@ -524,14 +558,11 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
       break;
     case RIPCMD_TRACEON:
     case RIPCMD_TRACEOFF:
-      BAD("I was asked for traceon/traceoff")
-      ;
+      BAD("I was asked for traceon/traceoff");
     case 5:
-      BAD("Some Sun extension around here")
-      ;
+      BAD("Some Sun extension around here");
     default:
-      BAD("Unknown command")
-      ;
+      BAD("Unknown command");
   }
 
   return 0;
@@ -541,49 +572,49 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num, ip_addr 
  * rip_rx - Receive hook: do basic checks and pass packet to rip_process_packet
  */
 static int
-rip_rx(sock *s, int size)
+rip_rx(sock *sock, int size)
 {
-  struct rip_interface *i = s->data;
+  struct rip_interface *i = sock->data;
   struct proto *p = i->proto;
   struct iface *iface = NULL;
-  int num;
+  int num_blocks;
 
   /* In non-listening mode, just ignore packet */
   if (i->mode & IM_NOLISTEN)
     return 1;
 
 #ifdef IPV6
-  if (! i->iface || s->lifindex != i->iface->index)
+  if (! i->iface || sock->lifindex != i->iface->index)
   return 1;
 
   iface = i->iface;
 #endif
 
-  if (i->check_ttl && (s->rcv_ttl < 255))
+  if (i->check_ttl && (sock->rcv_ttl < 255))
   {
-    log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %s", p->name, s->rcv_ttl, s->faddr,
+    log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %sock", p->name, sock->rcv_ttl, sock->faddr,
 	i->iface->name);
     return 1;
   }
 
   CHK_MAGIC;
-  DBG("RIP: message came: %d bytes from %I via %s\n", size, s->faddr, i->iface ? i->iface->name : "(dummy)");
+  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, i->iface ? i->iface->name : "(dummy)");
   size -= sizeof(struct rip_packet_heading);
   if (size < 0)
     BAD("Too small packet");
   if (size % sizeof(struct rip_block))
     BAD("Odd sized packet");
-  num = size / sizeof(struct rip_block);
-  if (num > PACKET_MAX)
+  num_blocks = size / sizeof(struct rip_block);
+  if (num_blocks > PACKET_MAX)
     BAD("Too many blocks");
 
-  if (ipa_equal(i->iface->addr->ip, s->faddr))
+  if (ipa_equal(i->iface->addr->ip, sock->faddr))
   {
     DBG("My own packet\n");
     return 1;
   }
 
-  rip_process_packet(p, (struct rip_packet *) s->rbuf, num, s->faddr, s->fport, iface);
+  rip_process_packet(p, (struct rip_packet *) sock->rbuf, num_blocks, sock->faddr, sock->fport, iface);
   return 1;
 }
 
@@ -592,10 +623,10 @@ rip_rx(sock *s, int size)
  */
 
 static void
-rip_dump_entry(struct rip_entry *e)
+rip_dump_entry(struct rip_entry *entry)
 {
-  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", e->whotoldme, e->updated - now, e->changed - now,
-	e->n.prefix, e->n.pxlen, e->nexthop, e->metric);
+  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", entry->whotoldme, entry->updated - now, entry->changed - now,
+	entry->n.prefix, entry->n.pxlen, entry->nexthop, entry->metric);
   debug("\n");
 }
 
@@ -611,44 +642,44 @@ rip_dump_entry(struct rip_entry *e)
  */
 
 static void
-rip_timer(timer *t)
+rip_timer(timer *timer)
 {
-  struct proto *p = t->data;
-  struct fib_node *e, *et;
+  struct proto *p = timer->data;
+  struct fib_node *node_i, *node_next;
 
   CHK_MAGIC;
   DBG("RIP: tick tock\n");
 
-  WALK_LIST_DELSAFE(e, et, P->garbage )
+  WALK_LIST_DELSAFE(node_i, node_next, P->garbage )
   {
     rte *rte = NULL;
-    net *nt;
-    struct rip_entry *re;
-    re = SKIP_BACK(struct rip_entry, gb, e);
+    net *net;
+    struct rip_entry *entry;
+    entry = SKIP_BACK(struct rip_entry, gb, node_i);
 
-    nt = net_find(p->table, re->n.prefix, re->n.pxlen);
-    if (nt)
-      rte = rte_find(nt, p->main_source);
+    net = net_find(p->table, entry->n.prefix, entry->n.pxlen);
+    if (net)
+      rte = rte_find(net, p->main_source);
 
     CHK_MAGIC;
 
     //DBG("Garbage: (%p)", rte); rte_dump(rte);
 
-    if (re->changed && (now - re->updated > P_CF->timeout_time))
+    if (entry->changed && (now - entry->updated > P_CF->timeout_time))
     {
-      TRACE(D_EVENTS, "entry is old: %I", re->n.prefix);
-      re->metric = P_CF->infinity;
+      TRACE(D_EVENTS, "entry is old: %I", entry->n.prefix);
+      entry->metric = P_CF->infinity;
       if (rte)
 	rte_discard(p->table, rte);
     }
 
-    if (re->changed && (now - re->updated > P_CF->garbage_time))
+    if (entry->changed && (now - entry->updated > P_CF->garbage_time))
     {
-      TRACE(D_EVENTS, "entry is too old: %I", re->n.prefix);
+      TRACE(D_EVENTS, "entry is too old: %I", entry->n.prefix);
       if (rte)
 	rte_discard(p->table, rte);
-      rem_node(NODE &re->gb);
-      fib_delete(&P->rtable, re);
+      rem_node(NODE &entry->gb);
+      fib_delete(&P->rtable, entry);
     }
   }
 
@@ -732,14 +763,14 @@ static void
 rip_dump(struct proto *p)
 {
   int i;
-  node *w;
+  node *w;	// rename!
   struct rip_interface *rif;
 
   CHK_MAGIC;
   WALK_LIST(w, P->connections)
   {
-    struct rip_connection *n = (void *) w;
-    debug("RIP: connection #%d: %I\n", n->num, n->addr);
+    struct rip_connection *conn = (void *) w;
+    debug("RIP: connection #%d: %I\n", conn->num, conn->addr);
   }
   i = 0;
   FIB_WALK(&P->rtable, e)
@@ -911,12 +942,12 @@ rip_real_if_add(struct object_lock *lock)
 }
 
 static void
-rip_if_notify(struct proto *p, unsigned c, struct iface *iface)
+rip_if_notify(struct proto *p, unsigned flags, struct iface *iface)
 {
   DBG("RIP: if notify\n");
   if (iface->flags & IF_IGNORE)
     return;
-  if (c & IF_CHANGE_DOWN)
+  if (flags & IF_CHANGE_DOWN)
   {
     struct rip_interface *i;
     i = find_interface(p, iface);
@@ -927,7 +958,7 @@ rip_if_notify(struct proto *p, unsigned c, struct iface *iface)
       kill_iface(i);
     }
   }
-  if (c & IF_CHANGE_UP)
+  if (flags & IF_CHANGE_UP)
   {
     struct iface_patt *k = iface_patt_find(&P_CF->iface_list, iface, iface->addr);
     struct object_lock *lock;
@@ -1012,45 +1043,46 @@ rip_rt_notify(struct proto *p, struct rtable *table UNUSED, struct network *net,
 	      struct rte *old UNUSED, struct ea_list *attrs)
 {
   CHK_MAGIC;
-  struct rip_entry *e;
+  struct rip_entry *entry;
 
-  e = fib_find(&P->rtable, &net->n.prefix, net->n.pxlen);
+  entry = fib_find(&P->rtable, &net->n.prefix, net->n.pxlen);
   if (new)
-  { /* FIXME: Text is the current rip_entry is not better! */
-    if (e)
+  {
+    /* FIXME: Text is the current rip_entry is not better! */
+    if (entry)
     {
-      rem_node(NODE &e->gb);
-      fib_delete(&P->rtable, e);
+      rem_node(NODE &entry->gb);
+      fib_delete(&P->rtable, entry);
     }
 
-    e = fib_get(&P->rtable, &net->n.prefix, net->n.pxlen);
+    entry = fib_get(&P->rtable, &net->n.prefix, net->n.pxlen);
 
-    e->nexthop = new->attrs->gw;
-    e->metric = 0;
-    e->whotoldme = IPA_NONE;
+    entry->nexthop = new->attrs->gw;
+    entry->metric = 0;
+    entry->whotoldme = IPA_NONE;
 
-    e->tag = ea_get_int(attrs, EA_RIP_TAG, 0);
-    e->metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
-    if (e->metric > P_CF->infinity)
-      e->metric = P_CF->infinity;
+    entry->tag = ea_get_int(attrs, EA_RIP_TAG, 0);
+    entry->metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
+    if (entry->metric > P_CF->infinity)
+      entry->metric = P_CF->infinity;
 
     if (new->attrs->src->proto == p)
-      e->whotoldme = new->attrs->from;
+      entry->whotoldme = new->attrs->from;
 
-    if (!e->metric) /* That's okay: this way user can set his own value for external routes in rip. */
-      e->metric = 5;
+    if (!entry->metric) /* That's okay: this way user can set his own value for external routes in rip. */
+      entry->metric = 5;
 
-    e->updated = e->changed = 0; /* External routes do not age */
-    e->flags = 0;
+    entry->updated = entry->changed = 0; /* External routes do not age */
+    entry->flags = 0;
 
-    add_head(&P->garbage, NODE &e->gb);
+    add_head(&P->garbage, NODE &entry->gb);
   }
   else
   {
-    if (e)
+    if (entry)
     {
-      e->metric = P_CF->infinity; /* Will be removed soon */
-      e->updated = e->changed = now - P_CF->timeout_time; /* Allow aging */
+      entry->metric = P_CF->infinity; /* Will be removed soon */
+      entry->updated = entry->changed = now - P_CF->timeout_time; /* Allow aging */
     }
   }
 }

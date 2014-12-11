@@ -24,9 +24,15 @@
 #define RIP_PORT	521	/* RIPng */
 #endif
 
-
 #define OK		1
 #define FAIL		0
+
+#define BAD(x)				\
+  do					\
+  {					\
+    log(L_REMOTE "%s: " x, p->name);	\
+    return 1;				\
+  } while(0)
 
 struct rip_connection
 {
