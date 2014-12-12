@@ -11,8 +11,14 @@
 #define EA_RIP_TAG	EA_CODE(EAP_RIP, 0)
 #define EA_RIP_METRIC	EA_CODE(EAP_RIP, 1)
 
-#define PACKET_MAX	25
-#define PACKET_MD5_MAX	18	/* FIXME */
+/* http://blog.ipspace.net/2008/10/rip-trivia-maximum-rip-packet-size.html */
+#define MAX_RTEs_IN_PACKET_WITHOUT_AUTH		25
+#define MAX_RTEs_IN_PACKET_WITH_PLAIN_TEXT_AUTH	24
+#define MAX_RTEs_IN_PACKET_WITH_MD5_AUTH	23
+#define RIP_RTE_SIZE				20
+#define IPV6_HEADER_SIZE			40
+#define UDP_HEADER_SIZE				4
+#define RIP_NG_HEADER_SIZE			4
 
 #define RIP_V1		1
 #define RIP_V2		2
@@ -121,7 +127,7 @@ struct rip_entry
 struct rip_packet
 {
   struct rip_packet_heading heading;
-  struct rip_block block[PACKET_MAX];
+  struct rip_block block[MAX_RTEs_IN_PACKET_WITHOUT_AUTH];
 };
 
 struct rip_interface

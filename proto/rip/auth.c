@@ -139,7 +139,7 @@ rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, stru
       struct MD5Context ctxt;
       static u32 sequence = 0;
 
-      if (num > PACKET_MD5_MAX)
+      if (num > MAX_RTEs_IN_PACKET_WITH_MD5_AUTH)
 	bug(  "We can not add MD5 authentication to this long packet" );
 
       /* need to preset the sequence number to a sane value */

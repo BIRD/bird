@@ -123,6 +123,45 @@ rip_tx_prepare(struct proto *p, struct rip_block *block, struct rip_entry *entry
   return pos + 1;
 }
 
+void
+rip_set_up_packet(struct rip_packet *packet)
+{
+  packet->heading.command = RIPCMD_RESPONSE;
+#ifndef IPV6
+  packet->heading.version = RIP_V2;
+#else
+  packet->heading.version = RIP_NG;
+#endif
+  packet->heading.unused = 0;
+}
+
+int
+rip_get_max_rip_entries(int authtype, unsigned mtu)
+{
+#ifndef IPV6
+  switch (authtype)
+  {
+    case AT_NONE:
+      return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
+    case AT_PLAINTEXT:
+      return MAX_RTEs_IN_PACKET_WITH_PLAIN_TEXT_AUTH;
+    case AT_MD5:
+      return MAX_RTEs_IN_PACKET_WITH_MD5_AUTH;
+  }
+#else
+  /**
+   * http://tools.ietf.org/html/rfc2080
+   *
+   *               +-                                                   -+
+   *               | MTU - sizeof(IPv6_hdrs) - UDP_hdrlen - RIPng_hdrlen |
+   *   #RTEs = INT | --------------------------------------------------- |
+   *               |                      RTE_size                       |
+   *               +-                                                   -+
+   **/
+  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE)/RTE_ENTRY_SIZE);
+#endif
+}
+
 /*
  * rip_tx - send one rip packet to the network
  */
@@ -133,8 +172,9 @@ rip_tx(sock *sock)
   struct rip_connection *conn = rif->busy;
   struct proto *p = conn->proto;
   struct rip_packet *packet = (void *) sock->tbuf;
-  int i, packetlen;
-  int maxi, nullupdate = 1;
+  int packetlen;
+  int max_rte_entries, used_rte_entries = 0;
+  int nullupdate = 1;
 
   DBG("Sending to %I\n", sock->daddr);
   do
@@ -143,31 +183,19 @@ rip_tx(sock *sock)
       goto done;
 
     DBG("Preparing packet to send: ");
-
-    packet->heading.command = RIPCMD_RESPONSE;
-#ifndef IPV6
-    packet->heading.version = RIP_V2;
-#else
-    packet->heading.version = RIP_NG;
-#endif
-    packet->heading.unused = 0;
-
-    i = !!P_CF->authtype;
-#ifndef IPV6
-    maxi = ((P_CF->authtype == AT_MD5) ? PACKET_MD5_MAX : PACKET_MAX);
-#else
-    maxi = 5; /* We need to have at least reserve of one at end of packet */
-#endif
+    rip_set_up_packet(packet);
+    max_rte_entries = rip_get_max_rip_entries(P_CF->authtype, sock->iface->mtu);
 
     FIB_ITERATE_START(&P->rtable, &conn->iter, z)
     {
       struct rip_entry *entry = (struct rip_entry *) z;
 
       if (!rif->triggered || (entry->changed >= now - 2))
-      { /* FIXME: Should be probably 1 or some different algorithm */
+      {
+	/* FIXME: Should be probably 1 or some different algorithm */
 	nullupdate = 0;
-	i = rip_tx_prepare(p, packet->block + i, entry, rif, i);
-	if (i >= maxi)
+	used_rte_entries = rip_tx_prepare(p, packet->block + used_rte_entries, entry, rif, used_rte_entries);
+	if (used_rte_entries >= max_rte_entries)
 	{
 	  FIB_ITERATE_PUT(&conn->iter, z);
 	  goto break_loop;
@@ -178,9 +206,9 @@ rip_tx(sock *sock)
 
     break_loop:
 
-    packetlen = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, i);
+    packetlen = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
 
-    DBG(", sending %d blocks, ", i);
+    DBG(", sending %d blocks, ", used_rte_entries);
     if (nullupdate)
     {
       DBG("not sending NULL update\n");
@@ -188,15 +216,15 @@ rip_tx(sock *sock)
       goto done;
     }
     if (ipa_nonzero(conn->daddr))
-      i = sk_send_to(sock, packetlen, conn->daddr, conn->dport);
+      used_rte_entries = sk_send_to(sock, packetlen, conn->daddr, conn->dport);
     else
-      i = sk_send(sock, packetlen);
+      used_rte_entries = sk_send(sock, packetlen);
 
     DBG("it wants more\n");
-  } while (i > 0);
+  } while (used_rte_entries > 0);
 
-  if (i < 0)
-    rip_tx_err(sock, i);
+  if (used_rte_entries < 0)
+    rip_tx_err(sock, used_rte_entries);
   DBG("blocked\n");
   return;
 
@@ -602,8 +630,11 @@ rip_rx(sock *sock, int size)
   if (size % sizeof(struct rip_block))
     BAD("Odd sized packet");
   num_blocks = size / sizeof(struct rip_block);
-  if (num_blocks > PACKET_MAX)
+
+#ifndef IPV6
+  if (num_blocks > MAX_RTEs_IN_PACKET_WITHOUT_AUTH)
     BAD("Too many blocks");
+#endif
 
   if (ipa_equal(i->iface->addr->ip, sock->faddr))
   {
