@@ -160,20 +160,20 @@ rip_tx(sock *sock)
 #endif
 
     FIB_ITERATE_START(&P->rtable, &conn->iter, z)
-	  {
-	    struct rip_entry *entry = (struct rip_entry *) z;
+    {
+      struct rip_entry *entry = (struct rip_entry *) z;
 
-	    if (!rif->triggered || (entry->changed >= now - 2))
-	    { /* FIXME: Should be probably 1 or some different algorithm */
-	      nullupdate = 0;
-	      i = rip_tx_prepare(p, packet->block + i, entry, rif, i);
-	      if (i >= maxi)
-	      {
-		FIB_ITERATE_PUT(&conn->iter, z);
-		goto break_loop;
-	      }
-	    }
-	  }FIB_ITERATE_END(z);
+      if (!rif->triggered || (entry->changed >= now - 2))
+      { /* FIXME: Should be probably 1 or some different algorithm */
+	nullupdate = 0;
+	i = rip_tx_prepare(p, packet->block + i, entry, rif, i);
+	if (i >= maxi)
+	{
+	  FIB_ITERATE_PUT(&conn->iter, z);
+	  goto break_loop;
+	}
+      }
+    } FIB_ITERATE_END(z);
     conn->done = 1;
 
     break_loop:
@@ -193,7 +193,6 @@ rip_tx(sock *sock)
       i = sk_send(sock, packetlen);
 
     DBG("it wants more\n");
-
   } while (i > 0);
 
   if (i < 0)
@@ -293,13 +292,11 @@ rip_get_metric(struct proto *p, struct rip_block *block)
 int
 rip_get_pxlen(struct rip_block *block)
 {
-  int pxlen;
 #ifndef IPV6
-  pxlen = ipa_mklen(block->netmask);
+  return ipa_mklen(block->netmask);
 #else
-  pxlen = block->pxlen;
+  return block->pxlen;
 #endif
-  return pxlen;
 }
 
 int
