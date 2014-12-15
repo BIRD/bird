@@ -172,7 +172,7 @@ struct rip_proto_config
   int garbage_time;
   int timeout_time;
 
-  int authtype;
+  int auth_type;
 #define AUTH_NONE 0
 #define AUTH_PLAINTEXT 2
 #define AUTH_MD5 3

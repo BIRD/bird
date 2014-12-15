@@ -184,7 +184,7 @@ rip_tx(sock *sock)
 
     DBG("Preparing packet to send: ");
     rip_set_up_packet(packet);
-    max_rte_entries = rip_get_max_rip_entries(P_CF->authtype, sock->iface->mtu);
+    max_rte_entries = rip_get_max_rip_entries(P_CF->auth_type, sock->iface->mtu);
 
     FIB_ITERATE_START(&P->rtable, &conn->iter, z)
     {
@@ -306,7 +306,7 @@ rip_get_metric_with_interface(struct proto *p, struct rip_block *block, struct r
   int metric;
 
   int rif_metric;
-  if(rif == NULL)
+  if (rif == NULL)
     rif_metric = 0;
   else
     rif_metric = rif->metric;
@@ -535,6 +535,72 @@ process_block(struct proto *p, struct rip_block *block, ip_addr who_told_me, str
   advertise_entry(p, block, who_told_me, iface);
 }
 
+int
+rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port)
+{
+  DBG("Asked to send my routing table\n");
+  if (P_CF->honor == HONOR_NEVER)
+    BAD("They asked me to send routing table, but I was told not to do it");
+  if ((P_CF->honor == HONOR_NEIGHBOR) && (!neigh_find2(p, &who_told_me, iface, 0)))
+    BAD("They asked me to send routing table, but he is not my neighbor");
+  rip_sendto(p, who_told_me, port, HEAD(P->interfaces)); /* no broadcast */
+
+  return 0;
+}
+
+int
+
+int
+rip_process_packet_response(struct proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
+			    struct iface *iface)
+{
+  int i;
+  neighbor *neighbor;
+  int authenticated = 0;
+
+  DBG("*** Rtable from %I\n", who_told_me);
+  if (port != P_CF->port)
+  {
+    log(L_REMOTE "%s: %I send me routing info from port %d", p->name, who_told_me, port);
+    return 1;
+  }
+
+  if (!(neighbor = neigh_find2(p, &who_told_me, iface, 0)) || neighbor->scope == SCOPE_HOST)
+  {
+    log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->name, who_told_me);
+    return 0;
+  }
+
+  for (i = 0; i < num_blocks; i++)
+  {
+    struct rip_block *block = &packet->block[i];
+
+#ifndef IPV6
+    /* Authentication is not defined for v6 */
+    if (block->family == 0xffff)
+    {
+      if (i)
+	continue; /* md5 tail has this family */
+      if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, who_told_me))
+	BAD("Authentication failed");
+      authenticated = 1;
+      continue;
+    }
+#endif
+    if ((!authenticated) && (P_CF->auth_type != AUTH_NONE))
+      BAD("Packet is not authenticated and it should be");
+
+    ipa_ntoh(block->network);
+#ifndef IPV6
+    ipa_ntoh(block->netmask);
+    ipa_ntoh(block->next_hop);
+    if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
+      block->netmask = ipa_class_mask(block->network);
+#endif
+    process_block(p, block, who_told_me, iface);
+  }
+  return 0;
+}
 /*
  * rip_process_packet - this is main routine for incoming packets.
  */
@@ -542,10 +608,6 @@ static int
 rip_process_packet(struct proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
 		   struct iface *iface)
 {
-  int i;
-  int authenticated = 0;
-  neighbor *neighbor;
-
   switch (packet->heading.version)
   {
     case RIP_V1:
@@ -561,61 +623,14 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num_blocks, i
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      DBG("Asked to send my routing table\n");
-      if (P_CF->honor == HONOR_NEVER)
-	BAD("They asked me to send routing table, but I was told not to do it");
-      if ((P_CF->honor == HONOR_NEIGHBOR) && (!neigh_find2(p, &who_told_me, iface, 0)))
-	BAD("They asked me to send routing table, but he is not my neighbor");
-      rip_sendto(p, who_told_me, port, HEAD(P->interfaces)); /* no broadcast */
-      break;
+      return rip_process_packet_request(p, who_told_me, port);
     case RIPCMD_RESPONSE:
-      DBG("*** Rtable from %I\n", who_told_me);
-      if (port != P_CF->port)
-      {
-	log(L_REMOTE "%s: %I send me routing info from port %d", p->name, who_told_me, port);
-	return 1;
-      }
-
-      if (!(neighbor = neigh_find2(p, &who_told_me, iface, 0)) || neighbor->scope == SCOPE_HOST)
-      {
-	log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->name, who_told_me);
-	return 0;
-      }
-
-      for (i = 0; i < num_blocks; i++)
-      {
-	struct rip_block *block = &packet->block[i];
-#ifndef IPV6
-	/* Authentication is not defined for v6 */
-	if (block->family == 0xffff)
-	{
-	  if (i)
-	    continue; /* md5 tail has this family */
-	  if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, who_told_me))
-	    BAD("Authentication failed");
-	  authenticated = 1;
-	  continue;
-	}
-#endif
-	if ((!authenticated) && (P_CF->authtype != AUTH_NONE))
-	  BAD("Packet is not authenticated and it should be");
-	ipa_ntoh(block->network);
-#ifndef IPV6
-	ipa_ntoh(block->netmask);
-	ipa_ntoh(block->next_hop);
-	if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
-	  block->netmask = ipa_class_mask(block->network);
-#endif
-	process_block(p, block, who_told_me, iface);
-      }
-      break;
+      return rip_process_packet_response(p, packet, num_blocks, who_told_me, port, iface);
     case RIPCMD_TRACEON:
     case RIPCMD_TRACEOFF:
       BAD("I was asked for traceon/traceoff");
-      break;
     case RIPCMD_SUN_EXT:
       BAD("Some Sun extension around here");
-      break;
     default:
       BAD("Unknown command");
   }
@@ -629,31 +644,31 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num_blocks, i
 static int
 rip_rx(sock *sock, int size)
 {
-  struct rip_interface *i = sock->data;
-  struct proto *p = i->proto;
+  struct rip_interface *rif = sock->data;
+  struct proto *p = rif->proto;
   struct iface *iface = NULL;
   int num_blocks;
 
   /* In non-listening mode, just ignore packet */
-  if (i->mode & IM_NOLISTEN)
+  if (rif->mode & IM_NOLISTEN)
     return 1;
 
 #ifdef IPV6
-  if (! i->iface || sock->lifindex != i->iface->index)
+  if (! rif->iface || sock->lifindex != rif->iface->index)
   return 1;
 
-  iface = i->iface;
+  iface = rif->iface;
 #endif
 
-  if (i->check_ttl && (sock->rcv_ttl < 255))
+  if (rif->check_ttl && (sock->rcv_ttl < 255))
   {
     log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %sock", p->name, sock->rcv_ttl, sock->faddr,
-	i->iface->name);
+	rif->iface->name);
     return 1;
   }
 
   CHK_MAGIC;
-  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, i->iface ? i->iface->name : "(dummy)");
+  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, rif->iface ? rif->iface->name : "(dummy)");
   size -= sizeof(struct rip_packet_heading);
   if (size < 0)
     BAD("Too small packet");
@@ -666,7 +681,7 @@ rip_rx(sock *sock, int size)
     BAD("Too many blocks");
 #endif
 
-  if (ipa_equal(i->iface->addr->ip, sock->faddr))
+  if (ipa_equal(rif->iface->addr->ip, sock->faddr))
   {
     DBG("My own packet\n");
     return 1;
@@ -683,8 +698,8 @@ rip_rx(sock *sock, int size)
 static void
 rip_dump_entry(struct rip_entry *entry)
 {
-  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", entry->who_told_me, entry->updated - now, entry->changed - now,
-	entry->n.prefix, entry->n.pxlen, entry->next_hop, entry->metric);
+  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", entry->who_told_me, entry->updated - now,
+	entry->changed - now, entry->n.prefix, entry->n.pxlen, entry->next_hop, entry->metric);
   debug("\n");
 }
 
@@ -708,7 +723,7 @@ rip_timer(timer *timer)
   CHK_MAGIC;
   DBG("RIP: tick tock\n");
 
-  WALK_LIST_DELSAFE(node_i, node_next, P->garbage )
+  WALK_LIST_DELSAFE(node_i, node_next, P->garbage)
   {
     rte *rte = NULL;
     net *net;
@@ -1197,7 +1212,7 @@ rip_init_config(struct rip_proto_config *c)
   c->garbage_time = 120 + 180;
   c->timeout_time = 120;
   c->passwords = NULL;
-  c->authtype = AUTH_NONE;
+  c->auth_type = AUTH_NONE;
 }
 
 static int
