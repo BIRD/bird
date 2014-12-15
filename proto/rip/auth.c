@@ -69,7 +69,7 @@ rip_incoming_authentication( struct proto *p, struct rip_block_auth *block, stru
       }
 
       tail = (struct rip_md5_tail *) ((char *) packet + (ntohs(block->packetlen) ));
-      if ((tail->mustbeFFFF != 0xffff) || (tail->mustbe0001 != 0x0100)) {
+      if ((tail->mustbeFFFF != 0xffff) || (ntohs(tail->mustbe0001) != 0x0001)) {
 	log( L_ERR "MD5 tail signature is not there" );
 	return 1;
       }
@@ -154,7 +154,7 @@ rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, stru
       block->packetlen = htons(PACKETLEN(num));
       tail = (struct rip_md5_tail *) ((char *) packet + PACKETLEN(num) );
       tail->mustbeFFFF = 0xffff;
-      tail->mustbe0001 = 0x0100;
+      tail->mustbe0001 = htons(0x0001);
 
       password_cpy(tail->md5, passwd->password, 16);
       MD5Init(&ctxt);
