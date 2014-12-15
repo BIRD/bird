@@ -33,9 +33,9 @@
  * rip_incoming_authentication - check authentication of incomming packet and return 1 if there's problem.
  */
 int
-rip_incoming_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me )
+rip_incoming_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
-  DBG( "Incoming authentication: " );
+  DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))
   { /* Authentication type */
     case AUTH_PLAINTEXT:
@@ -125,23 +125,23 @@ rip_incoming_authentication( struct proto *p, struct rip_block_auth *block, stru
  * %num: number of rip_blocks already in packets. This function returns size of packet to send.
  */
 int
-rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num )
+rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num)
 {
   struct password_item *passwd = password_find(P_CF->passwords, 1);
 
-  if (!P_CF->authtype)
+  if (!P_CF->auth_type)
     return PACKET_LEN(num);
 
-  DBG( "Outgoing authentication: " );
+  DBG("Outgoing authentication: ");
 
   if (!passwd) {
-    log(L_ERR "No suitable password found for authentication" );
+    log(L_ERR "No suitable password found for authentication");
     return PACKET_LEN(num);
   }
 
-  block->auth_type = htons(P_CF->authtype);
+  block->auth_type = htons(P_CF->auth_type);
   block->must_be_FFFF = 0xffff;
-  switch (P_CF->authtype) {
+  switch (P_CF->auth_type) {
   case AUTH_PLAINTEXT:
     password_cpy( (char *) (&block->packet_len), passwd->password, 16);
     return PACKET_LEN(num);
@@ -152,7 +152,7 @@ rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, stru
       static u32 sequence = 0;
 
       if (num > MAX_RTEs_IN_PACKET_WITH_MD5_AUTH)
-	bug(  "We can not add MD5 authentication to this long packet" );
+	bug("We can not add MD5 authentication to this long packet");
 
       /* need to preset the sequence number to a sane value */
       if (!sequence)
@@ -164,7 +164,7 @@ rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, stru
       block->zero0 = 0;
       block->zero1 = 0;
       block->packet_len = htons(PACKET_LEN(num));
-      tail = (struct rip_md5_tail *) ((char *) packet + PACKET_LEN(num) );
+      tail = (struct rip_md5_tail *) ((char *) packet + PACKET_LEN(num));
       tail->must_be_FFFF = 0xffff;
       tail->must_be_0001 = htons(0x0001);
 
@@ -175,6 +175,6 @@ rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, stru
       return PACKET_LEN(num) + block->auth_len;
     }
   default:
-    bug( "Unknown authtype in outgoing authentication?" );
+    bug("Unknown authtype in outgoing authentication?");
   }
 }
