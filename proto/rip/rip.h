@@ -63,7 +63,7 @@ struct rip_packet_heading /* 4 bytes */
 #define RIPCMD_RESPONSE		2	/* responding to request */
 #define RIPCMD_TRACEON		3	/* turn tracing on */
 #define RIPCMD_TRACEOFF		4	/* turn it off */
-#define RIPCMD_MAX		5
+#define RIPCMD_SUN_EXT		5	/* some sun extension */
   u8 version;
 #define RIP_V1			1
 #define RIP_V2			2
@@ -78,7 +78,7 @@ struct rip_block /* 20 bytes */
   u16 tag;
   ip_addr network;
   ip_addr netmask;
-  ip_addr nexthop;
+  ip_addr next_hop;
   u32 metric;
 };
 #else
@@ -93,11 +93,11 @@ struct rip_block /* IPv6 version!, 20 bytes, too */
 
 struct rip_block_auth /* 20 bytes */
 {
-  u16 mustbeFFFF;
-  u16 authtype;
-  u16 packetlen;
-  u8 keyid;
-  u8 authlen;
+  u16 must_be_FFFF;
+  u16 auth_type;
+  u16 packet_len;
+  u8 key_id;
+  u8 auth_len;
   u32 seq;
   u32 zero0;
   u32 zero1;
@@ -105,8 +105,8 @@ struct rip_block_auth /* 20 bytes */
 
 struct rip_md5_tail /* 20 bytes */
 {
-  u16 mustbeFFFF;
-  u16 mustbe0001;
+  u16 must_be_FFFF;
+  u16 must_be_0001;
   char md5[16];
 };
 
@@ -115,8 +115,8 @@ struct rip_entry
   struct fib_node n;
   node gb;
 
-  ip_addr whotoldme;
-  ip_addr nexthop;
+  ip_addr who_told_me;
+  ip_addr next_hop;
   int metric;
   u16 tag;
 
@@ -173,13 +173,13 @@ struct rip_proto_config
   int timeout_time;
 
   int authtype;
-#define AT_NONE 0
-#define AT_PLAINTEXT 2
-#define AT_MD5 3
+#define AUTH_NONE 0
+#define AUTH_PLAINTEXT 2
+#define AUTH_MD5 3
   int honor;
-#define HO_NEVER 0
-#define HO_NEIGHBOR 1
-#define HO_ALWAYS 2
+#define HONOR_NEVER 0
+#define HONOR_NEIGHBOR 1
+#define HONOR_ALWAYS 2
 };
 
 struct rip_proto
@@ -199,17 +199,17 @@ struct rip_proto
 
 #ifdef LOCAL_DEBUG
 #define RIP_MAGIC 81861253
-#define CHK_MAGIC do { if (P->magic != RIP_MAGIC) bug( "Not enough magic" ); } while (0)
+#define CHK_MAGIC do { if (P->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
 #else
 #define CHK_MAGIC do { } while (0)
 #endif
 
-rta rip_create_rta(struct proto *p, ip_addr gw, ip_addr whotoldme, neighbor *neighbor);
+rta rip_create_rta(struct proto *p, ip_addr gw, ip_addr who_told_me, neighbor *neighbor);
 void rip_add_route(struct proto *p, struct rip_block *b, struct rip_entry *e, rta *A);
 void rip_init_instance(struct proto *p);
 void rip_init_config(struct rip_proto_config *c);
 
 /* Authentication functions */
 
-int rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr whotoldme);
+int rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me);
 int rip_outgoing_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num);
