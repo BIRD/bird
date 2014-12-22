@@ -204,8 +204,6 @@ struct rip_proto
 #define CHK_MAGIC do { } while (0)
 #endif
 
-rta rip_create_rta(struct proto *p, ip_addr gw, ip_addr who_told_me, neighbor *neighbor);
-void rip_add_route(struct proto *p, struct rip_block *b, struct rip_entry *e, rta *A);
 void rip_init_instance(struct proto *p);
 void rip_init_config(struct rip_proto_config *c);
 

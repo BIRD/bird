@@ -65,6 +65,7 @@
 #define TRACE(level, msg, args...) do { if (p->debug & level) { log(L_TRACE "%s: " msg, p->name , ## args); } } while(0)
 
 static struct rip_interface *new_iface(struct proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
+static void rip_dump(struct proto *p);
 
 /*
  * Output processing
@@ -123,7 +124,7 @@ rip_tx_prepare(struct proto *p, struct rip_block *block, struct rip_entry *entry
   return pos + 1;
 }
 
-void
+static void
 rip_set_up_packet(struct rip_packet *packet)
 {
   packet->heading.command = RIPCMD_RESPONSE;
@@ -135,7 +136,7 @@ rip_set_up_packet(struct rip_packet *packet)
   packet->heading.unused = 0;
 }
 
-int
+static int
 rip_get_max_rip_entries(int auth_type, unsigned mtu)
 {
 #ifndef IPV6
@@ -236,7 +237,7 @@ rip_tx(sock *sock)
   return;
 }
 
-struct rip_connection *
+static struct rip_connection *
 rip_get_connection(struct proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
 {
   struct rip_connection *conn;
@@ -299,7 +300,7 @@ find_interface(struct proto *p, struct iface *what)
   return NULL;
 }
 
-int
+static int
 rip_get_metric_with_interface(struct proto *p, struct rip_block *block, struct rip_interface *rif)
 {
   int metric;
@@ -321,13 +322,13 @@ rip_get_metric_with_interface(struct proto *p, struct rip_block *block, struct r
   return metric;
 }
 
-int
+static int
 rip_get_metric(struct proto *p, struct rip_block *block)
 {
   return rip_get_metric_with_interface(p, block, NULL);
 }
 
-int
+static int
 rip_get_pxlen(struct rip_block *block)
 {
 #ifndef IPV6
@@ -337,7 +338,7 @@ rip_get_pxlen(struct rip_block *block)
 #endif
 }
 
-int
+static int
 rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *block, ip_addr who_told_me, int pxlen, ip_addr gw,
 			      neighbor *neighbor)
 {
@@ -367,13 +368,13 @@ rip_shloud_we_advertise_entry(struct proto *p, struct rip_block *block, ip_addr 
  * This part is responsible for any updates that come from network 
  */
 
-int
+static int
 rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr who_told_me)
 {
   return (!entry || (entry->metric > metric) || (ipa_equal(who_told_me, entry->who_told_me) && (metric != entry->metric)));
 }
 
-rta
+static rta
 rip_create_rta(struct proto *p, ip_addr gw, ip_addr who_told_me, neighbor *neighbor)
 {
   rta A;
@@ -391,7 +392,7 @@ rip_create_rta(struct proto *p, ip_addr gw, ip_addr who_told_me, neighbor *neigh
   return A;
 }
 
-void
+static void
 rip_add_route(struct proto *p, struct rip_block *block, struct rip_entry *entry, rta *A)
 {
   net *n = net_get(p->table, block->network, entry->n.pxlen);
@@ -410,7 +411,7 @@ rip_add_route(struct proto *p, struct rip_block *block, struct rip_entry *entry,
   DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->who_told_me, entry->metric);
 }
 
-ip_addr
+static ip_addr
 rip_get_gateway(struct rip_block *block, ip_addr who_told_me)
 {
 #ifndef IPV6
@@ -420,7 +421,7 @@ rip_get_gateway(struct rip_block *block, ip_addr who_told_me)
   return who_told_me;
 }
 
-struct rip_entry *
+static struct rip_entry *
 rip_get_entry(struct proto *p, struct rip_block *block, ip_addr who_told_me, int metric)
 {
   struct rip_entry *entry;
@@ -534,7 +535,7 @@ process_block(struct proto *p, struct rip_block *block, ip_addr who_told_me, str
   advertise_entry(p, block, who_told_me, iface);
 }
 
-int
+static int
 rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port, struct iface *iface)
 {
   DBG("Asked to send my routing table\n");
@@ -547,7 +548,7 @@ rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port, struc
   return 0;
 }
 
-int
+static int
 rip_process_packet_response(struct proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
 			    struct iface *iface)
 {
@@ -829,8 +830,7 @@ rip_init(struct proto_config *cfg)
   return p;
 }
 
-//static	// TODO: UNCOMMENT!!! FIX
-void
+static void
 rip_dump(struct proto *p)
 {
   int i;
