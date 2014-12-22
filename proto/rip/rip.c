@@ -136,19 +136,19 @@ rip_set_up_packet(struct rip_packet *packet)
 }
 
 int
-rip_get_max_rip_entries(int authtype, unsigned mtu)
+rip_get_max_rip_entries(int auth_type, unsigned mtu)
 {
 #ifndef IPV6
-  switch (authtype)
+  switch (auth_type)
   {
-    case AUTH_NONE:
-      return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
     case AUTH_PLAINTEXT:
       return MAX_RTEs_IN_PACKET_WITH_PLAIN_TEXT_AUTH;
     case AUTH_MD5:
       return MAX_RTEs_IN_PACKET_WITH_MD5_AUTH;
+    default:
+      return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
   }
-#else
+#endif
   /**
    * http://tools.ietf.org/html/rfc2080
    *
@@ -158,8 +158,7 @@ rip_get_max_rip_entries(int authtype, unsigned mtu)
    *               |                      RTE_size                       |
    *               +-                                                   -+
    **/
-  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE)/RTE_ENTRY_SIZE);
-#endif
+  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE) / RIP_RTE_SIZE);
 }
 
 /*
@@ -536,7 +535,7 @@ process_block(struct proto *p, struct rip_block *block, ip_addr who_told_me, str
 }
 
 int
-rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port)
+rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port, struct iface *iface)
 {
   DBG("Asked to send my routing table\n");
   if (P_CF->honor == HONOR_NEVER)
@@ -547,8 +546,6 @@ rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port)
 
   return 0;
 }
-
-int
 
 int
 rip_process_packet_response(struct proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
@@ -623,7 +620,7 @@ rip_process_packet(struct proto *p, struct rip_packet *packet, int num_blocks, i
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, who_told_me, port);
+      return rip_process_packet_request(p, who_told_me, port, iface);
     case RIPCMD_RESPONSE:
       return rip_process_packet_response(p, packet, num_blocks, who_told_me, port, iface);
     case RIPCMD_TRACEON:

@@ -56,18 +56,18 @@ rip_cfg:
  | rip_cfg PERIOD expr ';'	{ RIP_CFG->period = $3; }
  | rip_cfg GARBAGE TIME expr ';' { RIP_CFG->garbage_time = $4; }
  | rip_cfg TIMEOUT TIME expr ';' { RIP_CFG->timeout_time = $4; }
- | rip_cfg AUTHENTICATION rip_auth ';' {RIP_CFG->authtype = $3; }
+ | rip_cfg AUTHENTICATION rip_auth ';' {RIP_CFG->auth_type = $3; }
  | rip_cfg password_list ';'
- | rip_cfg HONOR ALWAYS ';'    { RIP_CFG->honor = HO_ALWAYS; }
- | rip_cfg HONOR NEIGHBOR ';'    { RIP_CFG->honor = HO_NEIGHBOR; }
- | rip_cfg HONOR NEVER ';'    { RIP_CFG->honor = HO_NEVER; }
+ | rip_cfg HONOR ALWAYS ';'    { RIP_CFG->honor = HONOR_ALWAYS; }
+ | rip_cfg HONOR NEIGHBOR ';'    { RIP_CFG->honor = HONOR_NEIGHBOR; }
+ | rip_cfg HONOR NEVER ';'    { RIP_CFG->honor = HONOR_NEVER; }
  | rip_cfg INTERFACE rip_iface ';'
  ;
 
 rip_auth:
-   PLAINTEXT { $$=AT_PLAINTEXT; }
- | MD5 { $$=AT_MD5; }
- | NONE { $$=AT_NONE; }
+   PLAINTEXT { $$=AUTH_PLAINTEXT; }
+ | MD5 { $$=AUTH_MD5; }
+ | NONE { $$=AUTH_NONE; }
  ;
 
 
