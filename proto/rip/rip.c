@@ -341,7 +341,6 @@ advertise_entry(struct proto *p, struct rip_block *block, ip_addr who_told_me, s
     {
       entry->updated = now; /* Renew */
       DBG("Route renewed %I/%d from %I met=%d\n", block->network, pxlen, who_told_me, metric);
-      rip_dump(p);	// TODO: REMOVE ME!!!
     }
   }
   DBG("done\n");
