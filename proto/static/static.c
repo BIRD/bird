@@ -48,7 +48,7 @@
 #include "static.h"
 
 static inline rtable *
-p_igp_table(struct proto *p)
+p_igp_table(const struct proto *p)
 {
   struct static_config *cf = (void *) p->cf;
   return cf->igp_table ? cf->igp_table->table : p->table;
@@ -56,7 +56,7 @@ p_igp_table(struct proto *p)
 
 
 static void
-static_install(struct proto *p, struct static_route *r, struct iface *ifa)
+static_install(const struct proto *p, struct static_route *r, struct iface *ifa)
 {
   net *n;
   rta a, *aa;
@@ -118,7 +118,7 @@ static_install(struct proto *p, struct static_route *r, struct iface *ifa)
 }
 
 static void
-static_remove(struct proto *p, struct static_route *r)
+static_remove(const struct proto *p, struct static_route *r)
 {
   net *n;
 
@@ -259,7 +259,7 @@ static_cleanup(struct proto *p)
 static void
 static_neigh_notify(struct neighbor *n)
 {
-  struct proto *p = n->proto;
+  const struct proto *p = n->proto;
   struct static_route *r;
 
   DBG("Static: neighbor notify for %I: iface %p\n", n->addr, n->iface);

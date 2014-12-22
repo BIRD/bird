@@ -33,7 +33,7 @@
  * rip_incoming_authentication - check authentication of incomming packet and return 1 if there's problem.
  */
 int
-rip_incoming_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
+rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
   DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))

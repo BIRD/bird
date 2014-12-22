@@ -63,7 +63,7 @@ ipv6_mklen(ip_addr *a)
 }
 
 int
-ipv6_classify(ip_addr *a)
+ipv6_classify(const ip_addr *a)
 {
   u32 x = a->addr[0];
 

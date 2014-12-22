@@ -110,7 +110,7 @@ typedef struct neighbor {
   ip_addr addr;				/* Address of the neighbor */
   struct ifa *ifa;			/* Ifa on related iface */
   struct iface *iface;			/* Interface it's connected to */
-  struct proto *proto;			/* Protocol this belongs to */
+  const struct proto *proto;			/* Protocol this belongs to */
   void *data;				/* Protocol-specific data */
   unsigned aux;				/* Protocol-specific data */
   unsigned flags;
@@ -122,8 +122,8 @@ typedef struct neighbor {
 #define NEF_ONLINK 2
 #define NEF_BIND 4			/* Used internally for neighbors bound to an iface */
 
-neighbor *neigh_find(struct proto *, ip_addr *, unsigned flags);
-neighbor *neigh_find2(struct proto *p, ip_addr *a, struct iface *ifa, unsigned flags);
+neighbor *neigh_find(const struct proto *, const ip_addr *, unsigned flags);
+neighbor *neigh_find2(const struct proto *p, const ip_addr *a, struct iface *ifa, unsigned flags);
 
 static inline int neigh_connected_to(struct proto *p, ip_addr *a, struct iface *i)
 {

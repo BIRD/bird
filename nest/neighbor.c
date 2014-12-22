@@ -50,13 +50,13 @@ static slab *neigh_slab;
 static list sticky_neigh_list, neigh_hash_table[NEIGH_HASH_SIZE];
 
 static inline unsigned int
-neigh_hash(struct proto *p, ip_addr *a)
+neigh_hash(const struct proto *p, const ip_addr *a)
 {
   return (p->hash_key ^ ipa_hash(*a)) & (NEIGH_HASH_SIZE-1);
 }
 
 static int
-if_connected(ip_addr *a, struct iface *i, struct ifa **ap)
+if_connected(const ip_addr *a, const struct iface *i, struct ifa **ap)
 {
   struct ifa *b;
 
@@ -115,14 +115,14 @@ if_connected(ip_addr *a, struct iface *i, struct ifa **ap)
  * IP address, neigh_find() returns %NULL.
  */
 neighbor *
-neigh_find(struct proto *p, ip_addr *a, unsigned flags)
+neigh_find(const struct proto *p, const ip_addr *a, unsigned flags)
 {
   return neigh_find2(p, a, NULL, flags);
 }
 
 
 neighbor *
-neigh_find2(struct proto *p, ip_addr *a, struct iface *ifa, unsigned flags)
+neigh_find2(const struct proto *p, const ip_addr *a, struct iface *ifa, unsigned flags)
 {
   neighbor *n;
   int class, scope = -1;

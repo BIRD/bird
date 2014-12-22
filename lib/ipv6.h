@@ -80,14 +80,14 @@ typedef struct ipv6_addr {
 
 ip_addr ipv6_mkmask(unsigned);
 unsigned ipv6_mklen(ip_addr *);
-int ipv6_classify(ip_addr *);
+int ipv6_classify(const ip_addr *);
 void ipv6_hton(ip_addr *);
 void ipv6_ntoh(ip_addr *);
 int ipv6_compare(ip_addr, ip_addr);
 int ipv4_pton_u32(char *, u32 *);
 void ipv6_absolutize(ip_addr *, ip_addr *);
 
-static inline int ipv6_has_link_scope(ip_addr *a)
+static inline int ipv6_has_link_scope(const ip_addr *a)
 {
   return ((a->addr[0] & 0xffc00000) == 0xfe800000);
 }
@@ -98,14 +98,14 @@ static inline int ipv6_has_link_scope(ip_addr *a)
  *  distribution properties on real routing tables.
  */
 
-static inline unsigned ipv6_hash(ip_addr *a)
+static inline unsigned ipv6_hash(const ip_addr *a)
 {
   /* Returns a 16-bit hash key */
   u32 x = _I0(*a) ^ _I1(*a) ^ _I2(*a) ^ _I3(*a);
   return (x ^ (x >> 16) ^ (x >> 8)) & 0xffff;
 }
 
-static inline u32 ipv6_hash32(ip_addr *a)
+static inline u32 ipv6_hash32(const ip_addr *a)
 {
   /* Returns a 32-bit hash key, although low-order bits are not ixed */
   u32 x = _I0(*a) ^ _I1(*a) ^ _I2(*a) ^ _I3(*a);
