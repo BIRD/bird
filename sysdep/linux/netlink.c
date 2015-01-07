@@ -629,7 +629,7 @@ nl_send_route(struct krt_proto *p, rte *e, struct ea_list *eattrs, int new)
   struct {
     struct nlmsghdr h;
     struct rtmsg r;
-    char buf[128 + nh_bufsize(a->nexthops)];
+    char buf[128 + nh_bufsize(a->nexthops)];	/* Needs Variable-Length Array extension */
   } r;
 
   DBG("nl_send_route(%I/%d,new=%d)\n", net->n.prefix, net->n.pxlen, new);
