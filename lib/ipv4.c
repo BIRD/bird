@@ -83,7 +83,7 @@ ip_pton(char *a, ip_addr *o)
       if (!c != !i)
 	return 0;
       l = strtoul(a, &d, 10);
-      if (d != c && *d || l > 255)
+      if ((d != c && *d) || l > 255)
 	return 0;
       ia = (ia << 8) | l;
       if (c)

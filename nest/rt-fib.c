@@ -554,7 +554,7 @@ next:
       c = 1;
       debug("got %p\n", z);
     }
-  FIB_ITERATE_END;
+  FIB_ITERATE_END(z);
   dump("iter end");
 
   fit_init(&i, &f);
