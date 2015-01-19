@@ -112,10 +112,10 @@ dev_copy_config(struct proto_config *dest, struct proto_config *src)
 }
 
 struct protocol proto_device = {
-  .name = "Direct",
-  .template = "direct%d",
-  .preference = DEF_PREF_DIRECT,
-  .init = dev_init,
-  .reconfigure = dev_reconfigure,
-  .copy_config = dev_copy_config
+  .name = 		"Direct",
+  .template = 		"direct%d",
+  .preference = 	DEF_PREF_DIRECT,
+  .init = 		dev_init,
+  .reconfigure = 	dev_reconfigure,
+  .copy_config = 	dev_copy_config
 };

@@ -1406,18 +1406,18 @@ bgp_show_proto_info(struct proto *P)
 }
 
 struct protocol proto_bgp = {
-  .name = "BGP",
-  .template = "bgp%d",
-  .attr_class = EAP_BGP,
-  .preference = DEF_PREF_BGP,
-  .init = bgp_init,
-  .start = bgp_start,
-  .shutdown = bgp_shutdown,
-  .cleanup = bgp_cleanup,
-  .reconfigure = bgp_reconfigure,
-  .copy_config = bgp_copy_config,
-  .get_status = bgp_get_status,
-  .get_attr = bgp_get_attr,
-  .get_route_info = bgp_get_route_info,
-  .show_proto_info = bgp_show_proto_info
+  .name = 		"BGP",
+  .template = 		"bgp%d",
+  .attr_class = 	EAP_BGP,
+  .preference = 	DEF_PREF_BGP,
+  .init = 		bgp_init,
+  .start = 		bgp_start,
+  .shutdown = 		bgp_shutdown,
+  .cleanup = 		bgp_cleanup,
+  .reconfigure = 	bgp_reconfigure,
+  .copy_config = 	bgp_copy_config,
+  .get_status = 	bgp_get_status,
+  .get_attr = 		bgp_get_attr,
+  .get_route_info = 	bgp_get_route_info,
+  .show_proto_info = 	bgp_show_proto_info
 };

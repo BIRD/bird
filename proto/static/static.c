@@ -528,16 +528,16 @@ static_copy_config(struct proto_config *dest, struct proto_config *src)
 
 
 struct protocol proto_static = {
-  .name = "Static",
-  .template = "static%d",
-  .preference = DEF_PREF_STATIC,
-  .init = static_init,
-  .dump = static_dump,
-  .start = static_start,
-  .shutdown = static_shutdown,
-  .cleanup = static_cleanup,
-  .reconfigure = static_reconfigure,
-  .copy_config = static_copy_config
+  .name =		"Static",
+  .template =		"static%d",
+  .preference =		DEF_PREF_STATIC,
+  .init =		static_init,
+  .dump =		static_dump,
+  .start =		static_start,
+  .shutdown =		static_shutdown,
+  .cleanup =		static_cleanup,
+  .reconfigure =	static_reconfigure,
+  .copy_config =	static_copy_config
 };
 
 static void
