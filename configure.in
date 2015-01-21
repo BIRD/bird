@@ -283,7 +283,7 @@ AC_SUBST(CLIENT_LIBS)
 
 mkdir -p $objdir/sysdep
 AC_CONFIG_HEADERS([$objdir/sysdep/autoconf.h:sysdep/autoconf.h.in])
-AC_CONFIG_COMMANDS([merge],[[export CPP="$CPP"
+AC_CONFIG_COMMANDS([merge],[[export CPP="$CPP"; export CC="$CC"
 $srcdir/tools/mergedirs $srcdir $srcdir_rel $objdir $sysdep_dirs]],
 	[[srcdir=$srcdir]
 	[srcdir_rel=$srcdir_rel]
