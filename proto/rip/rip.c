@@ -110,6 +110,177 @@ static void rip_get_route_info(rte *rte, byte *buf, ea_list *attrs);
 static void rip_real_if_add(struct object_lock *lock);
 
 /*
+ * Output processing
+ *
+ * This part is responsible for getting packets out to the network.
+ */
+
+/*
+ * rip_tx - send one rip packet to the network
+ */
+static void
+rip_tx(sock *sock)
+{
+  struct rip_interface *rif = sock->data;
+  struct rip_connection *conn = rif->busy;
+  struct proto *p = conn->proto;
+  struct rip_packet *packet = (void *) sock->tbuf;
+  int packet_len;
+  int max_rte_entries, used_rte_entries = 0;
+  int nothing_to_update = 1;
+
+  DBG("Sending to %I\n", sock->daddr);
+  do
+  {
+    if (conn->done)
+      goto done;
+
+    DBG("Preparing packet to send: ");
+    rip_set_up_packet(packet);
+    max_rte_entries = rip_get_max_rip_entries(P_CF->auth_type, sock->iface->mtu);
+
+    FIB_ITERATE_START(&P->rtable, &conn->iter, z)
+    {
+      struct rip_entry *entry = (struct rip_entry *) z;
+
+      if (!rif->triggered || (entry->changed >= now - 2))
+      {
+	/* FIXME: Should be probably 1 or some different algorithm */
+	nothing_to_update = 0;
+	used_rte_entries = rip_tx_prepare(p, packet->block + used_rte_entries, entry, rif, used_rte_entries);
+	if (used_rte_entries >= max_rte_entries)
+	{
+	  FIB_ITERATE_PUT(&conn->iter, z);
+	  goto break_loop;
+	}
+      }
+    } FIB_ITERATE_END(z);
+    conn->done = 1;
+
+    break_loop:
+
+    packet_len = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
+
+    DBG(", sending %d blocks, ", used_rte_entries);
+    if (nothing_to_update)
+    {
+      DBG("not sending NULL update\n");
+      conn->done = 1;
+      goto done;
+    }
+    if (ipa_nonzero(conn->daddr))
+      used_rte_entries = sk_send_to(sock, packet_len, conn->daddr, conn->dport);
+    else
+      used_rte_entries = sk_send(sock, packet_len);
+
+    DBG("it wants more\n");
+  } while (used_rte_entries > 0);
+
+  if (used_rte_entries < 0)
+    rip_tx_err(sock, used_rte_entries);
+  DBG("blocked\n");
+  return;
+
+  done:
+  DBG("Looks like I'm");
+  conn->rif->busy = NULL;
+  rem_node(NODE conn);
+  mb_free(conn);
+  DBG(" done\n");
+  return;
+}
+
+static void
+rip_set_up_packet(struct rip_packet *packet)
+{
+  packet->heading.command = RIPCMD_RESPONSE;
+#ifndef IPV6
+  packet->heading.version = RIP_V2;
+#else
+  packet->heading.version = RIP_NG;
+#endif
+  packet->heading.unused = 0;
+}
+
+static int
+rip_get_max_rip_entries(int auth_type, unsigned mtu)
+{
+#ifndef IPV6
+  switch (auth_type)
+  {
+    case AUTH_PLAINTEXT:
+      return MAX_RTEs_IN_PACKET_WITH_PLAIN_TEXT_AUTH;
+    case AUTH_MD5:
+      return MAX_RTEs_IN_PACKET_WITH_MD5_AUTH;
+    default:
+      return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
+  }
+#endif
+  /**
+   * http://tools.ietf.org/html/rfc2080
+   *
+   *               +-                                                   -+
+   *               | MTU - sizeof(IPv6_hdrs) - UDP_hdrlen - RIPng_hdrlen |
+   *   #RTEs = INT | --------------------------------------------------- |
+   *               |                      RTE_size                       |
+   *               +-                                                   -+
+   **/
+  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE) / RIP_RTE_SIZE);
+}
+
+/*
+ * rip_tx_prepare:
+ * @e: rip entry that needs to be translated to form suitable for network
+ * @b: block to be filled
+ *
+ * Fill one rip block with info that needs to go to the network. Handle
+ * nexthop and split horizont correctly. (Next hop is ignored for IPv6,
+ * that could be fixed but it is not real problem).
+ */
+static int
+rip_tx_prepare(struct proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_interface *rif, int pos)
+{
+  int metric;
+  DBG(".");
+  block->tag = htons(entry->tag);
+  block->network = entry->n.prefix;
+  metric = entry->metric;
+  if (neigh_connected_to(p, &entry->who_told_me, rif->iface))
+  {
+    DBG("(split horizon)");
+    metric = P_CF->infinity;
+  }
+#ifndef IPV6
+  block->family = htons(2); /* AF_INET */
+  block->netmask = ipa_mkmask(entry->n.pxlen);
+  ipa_hton(block->netmask);
+
+  if (neigh_connected_to(p, &entry->next_hop, rif->iface))
+    block->next_hop = entry->next_hop;
+  else
+    block->next_hop = IPA_NONE;
+  ipa_hton(block->next_hop);
+  block->metric = htonl(metric);
+#else
+  block->pxlen = entry->n.pxlen;
+  block->metric = metric; /* it is u8 */
+#endif
+
+  ipa_hton(block->network);
+
+  return pos + 1;
+}
+
+static void
+rip_tx_err(sock *s, int err)
+{
+  struct rip_connection *conn = ((struct rip_interface *) (s->data))->busy;
+  struct proto *p = conn->proto;
+  log(L_ERR "%s: Unexpected error at rip transmit: %M", p->name, err);
+}
+
+
+/*
  * Input processing
  *
  * This part is responsible for any updates that come from network
@@ -556,177 +727,6 @@ rip_get_connection(struct proto *p, ip_addr daddr, int dport, struct rip_interfa
 
   conn->done = 0;
   return conn;
-}
-
-
-/*
- * Output processing
- *
- * This part is responsible for getting packets out to the network.
- */
-
-/*
- * rip_tx - send one rip packet to the network
- */
-static void
-rip_tx(sock *sock)
-{
-  struct rip_interface *rif = sock->data;
-  struct rip_connection *conn = rif->busy;
-  struct proto *p = conn->proto;
-  struct rip_packet *packet = (void *) sock->tbuf;
-  int packet_len;
-  int max_rte_entries, used_rte_entries = 0;
-  int nothing_to_update = 1;
-
-  DBG("Sending to %I\n", sock->daddr);
-  do
-  {
-    if (conn->done)
-      goto done;
-
-    DBG("Preparing packet to send: ");
-    rip_set_up_packet(packet);
-    max_rte_entries = rip_get_max_rip_entries(P_CF->auth_type, sock->iface->mtu);
-
-    FIB_ITERATE_START(&P->rtable, &conn->iter, z)
-    {
-      struct rip_entry *entry = (struct rip_entry *) z;
-
-      if (!rif->triggered || (entry->changed >= now - 2))
-      {
-	/* FIXME: Should be probably 1 or some different algorithm */
-	nothing_to_update = 0;
-	used_rte_entries = rip_tx_prepare(p, packet->block + used_rte_entries, entry, rif, used_rte_entries);
-	if (used_rte_entries >= max_rte_entries)
-	{
-	  FIB_ITERATE_PUT(&conn->iter, z);
-	  goto break_loop;
-	}
-      }
-    } FIB_ITERATE_END(z);
-    conn->done = 1;
-
-    break_loop:
-
-    packet_len = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
-
-    DBG(", sending %d blocks, ", used_rte_entries);
-    if (nothing_to_update)
-    {
-      DBG("not sending NULL update\n");
-      conn->done = 1;
-      goto done;
-    }
-    if (ipa_nonzero(conn->daddr))
-      used_rte_entries = sk_send_to(sock, packet_len, conn->daddr, conn->dport);
-    else
-      used_rte_entries = sk_send(sock, packet_len);
-
-    DBG("it wants more\n");
-  } while (used_rte_entries > 0);
-
-  if (used_rte_entries < 0)
-    rip_tx_err(sock, used_rte_entries);
-  DBG("blocked\n");
-  return;
-
-  done:
-  DBG("Looks like I'm");
-  conn->rif->busy = NULL;
-  rem_node(NODE conn);
-  mb_free(conn);
-  DBG(" done\n");
-  return;
-}
-
-static void
-rip_set_up_packet(struct rip_packet *packet)
-{
-  packet->heading.command = RIPCMD_RESPONSE;
-#ifndef IPV6
-  packet->heading.version = RIP_V2;
-#else
-  packet->heading.version = RIP_NG;
-#endif
-  packet->heading.unused = 0;
-}
-
-static int
-rip_get_max_rip_entries(int auth_type, unsigned mtu)
-{
-#ifndef IPV6
-  switch (auth_type)
-  {
-    case AUTH_PLAINTEXT:
-      return MAX_RTEs_IN_PACKET_WITH_PLAIN_TEXT_AUTH;
-    case AUTH_MD5:
-      return MAX_RTEs_IN_PACKET_WITH_MD5_AUTH;
-    default:
-      return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
-  }
-#endif
-  /**
-   * http://tools.ietf.org/html/rfc2080
-   *
-   *               +-                                                   -+
-   *               | MTU - sizeof(IPv6_hdrs) - UDP_hdrlen - RIPng_hdrlen |
-   *   #RTEs = INT | --------------------------------------------------- |
-   *               |                      RTE_size                       |
-   *               +-                                                   -+
-   **/
-  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE) / RIP_RTE_SIZE);
-}
-
-/*
- * rip_tx_prepare:
- * @e: rip entry that needs to be translated to form suitable for network
- * @b: block to be filled
- *
- * Fill one rip block with info that needs to go to the network. Handle
- * nexthop and split horizont correctly. (Next hop is ignored for IPv6,
- * that could be fixed but it is not real problem).
- */
-static int
-rip_tx_prepare(struct proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_interface *rif, int pos)
-{
-  int metric;
-  DBG(".");
-  block->tag = htons(entry->tag);
-  block->network = entry->n.prefix;
-  metric = entry->metric;
-  if (neigh_connected_to(p, &entry->who_told_me, rif->iface))
-  {
-    DBG("(split horizon)");
-    metric = P_CF->infinity;
-  }
-#ifndef IPV6
-  block->family = htons(2); /* AF_INET */
-  block->netmask = ipa_mkmask(entry->n.pxlen);
-  ipa_hton(block->netmask);
-
-  if (neigh_connected_to(p, &entry->next_hop, rif->iface))
-    block->next_hop = entry->next_hop;
-  else
-    block->next_hop = IPA_NONE;
-  ipa_hton(block->next_hop);
-  block->metric = htonl(metric);
-#else
-  block->pxlen = entry->n.pxlen;
-  block->metric = metric; /* it is u8 */
-#endif
-
-  ipa_hton(block->network);
-
-  return pos + 1;
-}
-
-static void
-rip_tx_err(sock *s, int err)
-{
-  struct rip_connection *conn = ((struct rip_interface *) (s->data))->busy;
-  struct proto *p = conn->proto;
-  log(L_ERR "%s: Unexpected error at rip transmit: %M", p->name, err);
 }
 
 
