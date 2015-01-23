@@ -24,8 +24,7 @@
 
 #include "rip.h"
 
-#define P ((struct rip_proto *) p)
-#define P_CF ((struct rip_proto_config *)p->cf)
+#define P_CF ((struct rip_proto_config *) P->cf)
 
 #define PACKET_LEN(num) (num * sizeof(struct rip_block) + sizeof(struct rip_packet_heading))
 
@@ -33,7 +32,7 @@
  * rip_incoming_authentication - check authentication of incomming packet and return 1 if there's problem.
  */
 int
-rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
+rip_incoming_authentication(struct proto *P, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
   DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))
@@ -63,7 +62,7 @@ rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struc
 	struct MD5Context ctxt;
 	char md5sum_packet[16];
 	char md5sum_computed[16];
-	struct neighbor *neigh = neigh_find(p, &who_told_me, 0);
+	struct neighbor *neigh = neigh_find(P, &who_told_me, 0);
 	list *l = P_CF->passwords;
 
 	if (ntohs(block->packet_len) != PACKET_LEN(num) - sizeof(struct rip_md5_tail))
@@ -125,7 +124,7 @@ rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struc
  * %num: number of rip_blocks already in packets. This function returns size of packet to send.
  */
 int
-rip_outgoing_authentication( struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num)
+rip_outgoing_authentication(struct proto *P, struct rip_block_auth *block, struct rip_packet *packet, int num)
 {
   struct password_item *passwd = password_find(P_CF->passwords, 1);
 

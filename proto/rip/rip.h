@@ -36,7 +36,7 @@
 #define BAD(x)				\
   do					\
   {					\
-    log(L_REMOTE "%s: " x, p->name);	\
+    log(L_REMOTE "%s: " x, P->name);	\
     return 1;				\
   } while(0)
 
