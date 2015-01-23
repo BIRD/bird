@@ -199,7 +199,7 @@ struct rip_proto
 
 #ifdef LOCAL_DEBUG
 #define RIP_MAGIC 81861253
-#define CHK_MAGIC do { if (P->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
+#define CHK_MAGIC do { if (P_TO_RIP_PROTO->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
 #else
 #define CHK_MAGIC do { } while (0)
 #endif

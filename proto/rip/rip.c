@@ -58,7 +58,7 @@
 
 #include "rip.h"
 
-#define P ((struct rip_proto *) p)
+#define P_TO_RIP_PROTO ((struct rip_proto *) p)
 #define P_CF ((struct rip_proto_config *)p->cf)
 
 #undef TRACE
@@ -186,7 +186,7 @@ rip_tx(sock *sock)
     rip_set_up_packet(packet);
     max_rte_entries = rip_get_max_rip_entries(P_CF->auth_type, sock->iface->mtu);
 
-    FIB_ITERATE_START(&P->rtable, &conn->iter, z)
+    FIB_ITERATE_START(&P_TO_RIP_PROTO->rtable, &conn->iter, z)
     {
       struct rip_entry *entry = (struct rip_entry *) z;
 
@@ -279,8 +279,8 @@ rip_sendto(struct proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
 
   conn = rip_get_connection(p, daddr, dport, rif);
 
-  FIB_ITERATE_INIT(&conn->iter, &P->rtable);
-  add_head(&P->connections, NODE conn);
+  FIB_ITERATE_INIT(&conn->iter, &P_TO_RIP_PROTO->rtable);
+  add_head(&P_TO_RIP_PROTO->connections, NODE conn);
   if (ipa_nonzero(daddr))
     TRACE(D_PACKETS, "Sending my routing table to %I:%d on %s", daddr, dport, rif->iface->name);
   else
@@ -294,7 +294,7 @@ find_interface(struct proto *p, struct iface *what)
 {
   struct rip_interface *i;
 
-  WALK_LIST (i, P->interfaces)
+  WALK_LIST (i, P_TO_RIP_PROTO->interfaces)
     if (i->iface == what)
       return i;
   return NULL;
@@ -405,7 +405,7 @@ rip_add_route(struct proto *p, struct rip_block *block, struct rip_entry *entry,
   r->net = n;
   r->pflags = 0; /* Here go my flags */
 
-  add_head(&P->garbage, NODE &entry->gb);
+  add_head(&P_TO_RIP_PROTO->garbage, NODE &entry->gb);
 
   rte_update(p, n, r);
   DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->who_told_me, entry->metric);
@@ -431,7 +431,7 @@ rip_get_entry(struct proto *p, struct rip_block *block, ip_addr who_told_me, int
   gw = rip_get_gateway(block, who_told_me);
   pxlen = rip_get_pxlen(block);
 
-  entry = fib_get(&P->rtable, &block->network, pxlen);
+  entry = fib_get(&P_TO_RIP_PROTO->rtable, &block->network, pxlen);
   entry->next_hop = gw;
   entry->metric = metric;
   entry->who_told_me = who_told_me;
@@ -477,7 +477,7 @@ advertise_entry(struct proto *p, struct rip_block *block, ip_addr who_told_me, s
   metric = rip_get_metric_with_interface(p, block, rif);
 
   /* set to: interface of nexthop */
-  entry = fib_find(&P->rtable, &block->network, pxlen);
+  entry = fib_find(&P_TO_RIP_PROTO->rtable, &block->network, pxlen);
 
   if (rip_route_update_arrived(entry, metric, who_told_me))
   {
@@ -542,7 +542,7 @@ rip_process_packet_request(struct proto *p, ip_addr who_told_me, int port, struc
     BAD("They asked me to send routing table, but I was told not to do it");
   if ((P_CF->honor == HONOR_NEIGHBOR) && (!neigh_find2(p, &who_told_me, iface, 0)))
     BAD("They asked me to send routing table, but he is not my neighbor");
-  rip_sendto(p, who_told_me, port, HEAD(P->interfaces)); /* no broadcast */
+  rip_sendto(p, who_told_me, port, HEAD(P_TO_RIP_PROTO->interfaces)); /* no broadcast */
 
   return 0;
 }
@@ -720,7 +720,7 @@ rip_timer(timer *timer)
   CHK_MAGIC;
   DBG("RIP: tick tock\n");
 
-  WALK_LIST_DELSAFE(node_i, node_next, P->garbage)
+  WALK_LIST_DELSAFE(node_i, node_next, P_TO_RIP_PROTO->garbage)
   {
     rte *rte = NULL;
     net *net;
@@ -749,7 +749,7 @@ rip_timer(timer *timer)
       if (rte)
 	rte_discard(p->table, rte);
       rem_node(NODE &entry->gb);
-      fib_delete(&P->rtable, entry);
+      fib_delete(&P_TO_RIP_PROTO->rtable, entry);
     }
   }
 
@@ -759,13 +759,13 @@ rip_timer(timer *timer)
 
     if ( P_CF->period > 2)
     { /* Bring some randomness into sending times */
-      if (!(P->tx_count % P_CF->period))
-	P->rnd_count = random_u32() % 2;
+      if (!(P_TO_RIP_PROTO->tx_count % P_CF->period))
+	P_TO_RIP_PROTO->rnd_count = random_u32() % 2;
     }
     else
-      P->rnd_count = P->tx_count % P_CF->period;
+      P_TO_RIP_PROTO->rnd_count = P_TO_RIP_PROTO->tx_count % P_CF->period;
 
-    WALK_LIST(rif, P->interfaces)
+    WALK_LIST(rif, P_TO_RIP_PROTO->interfaces)
     {
       struct iface *iface = rif->iface;
 
@@ -775,12 +775,12 @@ rip_timer(timer *timer)
 	continue;
       if (!(iface->flags & IF_UP))
 	continue;
-      rif->triggered = P->rnd_count;
+      rif->triggered = P_TO_RIP_PROTO->rnd_count;
 
       rip_sendto(p, IPA_NONE, 0, rif);
     }
-    P->tx_count++;
-    P->rnd_count--;
+    P_TO_RIP_PROTO->tx_count++;
+    P_TO_RIP_PROTO->rnd_count--;
   }
 
   DBG("RIP: tick tock done\n");
@@ -800,19 +800,19 @@ rip_start(struct proto *p)
   ASSERT(sizeof(struct rip_block_auth) == 20);
 
 #ifdef LOCAL_DEBUG
-  P->magic = RIP_MAGIC;
+  P_TO_RIP_PROTO->magic = RIP_MAGIC;
 #endif
-  fib_init(&P->rtable, p->pool, sizeof(struct rip_entry), 0, NULL);
-  init_list(&P->connections);
-  init_list(&P->garbage);
-  init_list(&P->interfaces);
-  P->timer = tm_new(p->pool);
-  P->timer->data = p;
-  P->timer->recurrent = 1;
-  P->timer->hook = rip_timer;
-  tm_start(P->timer, 2);
+  fib_init(&P_TO_RIP_PROTO->rtable, p->pool, sizeof(struct rip_entry), 0, NULL);
+  init_list(&P_TO_RIP_PROTO->connections);
+  init_list(&P_TO_RIP_PROTO->garbage);
+  init_list(&P_TO_RIP_PROTO->interfaces);
+  P_TO_RIP_PROTO->timer = tm_new(p->pool);
+  P_TO_RIP_PROTO->timer->data = p;
+  P_TO_RIP_PROTO->timer->recurrent = 1;
+  P_TO_RIP_PROTO->timer->hook = rip_timer;
+  tm_start(P_TO_RIP_PROTO->timer, 2);
   rif = new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
-  add_head(&P->interfaces, NODE rif);
+  add_head(&P_TO_RIP_PROTO->interfaces, NODE rif);
   CHK_MAGIC;
 
   rip_init_instance(p);
@@ -837,19 +837,19 @@ rip_dump(struct proto *p)
   struct rip_interface *rif;
 
   CHK_MAGIC;
-  WALK_LIST(w, P->connections)
+  WALK_LIST(w, P_TO_RIP_PROTO->connections)
   {
     struct rip_connection *conn = (void *) w;
     debug("RIP: connection #%d: %I\n", conn->num, conn->addr);
   }
   i = 0;
-  FIB_WALK(&P->rtable, e)
+  FIB_WALK(&P_TO_RIP_PROTO->rtable, e)
   {
     debug("RIP: entry #%d: ", i++);
     rip_dump_entry((struct rip_entry *) e);
   } FIB_WALK_END;
   i = 0;
-  WALK_LIST(rif, P->interfaces)
+  WALK_LIST(rif, P_TO_RIP_PROTO->interfaces)
   {
     debug("RIP: interface #%d: %s, %I, busy = %x\n", i++, rif->iface ? rif->iface->name : "(dummy)", rif->sock->daddr,
 	  rif->busy);
@@ -1001,7 +1001,7 @@ rip_real_if_add(struct object_lock *lock)
   rif = new_iface(p, iface, iface->flags, k);
   if (rif)
   {
-    add_head(&P->interfaces, NODE rif);
+    add_head(&P_TO_RIP_PROTO->interfaces, NODE rif);
     DBG("Adding object lock of %p for %p\n", lock, rif);
     rif->lock = lock;
   }
@@ -1115,17 +1115,17 @@ rip_rt_notify(struct proto *p, struct rtable *table UNUSED, struct network *net,
   CHK_MAGIC;
   struct rip_entry *entry;
 
-  entry = fib_find(&P->rtable, &net->n.prefix, net->n.pxlen);
+  entry = fib_find(&P_TO_RIP_PROTO->rtable, &net->n.prefix, net->n.pxlen);
   if (new)
   {
     /* FIXME: Text is the current rip_entry is not better! */
     if (entry)
     {
       rem_node(NODE &entry->gb);
-      fib_delete(&P->rtable, entry);
+      fib_delete(&P_TO_RIP_PROTO->rtable, entry);
     }
 
-    entry = fib_get(&P->rtable, &net->n.prefix, net->n.pxlen);
+    entry = fib_get(&P_TO_RIP_PROTO->rtable, &net->n.prefix, net->n.pxlen);
 
     entry->next_hop = new->attrs->gw;
     entry->metric = 0;
@@ -1145,7 +1145,7 @@ rip_rt_notify(struct proto *p, struct rtable *table UNUSED, struct network *net,
     entry->updated = entry->changed = 0; /* External routes do not age */
     entry->flags = 0;
 
-    add_head(&P->garbage, NODE &entry->gb);
+    add_head(&P_TO_RIP_PROTO->garbage, NODE &entry->gb);
   }
   else
   {
