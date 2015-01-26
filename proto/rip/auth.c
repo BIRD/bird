@@ -24,22 +24,21 @@
 
 #include "rip.h"
 
-#define P_CF ((struct rip_proto_config *) P->cf)
-
 #define PACKET_LEN(num) (num * sizeof(struct rip_block) + sizeof(struct rip_packet_heading))
 
 /*
  * rip_incoming_authentication - check authentication of incomming packet and return 1 if there's problem.
  */
 int
-rip_incoming_authentication(struct proto *P, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
+rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
+  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
   DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))
   { /* Authentication type */
     case AUTH_PLAINTEXT:
       {
-	struct password_item *passwd = password_find(P_CF->passwords, 1);
+	struct password_item *passwd = password_find(rip_config->passwords, 1);
 	DBG("Plaintext passwd");
 	if (!passwd)
 	{
@@ -62,8 +61,8 @@ rip_incoming_authentication(struct proto *P, struct rip_block_auth *block, struc
 	struct MD5Context ctxt;
 	char md5sum_packet[16];
 	char md5sum_computed[16];
-	struct neighbor *neigh = neigh_find(P, &who_told_me, 0);
-	list *l = P_CF->passwords;
+	struct neighbor *neigh = neigh_find(&(p->inherited), &who_told_me, 0);
+	list *l = rip_config->passwords;
 
 	if (ntohs(block->packet_len) != PACKET_LEN(num) - sizeof(struct rip_md5_tail))
 	{
@@ -124,11 +123,11 @@ rip_incoming_authentication(struct proto *P, struct rip_block_auth *block, struc
  * %num: number of rip_blocks already in packets. This function returns size of packet to send.
  */
 int
-rip_outgoing_authentication(struct proto *P, struct rip_block_auth *block, struct rip_packet *packet, int num)
+rip_outgoing_authentication(struct rip_proto_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num)
 {
-  struct password_item *passwd = password_find(P_CF->passwords, 1);
+  struct password_item *passwd = password_find(rip_config->passwords, 1);
 
-  if (!P_CF->auth_type)
+  if (!rip_config->auth_type)
     return PACKET_LEN(num);
 
   DBG("Outgoing authentication: ");
@@ -138,9 +137,9 @@ rip_outgoing_authentication(struct proto *P, struct rip_block_auth *block, struc
     return PACKET_LEN(num);
   }
 
-  block->auth_type = htons(P_CF->auth_type);
+  block->auth_type = htons(rip_config->auth_type);
   block->must_be_FFFF = 0xffff;
-  switch (P_CF->auth_type) {
+  switch (rip_config->auth_type) {
   case AUTH_PLAINTEXT:
     password_cpy( (char *) (&block->packet_len), passwd->password, 16);
     return PACKET_LEN(num);

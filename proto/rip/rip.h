@@ -33,11 +33,11 @@
 #define OK		1
 #define FAIL		0
 
-#define BAD(x)				\
-  do					\
-  {					\
-    log(L_REMOTE "%s: " x, P->name);	\
-    return 1;				\
+#define BAD(x)					\
+  do						\
+  {						\
+    log(L_REMOTE "%s: " x, p->inherited.name);	\
+    return 1;					\
   } while(0)
 
 struct rip_connection
@@ -199,7 +199,7 @@ struct rip_proto
 
 #ifdef LOCAL_DEBUG
 #define RIP_MAGIC 81861253
-#define CHK_MAGIC do { if (P_TO_RIP_PROTO->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
+#define CHK_MAGIC do { if (p->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
 #else
 #define CHK_MAGIC do { } while (0)
 #endif
@@ -209,5 +209,5 @@ void rip_init_config(struct rip_proto_config *c);
 
 /* Authentication functions */
 
-int rip_incoming_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me);
-int rip_outgoing_authentication(struct proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num);
+int rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me);
+int rip_outgoing_authentication(struct rip_proto_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num);
