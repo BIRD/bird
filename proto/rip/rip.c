@@ -515,8 +515,6 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me,
 
   ip_addr network = block->network;
 
-  CHK_MAGIC;
-
   TRACE(D_ROUTES, "block: %I tells me: %I/%d available, metric %d... ", who_told_me, network, pxlen, metric);
 
   if ((!metric) || (metric > cf->infinity))
@@ -668,7 +666,6 @@ rip_rx(sock *sock, int size)
     return 1;
   }
 
-  CHK_MAGIC;
   DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, rif->iface ? rif->iface->name : "(dummy)");
   size -= sizeof(struct rip_packet_heading);
   if (size < 0)
@@ -722,7 +719,6 @@ rip_timer(timer *timer)
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct fib_node *node_i, *node_next;
 
-  CHK_MAGIC;
   DBG("RIP: tick tock\n");
 
   WALK_LIST_DELSAFE(node_i, node_next, p->garbage)
@@ -735,8 +731,6 @@ rip_timer(timer *timer)
     net = net_find(p->p.table, entry->n.prefix, entry->n.pxlen);
     if (net)
       rte = rte_find(net, p->p.main_source);
-
-    CHK_MAGIC;
 
     //DBG("Garbage: (%p)", rte); rte_dump(rte);
 
@@ -805,9 +799,6 @@ rip_start(struct proto *P)
   ASSERT(sizeof(struct rip_block) == 20);
   ASSERT(sizeof(struct rip_block_auth) == 20);
 
-#ifdef LOCAL_DEBUG
-  p->magic = RIP_MAGIC;
-#endif
   fib_init(&p->rtable, P->pool, sizeof(struct rip_entry), 0, NULL);
   init_list(&p->connections);
   init_list(&p->garbage);
@@ -819,7 +810,6 @@ rip_start(struct proto *P)
   tm_start(p->timer, 2);
   rif = rip_new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
   add_head(&p->interfaces, NODE rif);
-  CHK_MAGIC;
 
   rip_init_instance(P);
 
@@ -843,7 +833,6 @@ rip_dump(struct proto *P)
   struct rip_iface *rif;
   struct rip_proto *p = (struct rip_proto *) P;
 
-  CHK_MAGIC;
   WALK_LIST(w, p->connections)
   {
     struct rip_connection *conn = (void *) w;
@@ -1126,7 +1115,6 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
 {
   struct rip_proto *p = (struct rip_proto *) P;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-  CHK_MAGIC;
   struct rip_entry *entry;
 
   entry = fib_find(&p->rtable, &net->n.prefix, net->n.pxlen);

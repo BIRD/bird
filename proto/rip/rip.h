@@ -190,19 +190,9 @@ struct rip_proto
   struct fib rtable;
   list garbage;
   list interfaces; /* Interfaces we really know about */
-#ifdef LOCAL_DEBUG
-  int magic;
-#endif
   int tx_count; /* Do one regular update once in a while */
   int rnd_count; /* Randomize sending time */
 };
-
-#ifdef LOCAL_DEBUG
-#define RIP_MAGIC 81861253
-#define CHK_MAGIC do { if (p->magic != RIP_MAGIC) bug("Not enough magic"); } while (0)
-#else
-#define CHK_MAGIC do { } while (0)
-#endif
 
 void rip_init_instance(struct proto *p);
 void rip_init_config(struct rip_config *cf);
