@@ -45,7 +45,7 @@ struct rip_connection
   node n;
 
   int num;
-  struct proto *proto;
+  struct rip_proto *rip;
   ip_addr addr;
   sock *send;
   struct rip_iface *rif;

@@ -74,8 +74,8 @@ static void
 rip_tx_err(sock *s, int err)
 {
   struct rip_connection *conn = ((struct rip_iface *) (s->data))->busy;
-  struct proto *P = conn->proto;
-  log(L_ERR "%s: Unexpected error at rip transmit: %M", P->name, err);
+  struct rip_proto *p = conn->rip;
+  log(L_ERR "%s: Unexpected error at rip transmit: %M", p->p.name, err);
 }
 
 /*
@@ -169,7 +169,7 @@ rip_tx(sock *sock)
 {
   struct rip_iface *rif = sock->data;
   struct rip_connection *conn = rif->busy;
-  struct rip_proto *p = (struct rip_proto *) conn->proto;
+  struct rip_proto *p = conn->rip;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct rip_packet *packet = (void *) sock->tbuf;
   int packet_len;
@@ -247,7 +247,7 @@ rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_ifa
   rif->busy = conn;
 
   conn->addr = daddr;
-  conn->proto = &p->p;
+  conn->rip = p;
   conn->num = num++;
   conn->rif = rif;
 
