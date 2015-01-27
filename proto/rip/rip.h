@@ -160,7 +160,7 @@ struct rip_patt
   int ttl_security; /* bool + 2 for TX only (send, but do not check on RX) */
 };
 
-struct rip_proto_config
+struct rip_config
 {
   struct proto_config c;
   list iface_list; /* Patterns configured -- keep it first; see rip_reconfigure why */
@@ -205,9 +205,9 @@ struct rip_proto
 #endif
 
 void rip_init_instance(struct proto *p);
-void rip_init_config(struct rip_proto_config *c);
+void rip_init_config(struct rip_config *c);
 
 /* Authentication functions */
 
 int rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me);
-int rip_outgoing_authentication(struct rip_proto_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num);
+int rip_outgoing_authentication(struct rip_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num);

@@ -91,7 +91,7 @@ static int
 rip_tx_prepare(struct rip_proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_interface *rif, int pos)
 {
   int metric;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
 
   DBG(".");
   block->tag = htons(entry->tag);
@@ -170,7 +170,7 @@ rip_tx(sock *sock)
   struct rip_interface *rif = sock->data;
   struct rip_connection *conn = rif->busy;
   struct rip_proto *p = (struct rip_proto *) conn->proto;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   struct rip_packet *packet = (void *) sock->tbuf;
   int packet_len;
   int max_rte_entries, used_rte_entries = 0;
@@ -304,7 +304,7 @@ static int
 rip_get_metric_with_interface(struct rip_proto *p, struct rip_block *block, struct rip_interface *rif)
 {
   int metric;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
 
   int rif_metric;
   if (rif == NULL)
@@ -508,7 +508,7 @@ static void
 process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, struct iface *iface)
 {
   int metric, pxlen;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
 
   metric = rip_get_metric(p, block);
   pxlen  = rip_get_pxlen(block);
@@ -539,7 +539,7 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me,
 static int
 rip_process_packet_request(struct rip_proto *p, ip_addr who_told_me, int port, struct iface *iface)
 {
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   DBG("Asked to send my routing table\n");
   if (rip_config->honor == HONOR_NEVER)
     BAD("They asked me to send routing table, but I was told not to do it");
@@ -557,7 +557,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
   int i;
   neighbor *neighbor;
   int authenticated = 0;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
 
   DBG("*** Rtable from %I\n", who_told_me);
   if (port != rip_config->port)
@@ -719,7 +719,7 @@ static void
 rip_timer(timer *timer)
 {
   struct rip_proto *p = (struct rip_proto *) timer->data;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   struct fib_node *node_i, *node_next;
 
   CHK_MAGIC;
@@ -896,7 +896,7 @@ kill_iface(struct rip_interface *i)
 static struct rip_interface *
 new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt)
 {
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   struct rip_interface *rif;
   struct rip_patt *PATT = (struct rip_patt *) patt;
 
@@ -1000,7 +1000,7 @@ rip_real_if_add(struct object_lock *lock)
 {
   struct iface *iface = lock->iface;
   struct rip_proto *p = (struct rip_proto *) lock->data;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   struct rip_interface *rif;
   struct iface_patt *k = iface_patt_find(&rip_config->iface_list, iface, iface->addr);
 
@@ -1024,7 +1024,7 @@ static void
 rip_if_notify(struct proto *P, unsigned flags, struct iface *iface)
 {
   struct rip_proto *p = (struct rip_proto *) P;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) P->cf;
+  struct rip_config *rip_config = (struct rip_config *) P->cf;
 
   DBG("RIP: if notify\n");
   if (iface->flags & IF_IGNORE)
@@ -1125,7 +1125,7 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
 	      struct rte *old UNUSED, struct ea_list *attrs)
 {
   struct rip_proto *p = (struct rip_proto *) P;
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   CHK_MAGIC;
   struct rip_entry *entry;
 
@@ -1181,7 +1181,7 @@ rip_rte_same(struct rte *new, struct rte *old)
 static int
 rip_rte_better(struct rte *new, struct rte *old)
 {
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) new->attrs->src->proto->cf;
+  struct rip_config *rip_config = (struct rip_config *) new->attrs->src->proto->cf;
 
   if (ipa_equal(old->attrs->from, new->attrs->from))
     return 1;
@@ -1213,7 +1213,7 @@ rip_init_instance(struct proto *P)
 }
 
 void
-rip_init_config(struct rip_proto_config *c)
+rip_init_config(struct rip_config *c)
 {
   init_list(&c->iface_list);
   c->infinity = 16;
@@ -1253,23 +1253,23 @@ rip_pat_compare(struct rip_patt *a, struct rip_patt *b)
 static int
 rip_reconfigure(struct proto *P, struct proto_config *c)
 {
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) P->cf;
-  struct rip_proto_config *new = (struct rip_proto_config *) c;
+  struct rip_config *rip_config = (struct rip_config *) P->cf;
+  struct rip_config *new = (struct rip_config *) c;
   int generic = sizeof(struct proto_config) + sizeof(list) /* + sizeof(struct password_item *) */;
 
   if (!iface_patts_equal(&rip_config->iface_list, &new->iface_list, (void *) rip_pat_compare))
     return 0;
-  return !memcmp(((byte *) rip_config) + generic, ((byte *) new) + generic, sizeof(struct rip_proto_config) - generic);
+  return !memcmp(((byte *) rip_config) + generic, ((byte *) new) + generic, sizeof(struct rip_config) - generic);
 }
 
 static void
 rip_copy_config(struct proto_config *dest, struct proto_config *src)
 {
   /* Shallow copy of everything */
-  proto_copy_rest(dest, src, sizeof(struct rip_proto_config));
+  proto_copy_rest(dest, src, sizeof(struct rip_config));
 
   /* We clean up iface_list, ifaces are non-sharable */
-  init_list(&((struct rip_proto_config *) dest)->iface_list);
+  init_list(&((struct rip_config *) dest)->iface_list);
 
   /* Copy of passwords is OK, it just will be replaced in dest when used */
 }

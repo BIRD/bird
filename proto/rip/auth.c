@@ -32,7 +32,7 @@
 int
 rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
-  struct rip_proto_config *rip_config = (struct rip_proto_config *) p->inherited.cf;
+  struct rip_config *rip_config = (struct rip_config *) p->inherited.cf;
   DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))
   { /* Authentication type */
@@ -123,7 +123,7 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
  * %num: number of rip_blocks already in packets. This function returns size of packet to send.
  */
 int
-rip_outgoing_authentication(struct rip_proto_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num)
+rip_outgoing_authentication(struct rip_config *rip_config, struct rip_block_auth *block, struct rip_packet *packet, int num)
 {
   struct password_item *passwd = password_find(rip_config->passwords, 1);
 
