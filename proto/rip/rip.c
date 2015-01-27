@@ -206,7 +206,7 @@ rip_tx(sock *sock)
 
     break_loop:
 
-    packet_len = rip_outgoing_authentication(cf, (void *) &packet->block[0], packet, used_rte_entries);
+    packet_len = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
 
     DBG(", sending %d blocks, ", used_rte_entries);
     if (nothing_to_update)

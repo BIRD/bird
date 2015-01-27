@@ -123,8 +123,9 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
  * %num: number of rip_blocks already in packets. This function returns size of packet to send.
  */
 int
-rip_outgoing_authentication(struct rip_config *cf, struct rip_block_auth *block, struct rip_packet *packet, int num)
+rip_outgoing_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num)
 {
+  struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct password_item *passwd = password_find(cf->passwords, 1);
 
   if (!cf->auth_type)
