@@ -61,7 +61,7 @@
 #undef TRACE
 #define TRACE(level, msg, args...) do { if (p->p.debug & level) { log(L_TRACE "%s: " msg, p->p.name , ## args); } } while(0)
 
-static struct rip_interface *new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
+static struct rip_iface *new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
 static void rip_dump(struct proto *P);
 
 /*
@@ -73,7 +73,7 @@ static void rip_dump(struct proto *P);
 static void
 rip_tx_err(sock *s, int err)
 {
-  struct rip_connection *conn = ((struct rip_interface *) (s->data))->busy;
+  struct rip_connection *conn = ((struct rip_iface *) (s->data))->busy;
   struct proto *P = conn->proto;
   log(L_ERR "%s: Unexpected error at rip transmit: %M", P->name, err);
 }
@@ -88,7 +88,7 @@ rip_tx_err(sock *s, int err)
  * that could be fixed but it is not real problem).
  */
 static int
-rip_tx_prepare(struct rip_proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_interface *rif, int pos)
+rip_tx_prepare(struct rip_proto *p, struct rip_block *block, struct rip_entry *entry, struct rip_iface *rif, int pos)
 {
   int metric;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -167,7 +167,7 @@ rip_get_max_rip_entries(int auth_type, unsigned mtu)
 static void
 rip_tx(sock *sock)
 {
-  struct rip_interface *rif = sock->data;
+  struct rip_iface *rif = sock->data;
   struct rip_connection *conn = rif->busy;
   struct rip_proto *p = (struct rip_proto *) conn->proto;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -238,7 +238,7 @@ rip_tx(sock *sock)
 }
 
 static struct rip_connection *
-rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
+rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_iface *rif)
 {
   struct rip_connection *conn;
   static int num = 0;
@@ -266,7 +266,7 @@ rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_int
  * most one send to one interface is done.
  */
 static void
-rip_sendto(struct rip_proto *p, ip_addr daddr, int dport, struct rip_interface *rif)
+rip_sendto(struct rip_proto *p, ip_addr daddr, int dport, struct rip_iface *rif)
 {
   struct iface *iface = rif->iface;
   struct rip_connection *conn;
@@ -289,10 +289,10 @@ rip_sendto(struct rip_proto *p, ip_addr daddr, int dport, struct rip_interface *
   rip_tx(conn->rif->sock);
 }
 
-static struct rip_interface*
+static struct rip_iface*
 find_interface(struct rip_proto *p, struct iface *what)
 {
-  struct rip_interface *i;
+  struct rip_iface *i;
 
   WALK_LIST (i, p->interfaces)
     if (i->iface == what)
@@ -301,7 +301,7 @@ find_interface(struct rip_proto *p, struct iface *what)
 }
 
 static int
-rip_get_metric_with_interface(struct rip_proto *p, struct rip_block *block, struct rip_interface *rif)
+rip_get_metric_with_interface(struct rip_proto *p, struct rip_block *block, struct rip_iface *rif)
 {
   int metric;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -455,7 +455,7 @@ static void
 advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, struct iface *iface)
 {
   neighbor *neighbor;
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   int pxlen, metric;
   ip_addr gw;
   struct rip_entry *entry;
@@ -645,7 +645,7 @@ rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_block
 static int
 rip_rx(sock *sock, int size)
 {
-  struct rip_interface *rif = sock->data;
+  struct rip_iface *rif = sock->data;
   struct rip_proto *p = (struct rip_proto *) rif->proto;
   struct iface *iface = NULL;
   int num_blocks;
@@ -760,7 +760,7 @@ rip_timer(timer *timer)
 
   DBG("RIP: Broadcasting routing tables\n");
   {
-    struct rip_interface *rif;
+    struct rip_iface *rif;
 
     if ( cf->period > 2)
     { /* Bring some randomness into sending times */
@@ -797,7 +797,7 @@ rip_timer(timer *timer)
 static int
 rip_start(struct proto *P)
 {
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   struct rip_proto *p = (struct rip_proto *) P;
   DBG("RIP: starting instance...\n");
 
@@ -840,7 +840,7 @@ rip_dump(struct proto *P)
 {
   int i;
   node *w;	// rename!
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   struct rip_proto *p = (struct rip_proto *) P;
 
   CHK_MAGIC;
@@ -875,7 +875,7 @@ rip_get_route_info(rte *rte, byte *buf, ea_list *attrs)
 }
 
 static void
-kill_iface(struct rip_interface *i)
+kill_iface(struct rip_iface *i)
 {
   DBG("RIP: Interface %s disappeared\n", i->iface->name);
   rfree(i->sock);
@@ -893,14 +893,14 @@ kill_iface(struct rip_interface *i)
  *
  * Create an interface structure and start listening on the interface.
  */
-static struct rip_interface *
+static struct rip_iface *
 new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt)
 {
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   struct rip_patt *PATT = (struct rip_patt *) patt;
 
-  rif = mb_allocz(p->p.pool, sizeof(struct rip_interface));
+  rif = mb_allocz(p->p.pool, sizeof(struct rip_iface));
   rif->iface = new;
   rif->proto = &p->p;
   rif->busy = NULL;
@@ -1001,7 +1001,7 @@ rip_real_if_add(struct object_lock *lock)
   struct iface *iface = lock->iface;
   struct rip_proto *p = (struct rip_proto *) lock->data;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   struct iface_patt *k = iface_patt_find(&cf->iface_list, iface, iface->addr);
 
   if (!k)
@@ -1031,7 +1031,7 @@ rip_if_notify(struct proto *P, unsigned flags, struct iface *iface)
     return;
   if (flags & IF_CHANGE_DOWN)
   {
-    struct rip_interface *i;
+    struct rip_iface *i;
     i = find_interface(p, iface);
     if (i)
     {

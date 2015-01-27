@@ -48,7 +48,7 @@ struct rip_connection
   struct proto *proto;
   ip_addr addr;
   sock *send;
-  struct rip_interface *rif;
+  struct rip_iface *rif;
   struct fib_iterator iter;
 
   ip_addr daddr;
@@ -130,7 +130,7 @@ struct rip_packet
   struct rip_block block[MAX_RTEs_IN_PACKET_WITHOUT_AUTH];
 };
 
-struct rip_interface
+struct rip_iface
 {
   node n;
   struct proto *proto;
