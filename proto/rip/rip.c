@@ -646,7 +646,7 @@ static int
 rip_rx(sock *sock, int size)
 {
   struct rip_iface *rif = sock->data;
-  struct rip_proto *p = (struct rip_proto *) rif->proto;
+  struct rip_proto *p = rif->rip;
   struct iface *iface = NULL;
   int num_blocks;
 
@@ -902,7 +902,7 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
 
   rif = mb_allocz(p->p.pool, sizeof(struct rip_iface));
   rif->iface = new;
-  rif->proto = &p->p;
+  rif->rip = p;
   rif->busy = NULL;
   if (PATT)
   {

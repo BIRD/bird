@@ -133,7 +133,7 @@ struct rip_packet
 struct rip_iface
 {
   node n;
-  struct proto *proto;
+  struct rip_proto *rip;
   struct iface *iface;
   sock *sock;
   struct rip_connection *busy;
