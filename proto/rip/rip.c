@@ -829,13 +829,13 @@ static void
 rip_dump(struct proto *P)
 {
   int i;
-  node *w;	// rename!
+  node *iter_conn;
   struct rip_iface *rif;
   struct rip_proto *p = (struct rip_proto *) P;
 
-  WALK_LIST(w, p->connections)
+  WALK_LIST(iter_conn, p->connections)
   {
-    struct rip_connection *conn = (void *) w;
+    struct rip_connection *conn = (void *) iter_conn;
     debug("RIP: connection #%d: %I\n", conn->num, conn->addr);
   }
   i = 0;
