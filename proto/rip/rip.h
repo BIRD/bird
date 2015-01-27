@@ -36,7 +36,7 @@
 #define BAD(x)					\
   do						\
   {						\
-    log(L_REMOTE "%s: " x, p->inherited.name);	\
+    log(L_REMOTE "%s: " x, p->p.name);	\
     return 1;					\
   } while(0)
 
@@ -184,7 +184,7 @@ struct rip_config
 
 struct rip_proto
 {
-  struct proto inherited;
+  struct proto p;
   timer *timer;
   list connections;
   struct fib rtable;

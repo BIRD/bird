@@ -32,7 +32,7 @@
 int
 rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
 {
-  struct rip_config *cf = (struct rip_config *) p->inherited.cf;
+  struct rip_config *cf = (struct rip_config *) p->p.cf;
   DBG("Incoming authentication: ");
   switch (ntohs(block->auth_type))
   { /* Authentication type */
@@ -61,7 +61,7 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
 	struct MD5Context ctxt;
 	char md5sum_packet[16];
 	char md5sum_computed[16];
-	struct neighbor *neigh = neigh_find(&(p->inherited), &who_told_me, 0);
+	struct neighbor *neigh = neigh_find(&p->p, &who_told_me, 0);
 	list *l = cf->passwords;
 
 	if (ntohs(block->packet_len) != PACKET_LEN(num) - sizeof(struct rip_md5_tail))
