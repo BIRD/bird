@@ -61,7 +61,7 @@
 #undef TRACE
 #define TRACE(level, msg, args...) do { if (p->p.debug & level) { log(L_TRACE "%s: " msg, p->p.name , ## args); } } while(0)
 
-static struct rip_iface *new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
+static struct rip_iface *rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
 static void rip_dump(struct proto *P);
 
 /*
@@ -817,7 +817,7 @@ rip_start(struct proto *P)
   p->timer->recurrent = 1;
   p->timer->hook = rip_timer;
   tm_start(p->timer, 2);
-  rif = new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
+  rif = rip_new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
   add_head(&p->interfaces, NODE rif);
   CHK_MAGIC;
 
@@ -894,7 +894,7 @@ kill_iface(struct rip_iface *i)
  * Create an interface structure and start listening on the interface.
  */
 static struct rip_iface *
-new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt)
+rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt)
 {
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct rip_iface *rif;
@@ -1007,7 +1007,7 @@ rip_real_if_add(struct object_lock *lock)
   if (!k)
     bug("This can not happen! It existed few seconds ago!");
   DBG("adding interface %s\n", iface->name);
-  rif = new_iface(p, iface, iface->flags, k);
+  rif = rip_new_iface(p, iface, iface->flags, k);
   if (rif)
   {
     add_head(&p->interfaces, NODE rif);
