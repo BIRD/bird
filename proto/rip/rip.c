@@ -290,7 +290,7 @@ rip_sendto(struct rip_proto *p, ip_addr daddr, int dport, struct rip_iface *rif)
 }
 
 static struct rip_iface*
-find_interface(struct rip_proto *p, struct iface *what)
+rip_find_iface(struct rip_proto *p, struct iface *what)
 {
   struct rip_iface *i;
 
@@ -470,7 +470,7 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_m
 
   if (!(rif = neighbor->data))
   {
-    rif = neighbor->data = find_interface(p, neighbor->iface);
+    rif = neighbor->data = rip_find_iface(p, neighbor->iface);
   }
   if (!rif)
     bug("Route packet using unknown interface? No.");
@@ -1032,7 +1032,7 @@ rip_if_notify(struct proto *P, unsigned flags, struct iface *iface)
   if (flags & IF_CHANGE_DOWN)
   {
     struct rip_iface *i;
-    i = find_interface(p, iface);
+    i = rip_find_iface(p, iface);
     if (i)
     {
       rem_node(NODE i);
