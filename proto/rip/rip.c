@@ -898,7 +898,7 @@ new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct if
 {
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct rip_iface *rif;
-  struct rip_patt *PATT = (struct rip_patt *) patt;
+  struct rip_iface_config *PATT = (struct rip_iface_config *) patt;
 
   rif = mb_allocz(p->p.pool, sizeof(struct rip_iface));
   rif->iface = new;
@@ -1044,7 +1044,7 @@ rip_if_notify(struct proto *P, unsigned flags, struct iface *iface)
   {
     struct iface_patt *k = iface_patt_find(&cf->iface_list, iface, iface->addr);
     struct object_lock *lock;
-    struct rip_patt *PATT = (struct rip_patt *) k;
+    struct rip_iface_config *PATT = (struct rip_iface_config *) k;
 
     if (!k)
       return; /* We are not interested in this interface */
@@ -1242,7 +1242,7 @@ rip_get_attr(eattr *a, byte *buf, int buflen UNUSED)
 }
 
 static int
-rip_pat_compare(struct rip_patt *a, struct rip_patt *b)
+rip_pat_compare(struct rip_iface_config *a, struct rip_iface_config *b)
 {
   return ((a->metric == b->metric) &&
 	  (a->mode == b->mode) &&

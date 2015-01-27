@@ -145,7 +145,7 @@ struct rip_iface
   int multicast;
 };
 
-struct rip_patt
+struct rip_iface_config
 {
   struct iface_patt i;
 

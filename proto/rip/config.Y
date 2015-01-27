@@ -20,7 +20,7 @@ CF_HDR
 CF_DEFINES
 
 #define RIP_CFG ((struct rip_config *) this_proto)
-#define RIP_IPATT ((struct rip_patt *) this_ipatt)
+#define RIP_IPATT ((struct rip_iface_config *) this_ipatt)
 
 #ifdef IPV6
 #define RIP_DEFAULT_TTL_SECURITY 2
@@ -100,7 +100,7 @@ rip_iface_opt_list:
 
 rip_iface_init:
    /* EMPTY */ {
-     this_ipatt = cfg_allocz(sizeof(struct rip_patt));
+     this_ipatt = cfg_allocz(sizeof(struct rip_iface_config));
      add_tail(&RIP_CFG->iface_list, NODE this_ipatt);
      init_list(&this_ipatt->ipn_list);
      RIP_IPATT->metric = 1;
