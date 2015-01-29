@@ -30,7 +30,7 @@
  * rip_incoming_authentication - check authentication of incomming packet and return 1 if there's problem.
  */
 int
-rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me)
+rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr from)
 {
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   DBG("Incoming authentication: ");
@@ -61,7 +61,7 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
 	struct MD5Context ctxt;
 	char md5sum_packet[16];
 	char md5sum_computed[16];
-	struct neighbor *neigh = neigh_find(&p->p, &who_told_me, 0);
+	struct neighbor *neigh = neigh_find(&p->p, &from, 0);
 	list *l = cf->passwords;
 
 	if (ntohs(block->packet_len) != PACKET_LEN(num) - sizeof(struct rip_md5_tail))

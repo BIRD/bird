@@ -115,7 +115,7 @@ struct rip_entry
   struct fib_node n;
   node gb;
 
-  ip_addr who_told_me;
+  ip_addr from;
   ip_addr next_hop;
   int metric;
   u16 tag;
@@ -199,5 +199,5 @@ void rip_init_config(struct rip_config *cf);
 
 /* Authentication functions */
 
-int rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr who_told_me);
+int rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num, ip_addr from);
 int rip_outgoing_authentication(struct rip_proto *p, struct rip_block_auth *block, struct rip_packet *packet, int num);

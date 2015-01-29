@@ -97,7 +97,7 @@ rip_tx_prepare(struct rip_proto *p, struct rip_block *block, struct rip_entry *e
   block->tag = htons(entry->tag);
   block->network = entry->n.prefix;
   metric = entry->metric;
-  if (neigh_connected_to(&p->p, &entry->who_told_me, rif->iface))
+  if (neigh_connected_to(&p->p, &entry->from, rif->iface))
   {
     DBG("(split horizon)");
     metric = cf->infinity;
@@ -340,13 +340,13 @@ rip_get_pxlen(struct rip_block *block)
 }
 
 static int
-rip_shloud_we_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, int pxlen, ip_addr gw,
+rip_shloud_we_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, int pxlen, ip_addr gw,
 			      neighbor *neighbor)
 {
   /* No need to look if destination looks valid - ie not net 0 or 127 -- core will do for us. */
   if (!neighbor)
   {
-    log(L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->p.name, who_told_me, block->network, pxlen, gw);
+    log(L_REMOTE "%s: %I asked me to route %I/%d using not-neighbor %I.", p->p.name, from, block->network, pxlen, gw);
     return FAIL;
   }
   if (neighbor->scope == SCOPE_HOST)
@@ -356,7 +356,7 @@ rip_shloud_we_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_a
   }
   if (pxlen == -1)
   {
-    log(L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->p.name, who_told_me, block->network);
+    log(L_REMOTE "%s: %I gave me invalid pxlen/netmask for %I.", p->p.name, from, block->network);
     return FAIL;
   }
 
@@ -370,13 +370,13 @@ rip_shloud_we_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_a
  */
 
 static int
-rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr who_told_me)
+rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr from)
 {
-  return (!entry || (entry->metric > metric) || (ipa_equal(who_told_me, entry->who_told_me) && (metric != entry->metric)));
+  return (!entry || (entry->metric > metric) || (ipa_equal(from, entry->from) && (metric != entry->metric)));
 }
 
 static rta
-rip_create_rta(struct rip_proto *p, ip_addr gw, ip_addr who_told_me, neighbor *neighbor)
+rip_create_rta(struct rip_proto *p, ip_addr gw, ip_addr from, neighbor *neighbor)
 {
   rta A;
   bzero(&A, sizeof(A));
@@ -387,7 +387,7 @@ rip_create_rta(struct rip_proto *p, ip_addr gw, ip_addr who_told_me, neighbor *n
   A.dest = RTD_ROUTER;
   A.flags = 0;
   A.gw = gw;
-  A.from = who_told_me;
+  A.from = from;
   A.iface = neighbor->iface;
 
   return A;
@@ -409,33 +409,33 @@ rip_add_route(struct rip_proto *p, struct rip_block *block, struct rip_entry *en
   add_head(&p->garbage, NODE &entry->gb);
 
   rte_update(&p->p, n, r);
-  DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->who_told_me, entry->metric);
+  DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->from, entry->metric);
 }
 
 static ip_addr
-rip_get_gateway(struct rip_block *block, ip_addr who_told_me)
+rip_get_gateway(struct rip_block *block, ip_addr from)
 {
 #ifndef IPV6
-  return ipa_nonzero(block->next_hop) ? block->next_hop : who_told_me;
+  return ipa_nonzero(block->next_hop) ? block->next_hop : from;
 #endif
   /* FIXME: next hop is in other packet for v6 */
-  return who_told_me;
+  return from;
 }
 
 static struct rip_entry *
-rip_get_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, int metric)
+rip_get_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, int metric)
 {
   struct rip_entry *entry;
   int pxlen;
   ip_addr gw;
 
-  gw = rip_get_gateway(block, who_told_me);
+  gw = rip_get_gateway(block, from);
   pxlen = rip_get_pxlen(block);
 
   entry = fib_get(&p->rtable, &block->network, pxlen);
   entry->next_hop = gw;
   entry->metric = metric;
-  entry->who_told_me = who_told_me;
+  entry->from = from;
   entry->tag = ntohl(block->tag);
 
   entry->updated = entry->changed = now;
@@ -452,7 +452,7 @@ rip_get_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me,
  * bird core with this route.
  */
 static void
-advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, struct iface *iface)
+advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
 {
   neighbor *neighbor;
   struct rip_iface *rif;
@@ -460,12 +460,12 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_m
   ip_addr gw;
   struct rip_entry *entry;
 
-  gw = rip_get_gateway(block, who_told_me);
+  gw = rip_get_gateway(block, from);
   pxlen = rip_get_pxlen(block);
 
   neighbor = neigh_find2(&p->p, &gw, iface, 0);
 
-  if (!rip_shloud_we_advertise_entry(p, block, who_told_me, pxlen, gw, neighbor))
+  if (!rip_shloud_we_advertise_entry(p, block, from, pxlen, gw, neighbor))
     return;
 
   if (!(rif = neighbor->data))
@@ -480,22 +480,22 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_m
   /* set to: interface of nexthop */
   entry = fib_find(&p->rtable, &block->network, pxlen);
 
-  if (rip_route_update_arrived(entry, metric, who_told_me))
+  if (rip_route_update_arrived(entry, metric, from))
   {
-    rta A = rip_create_rta(p, gw, who_told_me, neighbor);
+    rta A = rip_create_rta(p, gw, from, neighbor);
 
     if (entry)
       rem_node(NODE &entry->gb);
 
-    entry = rip_get_entry(p, block, who_told_me, metric);
+    entry = rip_get_entry(p, block, from, metric);
     rip_add_route(p, block, entry, &A);
   }
   else
   {
-    if ((ipa_equal(who_told_me, entry->who_told_me) && (metric == entry->metric)))
+    if ((ipa_equal(from, entry->from) && (metric == entry->metric)))
     {
       entry->updated = now; /* Renew */
-      DBG("Route renewed %I/%d from %I met=%d\n", block->network, pxlen, who_told_me, metric);
+      DBG("Route renewed %I/%d from %I met=%d\n", block->network, pxlen, from, metric);
     }
   }
   DBG("done\n");
@@ -505,7 +505,7 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr who_told_m
  * process_block - do some basic check and pass block to advertise_entry
  */
 static void
-process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me, struct iface *iface)
+process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
 {
   int metric, pxlen;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -515,7 +515,7 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me,
 
   ip_addr network = block->network;
 
-  TRACE(D_ROUTES, "block: %I tells me: %I/%d available, metric %d... ", who_told_me, network, pxlen, metric);
+  TRACE(D_ROUTES, "block: %I tells me: %I/%d available, metric %d... ", from, network, pxlen, metric);
 
   if ((!metric) || (metric > cf->infinity))
   {
@@ -527,29 +527,29 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr who_told_me,
       return;
     }
 #endif
-    log(L_WARN "%s: Got metric %d from %I", p->p.name, metric, who_told_me);
+    log(L_WARN "%s: Got metric %d from %I", p->p.name, metric, from);
     return;
   }
 
-  advertise_entry(p, block, who_told_me, iface);
+  advertise_entry(p, block, from, iface);
 }
 
 static int
-rip_process_packet_request(struct rip_proto *p, ip_addr who_told_me, int port, struct iface *iface)
+rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct iface *iface)
 {
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   DBG("Asked to send my routing table\n");
   if (cf->honor == HONOR_NEVER)
     BAD("They asked me to send routing table, but I was told not to do it");
-  if ((cf->honor == HONOR_NEIGHBOR) && (!neigh_find2(&p->p, &who_told_me, iface, 0)))
+  if ((cf->honor == HONOR_NEIGHBOR) && (!neigh_find2(&p->p, &from, iface, 0)))
     BAD("They asked me to send routing table, but he is not my neighbor");
-  rip_sendto(p, who_told_me, port, HEAD(p->interfaces)); /* no broadcast */
+  rip_sendto(p, from, port, HEAD(p->interfaces)); /* no broadcast */
 
   return 0;
 }
 
 static int
-rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
+rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr from, int port,
 			    struct iface *iface)
 {
   int i;
@@ -557,16 +557,16 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
   int authenticated = 0;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
 
-  DBG("*** Rtable from %I\n", who_told_me);
+  DBG("*** Rtable from %I\n", from);
   if (port != cf->port)
   {
-    log(L_REMOTE "%s: %I send me routing info from port %d", p->p.name, who_told_me, port);
+    log(L_REMOTE "%s: %I send me routing info from port %d", p->p.name, from, port);
     return 1;
   }
 
-  if (!(neighbor = neigh_find2(&p->p, &who_told_me, iface, 0)) || neighbor->scope == SCOPE_HOST)
+  if (!(neighbor = neigh_find2(&p->p, &from, iface, 0)) || neighbor->scope == SCOPE_HOST)
   {
-    log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->p.name, who_told_me);
+    log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->p.name, from);
     return 0;
   }
 
@@ -580,7 +580,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
     {
       if (i)
 	continue; /* md5 tail has this family */
-      if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, who_told_me))
+      if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, from))
 	BAD("Authentication failed");
       authenticated = 1;
       continue;
@@ -596,7 +596,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
     if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
       block->netmask = ipa_class_mask(block->network);
 #endif
-    process_block(p, block, who_told_me, iface);
+    process_block(p, block, from, iface);
   }
   return 0;
 }
@@ -604,7 +604,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
  * rip_process_packet - this is main routine for incoming packets.
  */
 static int
-rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr who_told_me, int port,
+rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr from, int port,
 		   struct iface *iface)
 {
   switch (packet->heading.version)
@@ -622,9 +622,9 @@ rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_block
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, who_told_me, port, iface);
+      return rip_process_packet_request(p, from, port, iface);
     case RIPCMD_RESPONSE:
-      return rip_process_packet_response(p, packet, num_blocks, who_told_me, port, iface);
+      return rip_process_packet_response(p, packet, num_blocks, from, port, iface);
     case RIPCMD_TRACEON:
     case RIPCMD_TRACEOFF:
       BAD("I was asked for traceon/traceoff");
@@ -696,7 +696,7 @@ rip_rx(sock *sock, int size)
 static void
 rip_dump_entry(struct rip_entry *entry)
 {
-  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", entry->who_told_me, entry->updated - now,
+  debug("%I told me %d/%d ago: to %I/%d go via %I, metric %d ", entry->from, entry->updated - now,
 	entry->changed - now, entry->n.prefix, entry->n.pxlen, entry->next_hop, entry->metric);
   debug("\n");
 }
@@ -1131,7 +1131,7 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
 
     entry->next_hop = new->attrs->gw;
     entry->metric = 0;
-    entry->who_told_me = IPA_NONE;
+    entry->from = IPA_NONE;
 
     entry->tag = ea_get_int(attrs, EA_RIP_TAG, 0);
     entry->metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
@@ -1139,7 +1139,7 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
       entry->metric = cf->infinity;
 
     if (new->attrs->src->proto == P)
-      entry->who_told_me = new->attrs->from;
+      entry->from = new->attrs->from;
 
     if (!entry->metric) /* That's okay: this way user can set his own value for external routes in rip. */
       entry->metric = 5;
