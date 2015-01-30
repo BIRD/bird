@@ -595,37 +595,6 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
   }
   return 0;
 }
-/*
- * rip_process_packet - this is main routine for incoming packets.
- */
-static int
-rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr from, int port,
-		   struct iface *iface)
-{
-  switch (packet->heading.version)
-  {
-    case RIP_V1:
-      DBG("Rip1: ");
-      break;
-    case RIP_V2:
-      DBG("Rip2: ");
-      break;
-    default:
-      BAD("Unknown version");
-  }
-
-  switch (packet->heading.command)
-  {
-    case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, from, port, iface);
-    case RIPCMD_RESPONSE:
-      return rip_process_packet_response(p, packet, num_blocks, from, port, iface);
-    default:
-      BAD("Unknown command");
-  }
-
-  return 0;
-}
 
 /*
  * rip_rx - Receive hook: do basic checks and pass packet to rip_process_packet
@@ -675,7 +644,30 @@ rip_rx(sock *sock, int size)
     return 1;
   }
 
-  rip_process_packet(p, (struct rip_packet *) sock->rbuf, num_blocks, sock->faddr, sock->fport, iface);
+  struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
+
+  switch (packet->heading.version)
+  {
+    case RIP_V1:
+      DBG("Rip1: ");
+      break;
+    case RIP_V2:
+      DBG("Rip2: ");
+      break;
+    default:
+      BAD("Unknown version");
+  }
+
+  switch (packet->heading.command)
+  {
+    case RIPCMD_REQUEST:
+      return rip_process_packet_request(p, sock->faddr, sock->fport, iface);
+    case RIPCMD_RESPONSE:
+      return rip_process_packet_response(p, packet, num_blocks, sock->faddr, sock->fport, iface);
+    default:
+      BAD("Unknown command");
+  }
+
   return 1;
 }
 
