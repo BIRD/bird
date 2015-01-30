@@ -711,27 +711,27 @@ rip_timer(timer *timer)
     rte *rte = NULL;
     net *net;
 
-    struct rip_entry *entry = (struct rip_entry *) node;
+    struct rip_entry *en = (struct rip_entry *) node;
 
-    net = net_find(p->p.table, entry->n.prefix, entry->n.pxlen);
+    net = net_find(p->p.table, en->n.prefix, en->n.pxlen);
     if (net)
       rte = rte_find(net, p->p.main_source);
 
     //DBG("Garbage: (%p)", rte); rte_dump(rte);
 
-    TRACE(D_EVENTS, "entry: %I/%d, flags=%d, met=%d", entry->n.prefix, entry->n.pxlen, entry->flags, entry->metric);
+    TRACE(D_EVENTS, "entry: %I/%d, flags=%d, met=%d", en->n.prefix, en->n.pxlen, en->flags, en->metric);
 
-    if (entry->changed && (now - entry->updated > cf->timeout_time))
+    if (en->changed && (now - en->updated > cf->timeout_time))
     {
-      TRACE(D_EVENTS, "entry is old: %I/%d", entry->n.prefix, entry->n.pxlen);
-      entry->metric = cf->infinity;
+      TRACE(D_EVENTS, "entry is old: %I/%d", en->n.prefix, en->n.pxlen);
+      en->metric = cf->infinity;
       if (rte)
 	rte_discard(p->p.table, rte);
     }
 
-    if (entry->changed && (now - entry->updated > cf->garbage_time))
+    if (en->changed && (now - en->updated > cf->garbage_time))
     {
-      TRACE(D_EVENTS, "entry is too old: %I/%d", entry->n.prefix, entry->n.pxlen);
+      TRACE(D_EVENTS, "entry is too old: %I/%d", en->n.prefix, en->n.pxlen);
       if (rte)
 	rte_discard(p->p.table, rte);
 
