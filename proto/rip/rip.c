@@ -620,11 +620,6 @@ rip_process_packet(struct rip_proto *p, struct rip_packet *packet, int num_block
       return rip_process_packet_request(p, from, port, iface);
     case RIPCMD_RESPONSE:
       return rip_process_packet_response(p, packet, num_blocks, from, port, iface);
-    case RIPCMD_TRACEON:
-    case RIPCMD_TRACEOFF:
-      BAD("I was asked for traceon/traceoff");
-    case RIPCMD_SUN_EXT:
-      BAD("Some Sun extension around here");
     default:
       BAD("Unknown command");
   }

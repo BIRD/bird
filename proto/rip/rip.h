@@ -66,9 +66,6 @@ struct rip_packet_heading /* 4 bytes */
   u8 command;
 #define RIPCMD_REQUEST		1	/* want info */
 #define RIPCMD_RESPONSE		2	/* responding to request */
-#define RIPCMD_TRACEON		3	/* turn tracing on */
-#define RIPCMD_TRACEOFF		4	/* turn it off */
-#define RIPCMD_SUN_EXT		5	/* some sun extension */
   u8 version;
 #define RIP_V1			1
 #define RIP_V2			2
