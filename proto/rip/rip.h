@@ -30,6 +30,11 @@
 #define RIP_PORT	521	/* RIPng */
 #endif
 
+//#define RIP_TIMEOUT_TIME	120
+//#define RIP_GARBAGE_TIME	RIP_TIMEOUT_TIME + 180
+#define RIP_TIMEOUT_TIME	30
+#define RIP_GARBAGE_TIME	RIP_TIMEOUT_TIME + 30
+
 #define OK		1
 #define FAIL		0
 
@@ -113,7 +118,6 @@ struct rip_md5_tail /* 20 bytes */
 struct rip_entry
 {
   struct fib_node n;
-  node gb;
 
   ip_addr from;
   ip_addr next_hop;
@@ -188,7 +192,6 @@ struct rip_proto
   timer *timer;
   list connections;
   struct fib rtable;
-  list garbage;
   list interfaces; /* Interfaces we really know about */
   int tx_count; /* Do one regular update once in a while */
   int rnd_count; /* Randomize sending time */

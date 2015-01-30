@@ -406,8 +406,6 @@ rip_add_route(struct rip_proto *p, struct rip_block *block, struct rip_entry *en
   r->net = n;
   r->pflags = 0; /* Here go my flags */
 
-  add_head(&p->garbage, NODE &entry->gb);
-
   rte_update(&p->p, n, r);
   DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->from, entry->metric);
 }
@@ -483,9 +481,6 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, stru
   if (rip_route_update_arrived(entry, metric, from))
   {
     rta A = rip_create_rta(p, gw, from, neighbor);
-
-    if (entry)
-      rem_node(NODE &entry->gb);
 
     entry = rip_get_entry(p, block, from, metric);
     rip_add_route(p, block, entry, &A);
@@ -701,6 +696,12 @@ rip_dump_entry(struct rip_entry *entry)
   debug("\n");
 }
 
+static int
+rip_is_this_valid_entry(struct rip_entry *entry)
+{
+  return(entry->flags >= 0 && entry->flags < 0xffffff);
+}
+
 /**
  * rip_timer
  * @t: timer
@@ -717,16 +718,19 @@ rip_timer(timer *timer)
 {
   struct rip_proto *p = (struct rip_proto *) timer->data;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-  struct fib_node *node_i, *node_next;
+  struct fib_iterator iter;
 
   DBG("RIP: tick tock\n");
 
-  WALK_LIST_DELSAFE(node_i, node_next, p->garbage)
+  struct fib *fib = &p->rtable;
+  fit_init(&iter, fib);
+
+  FIB_ITERATE_START(fib, &iter, node)
   {
     rte *rte = NULL;
     net *net;
-    struct rip_entry *entry;
-    entry = SKIP_BACK(struct rip_entry, gb, node_i);
+
+    struct rip_entry *entry = (struct rip_entry *) node;
 
     net = net_find(p->p.table, entry->n.prefix, entry->n.pxlen);
     if (net)
@@ -734,9 +738,11 @@ rip_timer(timer *timer)
 
     //DBG("Garbage: (%p)", rte); rte_dump(rte);
 
+    TRACE(D_EVENTS, "entry: %I/%d, flags=%d, met=%d", entry->n.prefix, entry->n.pxlen, entry->flags, entry->metric);
+
     if (entry->changed && (now - entry->updated > cf->timeout_time))
     {
-      TRACE(D_EVENTS, "entry is old: %I", entry->n.prefix);
+      TRACE(D_EVENTS, "entry is old: %I/%d", entry->n.prefix, entry->n.pxlen);
       entry->metric = cf->infinity;
       if (rte)
 	rte_discard(p->p.table, rte);
@@ -744,13 +750,17 @@ rip_timer(timer *timer)
 
     if (entry->changed && (now - entry->updated > cf->garbage_time))
     {
-      TRACE(D_EVENTS, "entry is too old: %I", entry->n.prefix);
+      TRACE(D_EVENTS, "entry is too old: %I/%d", entry->n.prefix, entry->n.pxlen);
       if (rte)
 	rte_discard(p->p.table, rte);
-      rem_node(NODE &entry->gb);
-      fib_delete(&p->rtable, entry);
+
+      if (rip_is_this_valid_entry(entry))
+	fib_delete(&p->rtable, entry);
+      else
+	 TRACE(D_EVENTS, "skip deleting entry: %I/%d, flags=%d, met=%d", entry->n.prefix, entry->n.pxlen, entry->flags, entry->metric);
     }
   }
+  FIB_ITERATE_END(node);
 
   DBG("RIP: Broadcasting routing tables\n");
   {
@@ -801,7 +811,6 @@ rip_start(struct proto *P)
 
   fib_init(&p->rtable, P->pool, sizeof(struct rip_entry), 0, NULL);
   init_list(&p->connections);
-  init_list(&p->garbage);
   init_list(&p->interfaces);
   p->timer = tm_new(P->pool);
   p->timer->data = P;
@@ -1123,7 +1132,6 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
     /* FIXME: Text is the current rip_entry is not better! */
     if (entry)
     {
-      rem_node(NODE &entry->gb);
       fib_delete(&p->rtable, entry);
     }
 
@@ -1146,8 +1154,6 @@ rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net,
 
     entry->updated = entry->changed = 0; /* External routes do not age */
     entry->flags = 0;
-
-    add_head(&p->garbage, NODE &entry->gb);
   }
   else
   {
@@ -1207,8 +1213,8 @@ rip_init_config(struct rip_config *cf)
   cf->infinity = 16;
   cf->port = RIP_PORT;
   cf->period = 30;
-  cf->garbage_time = 120 + 180;
-  cf->timeout_time = 120;
+  cf->garbage_time = RIP_GARBAGE_TIME;
+  cf->timeout_time = RIP_TIMEOUT_TIME;
   cf->passwords = NULL;
   cf->auth_type = AUTH_NONE;
 }
