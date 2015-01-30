@@ -683,12 +683,6 @@ rip_dump_entry(struct rip_entry *entry)
   debug("\n");
 }
 
-static int
-rip_is_this_valid_entry(struct rip_entry *entry)
-{
-  return(entry->flags >= 0 && entry->flags < 0xffffff);
-}
-
 /**
  * rip_timer
  * @t: timer
@@ -705,14 +699,14 @@ rip_timer(timer *timer)
 {
   struct rip_proto *p = (struct rip_proto *) timer->data;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-  struct fib_iterator iter;
+  struct fib_iterator fit;
 
   DBG("RIP: tick tock\n");
 
-  struct fib *fib = &p->rtable;
-  fit_init(&iter, fib);
+  FIB_ITERATE_INIT(&fit, &p->rtable);
 
-  FIB_ITERATE_START(fib, &iter, node)
+  rip_timer_again:
+  FIB_ITERATE_START(&p->rtable, &fit, node)
   {
     rte *rte = NULL;
     net *net;
@@ -741,10 +735,9 @@ rip_timer(timer *timer)
       if (rte)
 	rte_discard(p->p.table, rte);
 
-      if (rip_is_this_valid_entry(entry))
-	fib_delete(&p->rtable, entry);
-      else
-	 TRACE(D_EVENTS, "skip deleting entry: %I/%d, flags=%d, met=%d", entry->n.prefix, entry->n.pxlen, entry->flags, entry->metric);
+      FIB_ITERATE_PUT(&fit, node);
+      fib_delete(&p->rtable, node);
+      goto rip_timer_again;
     }
   }
   FIB_ITERATE_END(node);
