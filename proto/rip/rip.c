@@ -383,11 +383,11 @@ rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr from)
 }
 
 static rta
-rip_create_rta(struct rip_proto *p, ip_addr gw, ip_addr from, neighbor *neighbor)
+rip_create_rta(struct rte_src *main_source, ip_addr gw, ip_addr from, struct iface *iface)
 {
   rta A;
   bzero(&A, sizeof(A));
-  A.src = p->p.main_source;
+  A.src = main_source;
   A.source = RTS_RIP;
   A.scope = SCOPE_UNIVERSE;
   A.cast = RTC_UNICAST;
@@ -395,7 +395,7 @@ rip_create_rta(struct rip_proto *p, ip_addr gw, ip_addr from, neighbor *neighbor
   A.flags = 0;
   A.gw = gw;
   A.from = from;
-  A.iface = neighbor->iface;
+  A.iface = iface;
 
   return A;
 }
@@ -487,7 +487,7 @@ advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, stru
 
   if (rip_route_update_arrived(entry, metric, from))
   {
-    rta A = rip_create_rta(p, gw, from, neighbor);
+    rta A = rip_create_rta(p->p.main_source, gw, from, neighbor->iface);
 
     entry = rip_get_entry(p, block, from, metric);
     rip_add_route(p, block, entry, &A);
