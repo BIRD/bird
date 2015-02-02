@@ -63,6 +63,13 @@
 
 static struct rip_iface *rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struct iface_patt *patt);
 static void rip_dump(struct proto *P);
+static void rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net, struct rte *new, struct rte *old UNUSED, struct ea_list *attrs);
+static void rip_if_notify(struct proto *P, unsigned flags, struct iface *iface);
+static int rip_import_control(struct proto *P, struct rte **rt, struct ea_list **attrs, struct linpool *pool);
+static struct ea_list *rip_make_tmp_attrs(struct rte *rt, struct linpool *pool);
+static void rip_store_tmp_attrs(struct rte *rt, struct ea_list *attrs);
+static int rip_rte_better(struct rte *new, struct rte *old);
+static int rip_rte_same(struct rte *new, struct rte *old);
 
 /*
  * Output processing
@@ -800,8 +807,6 @@ rip_start(struct proto *P)
   rif = rip_new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
   add_head(&p->interfaces, NODE rif);
 
-  rip_init_instance(P);
-
   DBG("RIP: ...done\n");
   return PS_UP;
 }
@@ -810,6 +815,15 @@ static struct proto *
 rip_init(struct proto_config *cfg)
 {
   struct proto *P = proto_new(cfg, sizeof(struct rip_proto));
+
+  P->accept_ra_types = RA_OPTIMAL;
+  P->if_notify = rip_if_notify;
+  P->rt_notify = rip_rt_notify;
+  P->import_control = rip_import_control;
+  P->make_tmp_attrs = rip_make_tmp_attrs;
+  P->store_tmp_attrs = rip_store_tmp_attrs;
+  P->rte_better = rip_rte_better;
+  P->rte_same = rip_rte_same;
 
   return P;
 }
@@ -1171,19 +1185,6 @@ rip_rte_better(struct rte *new, struct rte *old)
       return 1;
 
   return 0;
-}
-
-void
-rip_init_instance(struct proto *P)
-{
-  P->accept_ra_types = RA_OPTIMAL;
-  P->if_notify = rip_if_notify;
-  P->rt_notify = rip_rt_notify;
-  P->import_control = rip_import_control;
-  P->make_tmp_attrs = rip_make_tmp_attrs;
-  P->store_tmp_attrs = rip_store_tmp_attrs;
-  P->rte_better = rip_rte_better;
-  P->rte_same = rip_rte_same;
 }
 
 void
