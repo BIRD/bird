@@ -603,27 +603,15 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
   return 0;
 }
 
-/*
- * rip_rx - Receive hook: do basic checks and pass packet to rip_process_packet
- */
 static int
-rip_rx(sock *sock, int size)
+rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
 {
   struct rip_iface *rif = sock->data;
   struct rip_proto *p = rif->rip;
-  struct iface *iface = NULL;
-  int num_blocks;
 
   /* In non-listening mode, just ignore packet */
   if (rif->mode & IM_NOLISTEN)
     return 1;
-
-#ifdef IPV6
-  if (! rif->iface || sock->lifindex != rif->iface->index)
-  return 1;
-
-  iface = rif->iface;
-#endif
 
   if (rif->check_ttl && (sock->rcv_ttl < 255))
   {
@@ -638,10 +626,10 @@ rip_rx(sock *sock, int size)
     BAD("Too small packet");
   if (size % sizeof(struct rip_block))
     BAD("Odd sized packet");
-  num_blocks = size / sizeof(struct rip_block);
+  *num_blocks = size / sizeof(struct rip_block);
 
 #ifndef IPV6
-  if (num_blocks > MAX_RTEs_IN_PACKET_WITHOUT_AUTH)
+  if (*num_blocks > MAX_RTEs_IN_PACKET_WITHOUT_AUTH)
     BAD("Too many blocks");
 #endif
 
@@ -650,6 +638,30 @@ rip_rx(sock *sock, int size)
     DBG("My own packet\n");
     return 1;
   }
+
+  return 0;
+}
+
+/*
+ * rip_rx - Receive hook: do basic checks and pass packet to rip_process_packet_*
+ */
+static int
+rip_rx(sock *sock, int size)
+{
+  struct rip_iface *rif = sock->data;
+  struct rip_proto *p = rif->rip;
+  struct iface *iface = NULL;
+  int num_blocks;
+
+#ifdef IPV6
+  if (! rif->iface || sock->lifindex != rif->iface->index)
+  return 1;
+
+  iface = rif->iface;
+#endif
+
+  if(rip_validate_recv_packet(sock, size, &num_blocks))
+    return 1;
 
   struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
 
