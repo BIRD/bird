@@ -58,9 +58,9 @@ rip_cfg:
  | rip_cfg TIMEOUT TIME expr ';' { RIP_CFG->timeout_time = $4; }
  | rip_cfg AUTHENTICATION rip_auth ';' {RIP_CFG->auth_type = $3; }
  | rip_cfg password_list ';'
- | rip_cfg HONOR ALWAYS ';'    { RIP_CFG->honor = HONOR_ALWAYS; }
- | rip_cfg HONOR NEIGHBOR ';'    { RIP_CFG->honor = HONOR_NEIGHBOR; }
- | rip_cfg HONOR NEVER ';'    { RIP_CFG->honor = HONOR_NEVER; }
+ | rip_cfg HONOR ALWAYS ';'   { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
+ | rip_cfg HONOR NEIGHBOR ';' { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
+ | rip_cfg HONOR NEVER ';'    { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
  | rip_cfg INTERFACE rip_iface ';'
  ;
 

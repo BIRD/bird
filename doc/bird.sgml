@@ -3182,12 +3182,6 @@ following ones:
 	are authenticated using a MD5 cryptographic hash. If you set
 	authentication to not-none, it is a good idea to add <cf>password</cf>
 	section. Default: none.
-
-	<tag>honor always|neighbor|never</tag>
-	Specifies when should requests for dumping routing table be honored.
-	(Always, when sent from a host on a directly connected network or
-	never.) Routing table updates are honored only from neighbors, that is
-	not configurable. Default: never.
 </descrip>
 
 <p>There are some options that can be specified per-interface:
@@ -3286,7 +3280,6 @@ protocol rip MyRIP_test {
         garbage time 60;
         interface "eth0" { metric 3; mode multicast; };
 	interface "eth*" { metric 2; mode broadcast; };
-        honor neighbor;
         authentication none;
         import filter { print "importing"; accept; };
         export filter { print "exporting"; accept; };

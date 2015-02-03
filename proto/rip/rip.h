@@ -175,10 +175,6 @@ struct rip_config
 #define AUTH_NONE 0
 #define AUTH_PLAINTEXT 2
 #define AUTH_MD5 3
-  int honor;
-#define HONOR_NEVER 0
-#define HONOR_NEIGHBOR 1
-#define HONOR_ALWAYS 2
 };
 
 struct rip_proto

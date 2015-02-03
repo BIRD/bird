@@ -537,15 +537,12 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct
 }
 
 static int
-rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct iface *iface)
+rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct iface *iface,  struct rip_iface *rif)
 {
-  struct rip_config *cf = (struct rip_config *) p->p.cf;
   DBG("Asked to send my routing table\n");
-  if (cf->honor == HONOR_NEVER)
-    BAD("They asked me to send routing table, but I was told not to do it");
-  if ((cf->honor == HONOR_NEIGHBOR) && (!neigh_find2(&p->p, &from, iface, 0)))
+  if (!neigh_find2(&p->p, &from, iface, 0))
     BAD("They asked me to send routing table, but he is not my neighbor");
-  rip_sendto(p, from, port, HEAD(p->interfaces)); /* no broadcast */
+  rip_sendto(p, from, port, rif); /* no broadcast */
 
   return 0;
 }
@@ -620,7 +617,7 @@ rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
     return 1;
   }
 
-  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, rif->iface ? rif->iface->name : "(dummy)");
+  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, rif->iface->name);
   size -= sizeof(struct rip_packet_heading);
   if (size < 0)
     BAD("Too small packet");
@@ -654,8 +651,8 @@ rip_rx(sock *sock, int size)
   int num_blocks;
 
 #ifdef IPV6
-  if (! rif->iface || sock->lifindex != rif->iface->index)
-  return 1;
+  if (sock->lifindex != rif->iface->index)
+    return 1;
 
   iface = rif->iface;
 #endif
@@ -680,7 +677,7 @@ rip_rx(sock *sock, int size)
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, sock->faddr, sock->fport, iface);
+      return rip_process_packet_request(p, sock->faddr, sock->fport, iface, rif);
     case RIPCMD_RESPONSE:
       return rip_process_packet_response(p, packet, num_blocks, sock->faddr, sock->fport, iface);
     default:
@@ -800,7 +797,6 @@ rip_timer(timer *timer)
 static int
 rip_start(struct proto *P)
 {
-  struct rip_iface *rif;
   struct rip_proto *p = (struct rip_proto *) P;
   DBG("RIP: starting instance...\n");
 
@@ -816,8 +812,6 @@ rip_start(struct proto *P)
   p->timer->recurrent = 1;
   p->timer->hook = rip_timer;
   tm_start(p->timer, 2);
-  rif = rip_new_iface(p, NULL, 0, NULL); /* Initialize dummy interface */
-  add_head(&p->interfaces, NODE rif);
 
   DBG("RIP: ...done\n");
   return PS_UP;
@@ -862,7 +856,7 @@ rip_dump(struct proto *P)
   i = 0;
   WALK_LIST(rif, p->interfaces)
   {
-    debug("RIP: interface #%d: %s, %I, busy = %x\n", i++, rif->iface ? rif->iface->name : "(dummy)", rif->sock->daddr,
+    debug("RIP: interface #%d: %s, %I, busy = %x\n", i++, rif->iface->name, rif->sock->daddr,
 	  rif->busy);
   }
 }
@@ -926,7 +920,7 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
   rif->sock->rx_hook = rip_rx;
   rif->sock->data = rif;
   rif->sock->rbsize = 10240;
-  rif->sock->iface = new; /* Automatically works for dummy interface */
+  rif->sock->iface = new;
   rif->sock->tbuf = mb_alloc(p->p.pool, sizeof(struct rip_packet));
   rif->sock->tx_hook = rip_tx;
   rif->sock->err_hook = rip_tx_err;
@@ -960,8 +954,7 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
 
   if (!ipa_nonzero(rif->sock->daddr))
   {
-    if (rif->iface)
-      log(L_WARN "%s: interface %s is too strange for me", p->p.name, rif->iface->name);
+    log(L_WARN "%s: interface %s is too strange for me", p->p.name, rif->iface->name);
   }
   else
   {
@@ -982,21 +975,17 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
     }
   }
 
-  TRACE(D_EVENTS, "Listening on %s, port %d, mode %s (%I)", rif->iface ? rif->iface->name : "(dummy)", cf->port,
+  TRACE(D_EVENTS, "Listening on %s, port %d, mode %s (%I)", rif->iface->name, cf->port,
 	rif->multicast ? "multicast" : "broadcast", rif->sock->daddr);
 
   return rif;
 
   err: sk_log_error(rif->sock, p->p.name);
-  log(L_ERR "%s: Cannot open socket for %s", p->p.name, rif->iface ? rif->iface->name : "(dummy)");
-  if (rif->iface)
-  {
-    rfree(rif->sock);
-    mb_free(rif);
-    return NULL;
-  }
-  /* On dummy, we just return non-working socket, so that user gets error every time anyone requests table */
-  return rif;
+  log(L_ERR "%s: Cannot open socket for %s", p->p.name, rif->iface->name);
+
+  rfree(rif->sock);
+  mb_free(rif);
+  return NULL;
 }
 
 static void
