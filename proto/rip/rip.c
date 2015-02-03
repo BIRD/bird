@@ -617,7 +617,7 @@ rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
     return 1;
   }
 
-  DBG("RIP: message came: %d bytes from %I via %sock\n", size, sock->faddr, rif->iface->name);
+  DBG("RIP: message came: %d bytes from %I via %s\n", size, sock->faddr, rif->iface->name);
   size -= sizeof(struct rip_packet_heading);
   if (size < 0)
     BAD("Too small packet");
