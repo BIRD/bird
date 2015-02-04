@@ -22,9 +22,8 @@
  * with the core.
  *
  * We maintain our own linked list of &rip_entry structures -- it serves
- * as our small routing table. RIP never adds to this linked list upon
- * packet reception; instead, it lets the core know about data from the packet
- * and waits for the core to call rip_rt_notify().
+ * as our small routing table. RIP adds routes to this linked list upon
+ * RIP Response packet reception.
  *
  * Within rip_tx(), the list is
  * walked and a packet is generated using rip_tx_prepare(). This gets
@@ -1108,8 +1107,8 @@ rip_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
 }
 
 /*
- * rip_rt_notify - core tells us about new route (possibly our
- * own), so store it into our data structures. 
+ * rip_rt_notify - core tells us about new route, so store
+ * it into our data structures.
  */
 static void
 rip_rt_notify(struct proto *P, struct rtable *table UNUSED, struct network *net, struct rte *new,
