@@ -507,7 +507,7 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
  * process_block - do some basic check and pass block to advertise_entry
  */
 static void
-process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
+rip_process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
 {
   int metric, pxlen;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -586,7 +586,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
     if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
       block->netmask = ipa_class_mask(block->network);
 #endif
-    process_block(p, block, from, iface);
+    rip_process_block(p, block, from, iface);
   }
   return 0;
 }
