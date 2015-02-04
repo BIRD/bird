@@ -540,8 +540,6 @@ static int
 rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct iface *iface,  struct rip_iface *rif)
 {
   DBG("Asked to send my routing table\n");
-  if (!neigh_find2(&p->p, &from, iface, 0))
-    BAD("They asked me to send routing table, but he is not my neighbor");
   rip_sendto(p, from, port, rif); /* no broadcast */
 
   return 0;
@@ -552,7 +550,6 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
 			    struct iface *iface)
 {
   int i;
-  neighbor *neighbor;
   int authenticated = 0;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
 
@@ -561,12 +558,6 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
   {
     log(L_REMOTE "%s: %I send me routing info from port %d", p->p.name, from, port);
     return 1;
-  }
-
-  if (!(neighbor = neigh_find2(&p->p, &from, iface, 0)) || neighbor->scope == SCOPE_HOST)
-  {
-    log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->p.name, from);
-    return 0;
   }
 
   for (i = 0; i < num_blocks; i++)
@@ -601,10 +592,17 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
 }
 
 static int
-rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
+rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_blocks)
 {
   struct rip_iface *rif = sock->data;
   struct rip_proto *p = rif->rip;
+
+#ifdef IPV6
+  if (sock->lifindex != rif->iface->index)
+    return 1;
+
+  *iface = rif->iface;
+#endif
 
   /* In non-listening mode, just ignore packet */
   if (rif->mode & IM_NOLISTEN)
@@ -636,6 +634,13 @@ rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
     return 1;
   }
 
+  neighbor *neighbor;
+  if (!(neighbor = neigh_find2(&p->p, &sock->faddr, *iface, 0)) || neighbor->scope == SCOPE_HOST)
+  {
+    log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->p.name, sock->faddr);
+    return 1;
+  }
+
   return 0;
 }
 
@@ -650,14 +655,7 @@ rip_rx(sock *sock, int size)
   struct iface *iface = NULL;
   int num_blocks;
 
-#ifdef IPV6
-  if (sock->lifindex != rif->iface->index)
-    return 1;
-
-  iface = rif->iface;
-#endif
-
-  if(rip_validate_recv_packet(sock, size, &num_blocks))
+  if(rip_validate_recv_packet(sock, size, &iface, &num_blocks))
     return 1;
 
   struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
