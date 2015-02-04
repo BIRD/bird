@@ -457,7 +457,7 @@ rip_get_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, int me
  * bird core with this route.
  */
 static void
-advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
+rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
 {
   neighbor *neighbor;
   struct rip_iface *rif;
@@ -533,7 +533,7 @@ process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct
     return;
   }
 
-  advertise_entry(p, block, from, iface);
+  rip_advertise_entry(p, block, from, iface);
 }
 
 static int
