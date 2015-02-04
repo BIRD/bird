@@ -730,10 +730,6 @@ rip_timer(timer *timer)
     if (net)
       rte = rte_find(net, p->p.main_source);
 
-    //DBG("Garbage: (%p)", rte); rte_dump(rte);
-
-    TRACE(D_EVENTS, "entry: %I/%d, flags=%d, met=%d", en->n.prefix, en->n.pxlen, en->flags, en->metric);
-
     if (en->changed && (now - en->updated > cf->timeout_time))
     {
       TRACE(D_EVENTS, "entry is old: %I/%d", en->n.prefix, en->n.pxlen);
