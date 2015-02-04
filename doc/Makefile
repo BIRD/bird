@@ -22,8 +22,10 @@ prog.sgml:
 	./sgml2html $<
 
 %.dvi: %.tex
-	latex $<
-	latex $<
+	mv $< tex/$<
+	cd tex && latex -output-directory ../ $<
+	cd tex && latex -output-directory ../ $<
+	mv tex/$< $<
 
 %.ps: %.dvi
 	dvips -D600 -ta4 -o $@ $<
