@@ -900,7 +900,7 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
   rif->sock->data = rif;
   rif->sock->rbsize = 10240;
   rif->sock->iface = new;
-  rif->sock->tbuf = mb_alloc(p->p.pool, sizeof(struct rip_packet));
+  rif->sock->tbsize = new->mtu;
   rif->sock->tx_hook = rip_tx;
   rif->sock->err_hook = rip_tx_err;
   rif->sock->daddr = IPA_NONE;
