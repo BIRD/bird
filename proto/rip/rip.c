@@ -499,11 +499,10 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
  * process_block - do some basic check and pass block to advertise_entry
  */
 static void
-rip_process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
+rip_process_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *block, ip_addr from)
 {
   int metric, pxlen;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
-
   metric = rip_get_metric(p, block);
   pxlen  = rip_get_pxlen(block);
 
@@ -529,7 +528,7 @@ rip_process_block(struct rip_proto *p, struct rip_block *block, ip_addr from, st
 }
 
 static int
-rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct iface *iface,  struct rip_iface *rif)
+rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct rip_iface *rif)
 {
   DBG("Asked to send my routing table\n");
   rip_sendto(p, from, port, rif); /* no broadcast */
@@ -538,8 +537,7 @@ rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct i
 }
 
 static int
-rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr from, int port,
-			    struct iface *iface)
+rip_process_packet_response(struct rip_proto *p, struct rip_iface *rif, struct rip_packet *packet, int num_blocks, ip_addr from, int port)
 {
   int i;
   int authenticated = 0;
@@ -578,7 +576,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_packet *packet, int 
     if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
       block->netmask = ipa_class_mask(block->network);
 #endif
-    rip_process_block(p, block, from, iface);
+    rip_process_block(p, rif, block, from);
   }
   return 0;
 }
@@ -662,9 +660,9 @@ rip_rx(sock *sock, int size)
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, sock->faddr, sock->fport, iface, rif);
+      return rip_process_packet_request(p, sock->faddr, sock->fport, rif);
     case RIPCMD_RESPONSE:
-      return rip_process_packet_response(p, packet, num_blocks, sock->faddr, sock->fport, iface);
+      return rip_process_packet_response(p, rif, packet, num_blocks, sock->faddr, sock->fport);
     default:
       BAD("Unknown command");
   }
