@@ -734,6 +734,7 @@ rip_timer(timer *timer)
     {
       TRACE(D_EVENTS, "entry is old: %I/%d", en->n.prefix, en->n.pxlen);
       en->metric = cf->infinity;
+      en->changed = now;
       if (rte)
 	rte_discard(p->p.table, rte);
     }
