@@ -381,34 +381,27 @@ rip_route_update_arrived(struct rip_entry *entry, int metric, ip_addr from)
   return (!entry || (entry->metric > metric) || (ipa_equal(from, entry->from) && (metric != entry->metric)));
 }
 
-static rta
-rip_create_rta(struct rte_src *main_source, ip_addr gw, ip_addr from, struct iface *iface)
-{
-  rta A;
-  bzero(&A, sizeof(A));
-  A.src = main_source;
-  A.source = RTS_RIP;
-  A.scope = SCOPE_UNIVERSE;
-  A.cast = RTC_UNICAST;
-  A.dest = RTD_ROUTER;
-  A.flags = 0;
-  A.gw = gw;
-  A.from = from;
-  A.iface = iface;
-
-  return A;
-}
-
 static void
-rip_add_route(struct rip_proto *p, struct rip_block *block, struct rip_entry *entry, rta *A)
+rip_add_route(struct rip_proto *p, struct rip_entry *entry, struct iface *iface)
 {
-  net *n = net_get(p->p.table, block->network, entry->n.pxlen);
+  net *n = net_get(p->p.table, entry->n.prefix, entry->n.pxlen);
+
+  rta A = {
+      .src = p->p.main_source,
+      .source = RTS_RIP,
+      .scope = SCOPE_UNIVERSE,
+      .cast = RTC_UNICAST,
+      .dest = RTD_ROUTER,
+      .gw = entry->next_hop,
+      .from = entry->from,
+      .iface = iface,
+  };
   rta *a = rta_lookup(A);
   rte *r = rte_get_temp(a);
 
   r->u.rip.metric = entry->metric;
 
-  r->u.rip.tag = ntohl(block->tag);
+  r->u.rip.tag = ntohl(entry->tag);
   r->net = n;
   r->pflags = 0; /* Here go my flags */
 
@@ -489,7 +482,7 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
     rta A = rip_create_rta(p->p.main_source, gw, from, neighbor->iface);
 
     entry = rip_get_entry(p, block, from, metric);
-    rip_add_route(p, block, entry, &A);
+    rip_add_route(p, entry, neighbor->iface);
   }
   else
   {
