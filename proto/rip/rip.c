@@ -615,11 +615,6 @@ rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_bl
     BAD("Odd sized packet");
   *num_blocks = size / sizeof(struct rip_block);
 
-#ifndef IPV6
-  if (*num_blocks > MAX_RTEs_IN_PACKET_WITHOUT_AUTH)
-    BAD("Too many blocks");
-#endif
-
   if (ipa_equal(rif->iface->addr->ip, sock->faddr))
   {
     DBG("My own packet\n");
