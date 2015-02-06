@@ -898,7 +898,7 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
   rif->sock->sport = cf->port;
   rif->sock->rx_hook = rip_rx;
   rif->sock->data = rif;
-  rif->sock->rbsize = 10240;
+  rif->sock->rbsize = sizeof(struct rip_packet_heading) + 256*sizeof(struct rip_block);
   rif->sock->iface = new;
   rif->sock->tbsize = new->mtu;
   rif->sock->tx_hook = rip_tx;
