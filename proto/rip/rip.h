@@ -126,7 +126,7 @@ struct rip_entry
 struct rip_packet
 {
   struct rip_packet_heading heading;
-  struct rip_block block[MAX_RTEs_IN_PACKET_WITHOUT_AUTH];
+  struct rip_block block[];
 };
 
 struct rip_iface

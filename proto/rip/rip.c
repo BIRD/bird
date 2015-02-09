@@ -144,7 +144,7 @@ rip_set_up_packet(struct rip_packet *packet)
 static int
 rip_get_max_rip_entries(int auth_type, unsigned mtu)
 {
-//#ifndef IPV6
+#ifndef IPV6
   switch (auth_type)
   {
     case AUTH_PLAINTEXT:
@@ -154,7 +154,7 @@ rip_get_max_rip_entries(int auth_type, unsigned mtu)
     default:
       return MAX_RTEs_IN_PACKET_WITHOUT_AUTH;
   }
-//#endif
+#endif
   /**
    * http://tools.ietf.org/html/rfc2080
    *
@@ -164,7 +164,7 @@ rip_get_max_rip_entries(int auth_type, unsigned mtu)
    *               |                      RTE_size                       |
    *               +-                                                   -+
    **/
-//  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE) / RIP_RTE_SIZE);
+  return ((mtu - IPV6_HEADER_SIZE - UDP_HEADER_SIZE - RIP_NG_HEADER_SIZE) / RIP_RTE_SIZE);
 }
 
 /*
