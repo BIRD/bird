@@ -598,7 +598,7 @@ rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_bl
 
   if (rif->check_ttl && (sock->rcv_ttl < 255))
   {
-    log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %sock", p->p.name, sock->rcv_ttl, sock->faddr,
+    log(L_REMOTE "%s: Discarding packet with TTL %d (< 255) from %I on %s", p->p.name, sock->rcv_ttl, sock->faddr,
 	rif->iface->name);
     return 1;
   }
@@ -718,6 +718,7 @@ rip_timer(timer *timer)
     {
       TRACE(D_EVENTS, "entry is old: %I/%d", en->n.prefix, en->n.pxlen);
       en->metric = cf->infinity;
+      en->changed = now;
       if (rte)
 	rte_discard(p->p.table, rte);
     }
