@@ -33,7 +33,7 @@ CF_DECLS
 CF_KEYWORDS(RIP, INFINITY, METRIC, PORT, PERIOD, GARBAGE, TIMEOUT,
 	    MODE, BROADCAST, MULTICAST, QUIET, NOLISTEN, VERSION1, 
 	    AUTHENTICATION, NONE, PLAINTEXT, MD5, TTL, SECURITY,
-	    HONOR, NEVER, NEIGHBOR, ALWAYS, TX, PRIORITY, ONLY,
+	    NEVER, NEIGHBOR, ALWAYS, TX, PRIORITY, ONLY,
 	    RIP_METRIC, RIP_TAG)
 
 %type <i> rip_mode rip_auth
@@ -58,9 +58,6 @@ rip_cfg:
  | rip_cfg TIMEOUT TIME expr ';' { RIP_CFG->timeout_time = $4; }
  | rip_cfg AUTHENTICATION rip_auth ';' {RIP_CFG->auth_type = $3; }
  | rip_cfg password_list ';'
- | rip_cfg HONOR ALWAYS ';'   { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
- | rip_cfg HONOR NEIGHBOR ';' { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
- | rip_cfg HONOR NEVER ';'    { log(L_WARN "A RIP configuration option HONOR has been removed from BIRD version 1.4.6. Now it behaves as HONOR NEIGHBOR."); }
  | rip_cfg INTERFACE rip_iface ';'
  ;
 
