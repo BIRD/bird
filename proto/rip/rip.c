@@ -99,7 +99,6 @@ rip_tx_prepare(struct rip_proto *p, struct rip_block *block, struct rip_entry *e
   int metric;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
 
-  DBG(".");
   block->tag = htons(entry->tag);
   block->network = entry->n.prefix;
   metric = entry->metric;
@@ -188,7 +187,7 @@ rip_tx(sock *sock)
     if (conn->done)
       goto done;
 
-    DBG("Preparing packet to send: ");
+    DBG("Preparing packet to send: \n");
     rip_set_up_packet(packet);
     max_rte_entries = rip_get_max_rip_entries(cf->auth_type, sock->iface->mtu);
 
@@ -201,6 +200,7 @@ rip_tx(sock *sock)
 	/* FIXME: Should be probably 1 or some different algorithm */
 	nothing_to_update = 0;
 	used_rte_entries = rip_tx_prepare(p, packet->block + used_rte_entries, entry, rif, used_rte_entries);
+	DBG("  Add into a packet a RTE: %I/%d, met=%d, from last update elapse %d seconds\n", entry->n.prefix, entry->n.pxlen, entry->metric, now - entry->updated);
 	if (used_rte_entries >= max_rte_entries)
 	{
 	  FIB_ITERATE_PUT(&conn->iter, z);
@@ -214,7 +214,7 @@ rip_tx(sock *sock)
 
     packet_len = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
 
-    DBG(", sending %d blocks, ", used_rte_entries);
+    DBG("  Sending %d blocks, ", used_rte_entries);
     if (nothing_to_update)
     {
       DBG("not sending NULL update\n");
@@ -484,7 +484,8 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
   }
   else
   {
-    if ((ipa_equal(from, entry->from) && (metric == entry->metric)))
+    struct rip_config *cf = (struct rip_config *) p->p.cf;
+    if (ipa_equal(from, entry->from) && (metric == entry->metric) && metric < cf->infinity)
     {
       entry->updated = now; /* Renew */
       DBG("Route renewed %I/%d from %I met=%d\n", block->network, pxlen, from, metric);
@@ -716,7 +717,7 @@ rip_timer(timer *timer)
 
     if (en->changed && (now - en->updated > cf->timeout_time))
     {
-      TRACE(D_EVENTS, "entry is old: %I/%d", en->n.prefix, en->n.pxlen);
+      TRACE(D_EVENTS, "entry is old: %I/%d, garbage in %d seconds", en->n.prefix, en->n.pxlen, cf->garbage_time - (now - en->updated));
       en->metric = cf->infinity;
       en->changed = now;
       if (rte)
