@@ -396,7 +396,7 @@ rip_add_route(struct rip_proto *p, struct rip_entry *entry, struct iface *iface)
       .from = entry->from,
       .iface = iface,
   };
-  rta *a = rta_lookup(A);
+  rta *a = rta_lookup(&A);
   rte *r = rte_get_temp(a);
 
   r->u.rip.metric = entry->metric;
@@ -406,7 +406,7 @@ rip_add_route(struct rip_proto *p, struct rip_entry *entry, struct iface *iface)
   r->pflags = 0; /* Here go my flags */
 
   rte_update(&p->p, n, r);
-  DBG("New route %I/%d from %I met=%d\n", block->network, entry->n.pxlen, entry->from, entry->metric);
+  DBG("New route %I/%d from %I met=%d\n", entry->n.prefix, entry->n.pxlen, entry->from, entry->metric);
 }
 
 static ip_addr
@@ -479,8 +479,6 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
 
   if (rip_route_update_arrived(entry, metric, from))
   {
-    rta A = rip_create_rta(p->p.main_source, gw, from, neighbor->iface);
-
     entry = rip_get_entry(p, block, from, metric);
     rip_add_route(p, entry, neighbor->iface);
   }
@@ -524,7 +522,7 @@ rip_process_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *
     return;
   }
 
-  rip_advertise_entry(p, block, from, iface);
+  rip_advertise_entry(p, block, from, rif->iface);
 }
 
 static int
