@@ -179,7 +179,7 @@ rip_tx(sock *sock)
   struct rip_packet *packet = (void *) sock->tbuf;
   int packet_len;
   int max_rte_entries, used_rte_entries = 0;
-  int nothing_to_update = 1;
+  int something_to_update = 0;
 
   DBG("Sending to %I\n", sock->daddr);
   do
@@ -197,8 +197,7 @@ rip_tx(sock *sock)
 
       if (!rif->triggered || (entry->changed >= now - 2))
       {
-	/* FIXME: Should be probably 1 or some different algorithm */
-	nothing_to_update = 0;
+	something_to_update = 1;
 	used_rte_entries = rip_tx_prepare(p, packet->block + used_rte_entries, entry, rif, used_rte_entries);
 	DBG("  Add into a packet a RTE: %I/%d, met=%d, from last update elapse %d seconds\n", entry->n.prefix, entry->n.pxlen, entry->metric, now - entry->updated);
 	if (used_rte_entries >= max_rte_entries)
@@ -215,7 +214,7 @@ rip_tx(sock *sock)
     packet_len = rip_outgoing_authentication(p, (void *) &packet->block[0], packet, used_rte_entries);
 
     DBG("  Sending %d blocks, ", used_rte_entries);
-    if (nothing_to_update)
+    if (!something_to_update)
     {
       DBG("not sending NULL update\n");
       conn->done = 1;
