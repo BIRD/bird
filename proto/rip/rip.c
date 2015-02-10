@@ -658,7 +658,7 @@ rip_rx(sock *sock, int size)
       BAD("Unknown command");
   }
 
-  return 1;
+  return 0;
 }
 
 /*
