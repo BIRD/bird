@@ -898,9 +898,9 @@ rip_new_iface(struct rip_proto *p, struct iface *new, unsigned long flags, struc
     if (rif->multicast)
     {
 #ifndef IPV6
-      rif->sock->daddr = ipa_from_u32(0xe0000009);	// 0xe0000009, WTF?
+      rif->sock->daddr = RIP_IPv4_MULTICAST_IPA;
 #else
-      rif->sock->daddr = ipa_build(0xff020000, 0, 0, 9); // '0xff020000, 0, 0, 9' WTF?
+      rif->sock->daddr = RIP_IPv6_MULTICAST_IPA;
 #endif
     }
     else

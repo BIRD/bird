@@ -33,6 +33,9 @@
 #define RIP_TIMEOUT_TIME	180
 #define RIP_GARBAGE_TIME	120
 
+#define RIP_IPv4_MULTICAST_IPA	ipa_from_u32(0xe0000009)	/* IP Address 224.0.0.9 */
+#define RIP_IPv6_MULTICAST_IPA	ipa_build(0xff020000, 0, 0, 9)	/* IP Address FF02::9 */
+
 #define OK		1
 #define FAIL		0
 
