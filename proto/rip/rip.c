@@ -697,14 +697,14 @@ rip_timer(timer *timer)
 
     if (en->changed && (now - en->updated > cf->timeout_time))
     {
-      TRACE(D_EVENTS, "entry is old: %I/%d, garbage in %d seconds", en->n.prefix, en->n.pxlen, cf->garbage_time - (now - en->updated));
+      TRACE(D_EVENTS, "entry is old: %I/%d, garbage in %d seconds", en->n.prefix, en->n.pxlen, (cf->timeout_time + cf->garbage_time) - (now - en->updated));
       en->metric = cf->infinity;
       en->changed = now;
       if (rte)
 	rte_discard(p->p.table, rte);
     }
 
-    if (en->changed && (now - en->updated > cf->garbage_time))
+    if (en->changed && (now - en->updated > (cf->timeout_time + cf->garbage_time)))
     {
       TRACE(D_EVENTS, "entry is too old: %I/%d", en->n.prefix, en->n.pxlen);
       if (rte)
@@ -1152,8 +1152,8 @@ rip_init_config(struct rip_config *cf)
   cf->infinity = 16;
   cf->port = RIP_PORT;
   cf->period = 30;
-  cf->garbage_time = RIP_GARBAGE_TIME;
   cf->timeout_time = RIP_TIMEOUT_TIME;
+  cf->garbage_time = RIP_GARBAGE_TIME;
   cf->passwords = NULL;
   cf->auth_type = AUTH_NONE;
 }

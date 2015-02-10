@@ -30,8 +30,8 @@
 #define RIP_PORT	521	/* RIPng */
 #endif
 
-#define RIP_TIMEOUT_TIME	120
-#define RIP_GARBAGE_TIME	RIP_TIMEOUT_TIME + 180
+#define RIP_TIMEOUT_TIME	180
+#define RIP_GARBAGE_TIME	120
 
 #define OK		1
 #define FAIL		0
