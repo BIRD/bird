@@ -683,7 +683,7 @@ rip_timer(timer *timer)
 
   FIB_ITERATE_INIT(&fit, &p->rtable);
 
-  rip_timer_again:
+  loop:
   FIB_ITERATE_START(&p->rtable, &fit, node)
   {
     rte *rte = NULL;
@@ -712,7 +712,7 @@ rip_timer(timer *timer)
 
       FIB_ITERATE_PUT(&fit, node);
       fib_delete(&p->rtable, node);
-      goto rip_timer_again;
+      goto loop;
     }
   }
   FIB_ITERATE_END(node);
