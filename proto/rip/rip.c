@@ -1002,9 +1002,9 @@ rip_if_notify(struct proto *P, unsigned flags, struct iface *iface)
     if (!(PATT->mode & IM_BROADCAST) && (iface->flags & IF_MULTICAST))
     {
 #ifndef IPV6
-      lock->addr = ipa_from_u32(0xe0000009);
+      lock->addr = RIP_IPv4_MULTICAST_IPA;
 #else
-      ip_pton("FF02::9", &lock->addr);
+      lock->addr = RIP_IPv6_MULTICAST_IPA;
 #endif
     }
     else
