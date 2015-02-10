@@ -625,6 +625,10 @@ rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_bl
     return 1;
   }
 
+  struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
+  if (packet->heading.version != RIP_V1 && packet->heading.version != RIP_V2)
+    BAD("Unknown version");
+
   return 0;
 }
 
@@ -643,18 +647,6 @@ rip_rx(sock *sock, int size)
     return 1;
 
   struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
-
-  switch (packet->heading.version)
-  {
-    case RIP_V1:
-      DBG("Rip1: ");
-      break;
-    case RIP_V2:
-      DBG("Rip2: ");
-      break;
-    default:
-      BAD("Unknown version");
-  }
 
   switch (packet->heading.command)
   {
