@@ -190,6 +190,7 @@ rip_tx(sock *sock)
     DBG("Preparing packet to send: \n");
     rip_set_up_packet(packet);
     max_rte_entries = rip_get_max_rip_entries(cf->auth_type, sock->iface->mtu);
+    DBG("cf->auth_type: %d\n", cf->auth_type);	// REMOVE ME
 
     FIB_ITERATE_START(&p->rtable, &conn->iter, z)
     {
@@ -484,11 +485,54 @@ rip_advertise_entry(struct rip_proto *p, struct rip_iface *rif, struct rip_block
   DBG("done\n");
 }
 
+static int
+rip_is_authentication(struct rip_block *block)
+{
+#ifndef IPV6
+  return (block->family == 0xffff);
+#endif
+  return 0;
+}
+
+static int
+rip_validate_authentication(struct rip_proto *p, struct rip_packet *packet, int num_blocks, ip_addr from)
+{
+#ifndef IPV6
+  struct rip_config *cf = (struct rip_config *) p->p.cf;
+  struct rip_block *block = packet->block;
+
+  /* Authentication is not defined for IPv6 */
+  if (rip_is_authentication(block))
+  {
+    if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, from))
+      BAD("Authentication failed");
+    return 0;
+  }
+
+  if (cf->auth_type != AUTH_NONE)
+    BAD("Packet is not authenticated and it should be");
+#endif
+
+  return 0;
+}
+
+static void
+rip_translate_addresses_ntoh(struct rip_packet *packet, struct rip_block *block)
+{
+  ipa_ntoh(block->network);
+#ifndef IPV6
+  ipa_ntoh(block->netmask);
+  ipa_ntoh(block->next_hop);
+  if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
+    block->netmask = ipa_class_mask(block->network);
+#endif
+}
+
 /*
  * process_block - do some basic check and pass block to advertise_entry
  */
-static void
-rip_process_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *block, ip_addr from)
+static int
+rip_validate_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *block, ip_addr from)
 {
   int metric, pxlen;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -506,14 +550,14 @@ rip_process_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *
     {
       /* Someone is sending us nexthop and we are ignoring it */
       DBG("IPv6 nexthop ignored");
-      return;
+      return 1;
     }
 #endif
     log(L_WARN "%s: Got metric %d from %I", p->p.name, metric, from);
-    return;
+    return 1;
   }
 
-  rip_advertise_entry(p, rif, block, from);
+  return 0;
 }
 
 static int
@@ -529,7 +573,6 @@ static int
 rip_process_packet_response(struct rip_proto *p, struct rip_iface *rif, struct rip_packet *packet, int num_blocks, ip_addr from, int port)
 {
   int i;
-  int authenticated = 0;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
 
   DBG("*** Rtable from %I\n", from);
@@ -539,34 +582,21 @@ rip_process_packet_response(struct rip_proto *p, struct rip_iface *rif, struct r
     return 1;
   }
 
-  for (i = 0; i < num_blocks; i++)
+  if(rip_validate_authentication(p, packet, num_blocks, from))
+    return 1;
+
+  struct rip_block *block = packet->block;
+  for (i = 0; i < num_blocks; i++, block++)
   {
-    struct rip_block *block = &packet->block[i];
+    rip_translate_addresses_ntoh(packet, block);
 
-#ifndef IPV6
-    /* Authentication is not defined for v6 */
-    if (block->family == 0xffff)
-    {
-      if (i)
-	continue; /* md5 tail has this family */
-      if (rip_incoming_authentication(p, (void *) block, packet, num_blocks, from))
-	BAD("Authentication failed");
-      authenticated = 1;
+    if(rip_is_authentication(block) ||
+	rip_validate_block(p, rif, block, from))
       continue;
-    }
-#endif
-    if ((!authenticated) && (cf->auth_type != AUTH_NONE))
-      BAD("Packet is not authenticated and it should be");
 
-    ipa_ntoh(block->network);
-#ifndef IPV6
-    ipa_ntoh(block->netmask);
-    ipa_ntoh(block->next_hop);
-    if (packet->heading.version == RIP_V1) /* FIXME (nonurgent): switch to disable this? */
-      block->netmask = ipa_class_mask(block->network);
-#endif
-    rip_process_block(p, rif, block, from);
+    rip_advertise_entry(p, rif, block, from);
   }
+
   return 0;
 }
 

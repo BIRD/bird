@@ -10,6 +10,7 @@
  */
 
 #undef LOCAL_DEBUG
+#define LOCAL_DEBUG 1
 
 #include "nest/bird.h"
 #include "nest/iface.h"
@@ -39,7 +40,7 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
     case AUTH_PLAINTEXT:
       {
 	struct password_item *passwd = password_find(cf->passwords, 1);
-	DBG("Plaintext passwd");
+	DBG("Plaintext passwd\n");
 	if (!passwd)
 	{
 	  log(L_AUTH "No passwords set and password authentication came");
@@ -54,7 +55,7 @@ rip_incoming_authentication(struct rip_proto *p, struct rip_block_auth *block, s
       }
       break;
     case AUTH_MD5:
-      DBG("md5 password");
+      DBG("md5 password\n");
       {
 	struct password_item *pass = NULL, *ptmp;
 	struct rip_md5_tail *tail;
