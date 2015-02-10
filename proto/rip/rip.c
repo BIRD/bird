@@ -244,7 +244,7 @@ rip_tx(sock *sock)
 }
 
 static struct rip_connection *
-rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_iface *rif)
+rip_get_connection(struct rip_proto *p, struct rip_iface *rif, ip_addr daddr, int dport)
 {
   struct rip_connection *conn;
   static int num = 0;
@@ -272,18 +272,17 @@ rip_get_connection(struct rip_proto *p, ip_addr daddr, int dport, struct rip_ifa
  * most one send to one interface is done.
  */
 static void
-rip_sendto(struct rip_proto *p, ip_addr daddr, int dport, struct rip_iface *rif)
+rip_sendto(struct rip_proto *p, struct rip_iface *rif, ip_addr daddr, int dport)
 {
-  struct iface *iface = rif->iface;
   struct rip_connection *conn;
 
   if (rif->busy)
   {
-    log(L_WARN "%s: Interface %s is much too slow, dropping request", p->p.name, iface->name);
+    log(L_WARN "%s: Interface %s is much too slow, dropping request", p->p.name, rif->iface->name);
     return;
   }
 
-  conn = rip_get_connection(p, daddr, dport, rif);
+  conn = rip_get_connection(p, rif, daddr, dport);
 
   FIB_ITERATE_INIT(&conn->iter, &p->rtable);
   add_head(&p->connections, NODE conn);
@@ -307,7 +306,7 @@ rip_find_iface(struct rip_proto *p, struct iface *what)
 }
 
 static int
-rip_get_metric_with_interface(struct rip_proto *p, struct rip_block *block, struct rip_iface *rif)
+rip_get_metric_with_interface(struct rip_proto *p, struct rip_iface *rif, struct rip_block *block)
 {
   int metric;
   struct rip_config *cf = (struct rip_config *) p->p.cf;
@@ -332,7 +331,7 @@ rip_get_metric_with_interface(struct rip_proto *p, struct rip_block *block, stru
 static int
 rip_get_metric(struct rip_proto *p, struct rip_block *block)
 {
-  return rip_get_metric_with_interface(p, block, NULL);
+  return rip_get_metric_with_interface(p, NULL, block);
 }
 
 static int
@@ -449,10 +448,9 @@ rip_get_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, int me
  * bird core with this route.
  */
 static void
-rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, struct iface *iface)
+rip_advertise_entry(struct rip_proto *p, struct rip_iface *rif, struct rip_block *block, ip_addr from)
 {
   neighbor *neighbor;
-  struct rip_iface *rif;
   int pxlen, metric;
   ip_addr gw;
   struct rip_entry *entry;
@@ -460,19 +458,12 @@ rip_advertise_entry(struct rip_proto *p, struct rip_block *block, ip_addr from, 
   gw = rip_get_gateway(block, from);
   pxlen = rip_get_pxlen(block);
 
-  neighbor = neigh_find2(&p->p, &gw, iface, 0);
+  neighbor = neigh_find2(&p->p, &gw, rif->iface, 0);
 
   if (!rip_shloud_we_advertise_entry(p, block, from, pxlen, gw, neighbor))
     return;
 
-  if (!(rif = neighbor->data))
-  {
-    rif = neighbor->data = rip_find_iface(p, neighbor->iface);
-  }
-  if (!rif)
-    bug("Route packet using unknown interface? No.");
-
-  metric = rip_get_metric_with_interface(p, block, rif);
+  metric = rip_get_metric_with_interface(p, rif, block);
 
   /* set to: interface of nexthop */
   entry = fib_find(&p->rtable, &block->network, pxlen);
@@ -523,14 +514,14 @@ rip_process_block(struct rip_proto *p, struct rip_iface *rif, struct rip_block *
     return;
   }
 
-  rip_advertise_entry(p, block, from, rif->iface);
+  rip_advertise_entry(p, rif, block, from);
 }
 
 static int
-rip_process_packet_request(struct rip_proto *p, ip_addr from, int port, struct rip_iface *rif)
+rip_process_packet_request(struct rip_proto *p, struct rip_iface *rif, ip_addr from, int port)
 {
   DBG("Asked to send my routing table\n");
-  rip_sendto(p, from, port, rif); /* no broadcast */
+  rip_sendto(p, rif, from, port); /* no broadcast */
 
   return 0;
 }
@@ -581,7 +572,7 @@ rip_process_packet_response(struct rip_proto *p, struct rip_iface *rif, struct r
 }
 
 static int
-rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_blocks)
+rip_validate_recv_packet(sock *sock, int size, int *num_blocks)
 {
   struct rip_iface *rif = sock->data;
   struct rip_proto *p = rif->rip;
@@ -589,8 +580,6 @@ rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_bl
 #ifdef IPV6
   if (sock->lifindex != rif->iface->index)
     return 1;
-
-  *iface = rif->iface;
 #endif
 
   /* In non-listening mode, just ignore packet */
@@ -619,7 +608,7 @@ rip_validate_recv_packet(sock *sock, int size, struct iface **iface, int *num_bl
   }
 
   neighbor *neighbor;
-  if (!(neighbor = neigh_find2(&p->p, &sock->faddr, *iface, 0)) || neighbor->scope == SCOPE_HOST)
+  if (!(neighbor = neigh_find2(&p->p, &sock->faddr, rif->iface, 0)) || neighbor->scope == SCOPE_HOST)
   {
     log(L_REMOTE "%s: %I send me routing info but he is not my neighbor", p->p.name, sock->faddr);
     return 1;
@@ -640,10 +629,9 @@ rip_rx(sock *sock, int size)
 {
   struct rip_iface *rif = sock->data;
   struct rip_proto *p = rif->rip;
-  struct iface *iface = NULL;
   int num_blocks;
 
-  if(rip_validate_recv_packet(sock, size, &iface, &num_blocks))
+  if(rip_validate_recv_packet(sock, size, &num_blocks))
     return 1;
 
   struct rip_packet *packet = (struct rip_packet *) sock->rbuf;
@@ -651,7 +639,7 @@ rip_rx(sock *sock, int size)
   switch (packet->heading.command)
   {
     case RIPCMD_REQUEST:
-      return rip_process_packet_request(p, sock->faddr, sock->fport, rif);
+      return rip_process_packet_request(p, rif, sock->faddr, sock->fport);
     case RIPCMD_RESPONSE:
       return rip_process_packet_response(p, rif, packet, num_blocks, sock->faddr, sock->fport);
     default:
@@ -743,17 +731,15 @@ rip_timer(timer *timer)
 
     WALK_LIST(rif, p->interfaces)
     {
-      struct iface *iface = rif->iface;
-
-      if (!iface)
+      if (!rif->iface)
 	continue;
       if (rif->mode & IM_QUIET)
 	continue;
-      if (!(iface->flags & IF_UP))
+      if (!(rif->iface->flags & IF_UP))
 	continue;
       rif->triggered = p->rnd_count;
 
-      rip_sendto(p, IPA_NONE, 0, rif);
+      rip_sendto(p, rif, IPA_NONE, 0);
     }
     p->tx_count++;
     p->rnd_count--;
