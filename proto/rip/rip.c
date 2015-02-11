@@ -43,7 +43,6 @@
  */
 
 #undef LOCAL_DEBUG
-#define LOCAL_DEBUG 1
 
 #include "nest/bird.h"
 #include "nest/iface.h"
