@@ -180,6 +180,7 @@ rip_tx(sock *sock)
   int packet_len;
   int max_rte_entries, used_rte_entries;
   int something_to_update;
+  int send_status;
 
   DBG("Sending to %I\n", sock->daddr);
   do
@@ -231,13 +232,15 @@ rip_tx(sock *sock)
       conn->done = 1;
       goto done;
     }
+
+    send_status = 0;
     if (ipa_nonzero(conn->daddr))
-      used_rte_entries = sk_send_to(sock, packet_len, conn->daddr, conn->dport);
+      send_status = sk_send_to(sock, packet_len, conn->daddr, conn->dport);
     else
-      used_rte_entries = sk_send(sock, packet_len);
+      send_status = sk_send(sock, packet_len);
 
     DBG("it wants more\n");
-  } while (used_rte_entries > 0);
+  } while (send_status > 0);
 
   if (used_rte_entries < 0)
     rip_tx_err(sock, used_rte_entries);
