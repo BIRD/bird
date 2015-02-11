@@ -178,8 +178,8 @@ rip_tx(sock *sock)
   struct rip_config *cf = (struct rip_config *) p->p.cf;
   struct rip_packet *packet = (void *) sock->tbuf;
   int packet_len;
-  int max_rte_entries, used_rte_entries = 0;
-  int something_to_update = 0;
+  int max_rte_entries, used_rte_entries;
+  int something_to_update;
 
   DBG("Sending to %I\n", sock->daddr);
   do
@@ -189,8 +189,18 @@ rip_tx(sock *sock)
 
     DBG("Preparing packet to send: \n");
     rip_set_up_packet(packet);
+
+    something_to_update = 0;
+
     max_rte_entries = rip_get_max_rip_entries(cf->auth_type, sock->iface->mtu);
-    DBG("cf->auth_type: %d\n", cf->auth_type);	// REMOVE ME
+    used_rte_entries = 0;
+
+    if(cf->auth_type != AUTH_NONE)
+    {
+      /* a first RTE in packet will be used for a authentication */
+      max_rte_entries++;
+      used_rte_entries++;
+    }
 
     FIB_ITERATE_START(&p->rtable, &conn->iter, z)
     {

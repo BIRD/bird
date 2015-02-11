@@ -151,7 +151,7 @@ rip_outgoing_authentication(struct rip_proto *p, struct rip_block_auth *block, s
       struct MD5Context ctxt;
       static u32 sequence = 0;
 
-      if (num > MAX_RTEs_IN_PACKET_WITH_MD5_AUTH)
+      if (num > (MAX_RTEs_IN_PACKET_WITH_MD5_AUTH + 1)) /* +1 is for the first RTE as authentication data */
 	bug("We can not add MD5 authentication to this long packet");
 
       /* need to preset the sequence number to a sane value */
