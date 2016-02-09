@@ -58,9 +58,23 @@ net_format(const net_addr *N, char *buf, int buflen)
   case NET_IP6:
     return bsnprintf(buf, buflen, "%I6/%d", n->ip6.prefix, n->ip6.pxlen);
   case NET_VPN4:
-    return bsnprintf(buf, buflen, "%u:%u %I4/%d", (u32) (n->vpn4.rd >> 32), (u32) n->vpn4.rd, n->vpn4.prefix, n->vpn4.pxlen);
+    switch (n->vpn4.rd >> 48)
+    {
+      case 0: return bsnprintf(buf, buflen, "0:%u:%u %I4/%d", (u32) (n->vpn4.rd >> 32), (u32) n->vpn4.rd, n->vpn4.prefix, n->vpn4.pxlen);
+      case 1: return bsnprintf(buf, buflen, "1:%I4:%u %I4/%d", ip4_from_u32(n->vpn4.rd >> 16), (u32) (n->vpn4.rd & 0xffff), n->vpn4.prefix, n->vpn4.pxlen);
+      case 2: return bsnprintf(buf, buflen, "2:%u:%u %I4/%d", (u32) (n->vpn4.rd >> 16), (u32) (n->vpn4.rd & 0xffff), n->vpn4.prefix, n->vpn4.pxlen);
+    }
+    return 0;
+
+    /* XXX: RD format is specified for VPN4; not found any for VPN6, reusing the same as for VPN4. */
   case NET_VPN6:
-    return bsnprintf(buf, buflen, "%u:%u %I6/%d", (u32) (n->vpn6.rd >> 32), (u32) n->vpn6.rd, n->vpn6.prefix, n->vpn6.pxlen);
+    switch (n->vpn4.rd >> 48)
+    {
+      case 0: return bsnprintf(buf, buflen, "0:%u:%u %I6/%d", (u32) (n->vpn6.rd >> 32), (u32) n->vpn6.rd, n->vpn6.prefix, n->vpn6.pxlen);
+      case 1: return bsnprintf(buf, buflen, "1:%I4:%u %I6/%d", ip4_from_u32(n->vpn6.rd >> 16), (u32) (n->vpn6.rd & 0xffff), n->vpn6.prefix, n->vpn6.pxlen);
+      case 2: return bsnprintf(buf, buflen, "2:%u:%u %I6/%d", (u32) (n->vpn6.rd >> 16), (u32) (n->vpn6.rd & 0xffff), n->vpn6.prefix, n->vpn6.pxlen);
+    }
+    return 0;
   case NET_ROA4:
     return bsnprintf(buf, buflen, "%I4/%u-%u AS%u",  n->roa4.prefix, n->roa4.pxlen, n->roa4.max_pxlen, n->roa4.asn);
   case NET_ROA6:
