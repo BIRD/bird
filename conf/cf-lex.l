@@ -125,7 +125,12 @@ include   ^{WHITE}*include{WHITE}*\".*\"{WHITE}*;
 [02]:{DIGIT}+:{DIGIT}+ {
   char *e;
   unsigned long int l;
-  cf_lval.i64 = ((u64)(yytext[0] - '0')) << 48;
+
+  if (yytext[0] == '0')
+    cf_lval.i64 = 0;
+  else
+    cf_lval.i64 = 0x2000000000000ULL;
+
   errno = 0;
   l = strtoul(yytext+2, &e, 10);
   if (e && (*e != ':') || errno == ERANGE || (yytext[0] == '0') && (l >= (1<<16)))
