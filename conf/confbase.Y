@@ -273,6 +273,8 @@ net_any:
 net_or_ipa:
    net_ip4_
  | net_ip6_
+ | net_vpn4_ { $$ = *$1; }
+ | net_vpn6_ { $$ = *$1; }
  | IP4 { net_fill_ip4(&($$), $1, IP4_MAX_PREFIX_LENGTH); }
  | IP6 { net_fill_ip6(&($$), $1, IP6_MAX_PREFIX_LENGTH); }
  | SYM {
