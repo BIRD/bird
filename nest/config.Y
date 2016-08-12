@@ -147,6 +147,7 @@ net_type:
  | VPN6 { $$ = NET_VPN6; }
  | ROA4 { $$ = NET_ROA4; }
  | ROA6 { $$ = NET_ROA6; }
+ | MPLS { $$ = NET_MPLS; }
  ;
 
 

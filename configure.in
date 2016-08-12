@@ -169,7 +169,7 @@ fi
 AC_SUBST(iproutedir)
 
 # all_protocols="$proto_bfd babel bgp ospf pipe radv rip static"
-all_protocols="$proto_bfd ospf pipe radv rip static"
+all_protocols="$proto_bfd mpls ospf pipe radv rip static"
 
 all_protocols=`echo $all_protocols | sed 's/ /,/g'`
 
