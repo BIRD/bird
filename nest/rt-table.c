@@ -60,6 +60,21 @@ static inline void rt_schedule_gc(rtable *tab);
 static inline void rt_schedule_prune(rtable *tab);
 
 
+static int rte_update_nest_cnt;		/* Nesting counter to allow recursive updates */
+
+static inline void
+rte_update_lock(void)
+{
+  rte_update_nest_cnt++;
+}
+
+static inline void
+rte_update_unlock(void)
+{
+  if (!--rte_update_nest_cnt)
+    lp_flush(rte_update_pool);
+}
+
 static inline struct ea_list *
 make_tmp_attrs(struct rte *rt, struct linpool *pool)
 {
@@ -1096,21 +1111,6 @@ rte_recalculate(struct announce_hook *ah, net *net, rte *new, struct rte_src *sr
 
   if (old)
     rte_free_quick(old);
-}
-
-static int rte_update_nest_cnt;		/* Nesting counter to allow recursive updates */
-
-static inline void
-rte_update_lock(void)
-{
-  rte_update_nest_cnt++;
-}
-
-static inline void
-rte_update_unlock(void)
-{
-  if (!--rte_update_nest_cnt)
-    lp_flush(rte_update_pool);
 }
 
 static inline void
