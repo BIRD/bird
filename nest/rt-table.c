@@ -621,10 +621,18 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
   if (!rte_is_valid(best0))
     return NULL;
 
+  /* This non-static function could be called from outside rt-table.c file and
+   * we need to ensure that a temporary allocated linpool memory @rte_update_pool
+   * will be freed */
+  rte_update_lock();
+
   best = export_filter(ah, best0, rt_free, tmpa, silent);
 
   if (!best || !rte_is_reachable(best))
+  {
+    rte_update_unlock();
     return best;
+  }
 
   for (rt0 = best0->next; rt0; rt0 = rt0->next)
   {
@@ -657,6 +665,8 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
 
   if (best != best0)
     *rt_free = best;
+
+  rte_update_unlock();
 
   return best;
 }
