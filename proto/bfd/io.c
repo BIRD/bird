@@ -589,7 +589,7 @@ sockets_fire(struct birdloop *loop)
   times_update(loop);
 
   /* Last fd is internal wakeup fd */
-  if (pfd[loop->sock_num].revents & POLLIN)
+  if (pfd[loop->sock_num - 1].revents & POLLIN)
     wakeup_drain(loop);
 
   int i;
