@@ -260,7 +260,7 @@ rte_trace_out(uint flag, struct proto *p, rte *e, char *msg)
 }
 
 static rte *
-export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, int silent)
+export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, int silent, linpool *pool)
 {
   struct proto *p = ah->proto;
   struct filter *filter = ah->out_filter;
@@ -275,9 +275,9 @@ export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa,
   if (!tmpa)
     tmpa = &tmpb;
 
-  *tmpa = make_tmp_attrs(rt, rte_update_pool);
+  *tmpa = make_tmp_attrs(rt, pool);
 
-  v = p->import_control ? p->import_control(p, &rt, tmpa, rte_update_pool) : 0;
+  v = p->import_control ? p->import_control(p, &rt, tmpa, pool) : 0;
   if (v < 0)
     {
       if (silent)
@@ -296,7 +296,7 @@ export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa,
     }
 
   v = filter && ((filter == FILTER_REJECT) ||
-		 (f_run(filter, &rt, tmpa, rte_update_pool, FF_FORCE_TMPATTR) > F_ACCEPT));
+		 (f_run(filter, &rt, tmpa, pool, FF_FORCE_TMPATTR) > F_ACCEPT));
   if (v)
     {
       if (silent)
@@ -446,10 +446,10 @@ rt_notify_basic(struct announce_hook *ah, net *net, rte *new0, rte *old0, int re
    */
 
   if (new)
-    new = export_filter(ah, new, &new_free, &tmpa, 0);
+    new = export_filter(ah, new, &new_free, &tmpa, 0, rte_update_pool);
 
   if (old && !refeed)
-    old = export_filter(ah, old, &old_free, NULL, 1);
+    old = export_filter(ah, old, &old_free, NULL, 1, rte_update_pool);
 
   if (!new && !old)
   {
@@ -510,7 +510,7 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
   /* First, find the new_best route - first accepted by filters */
   for (r=net->routes; rte_is_valid(r); r=r->next)
     {
-      if (new_best = export_filter(ah, r, &new_free, &tmpa, 0))
+      if (new_best = export_filter(ah, r, &new_free, &tmpa, 0, rte_update_pool))
 	break;
 
       /* Note if we walked around the position of old_changed route */
@@ -561,7 +561,7 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
 
   /* First case */
   if (old_meet)
-    if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1))
+    if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1, rte_update_pool))
       goto found;
 
   /* Second case */
@@ -579,11 +579,11 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
   /* Fourth case */
   for (r=r->next; rte_is_valid(r); r=r->next)
     {
-      if (old_best = export_filter(ah, r, &old_free, NULL, 1))
+      if (old_best = export_filter(ah, r, &old_free, NULL, 1, rte_update_pool))
 	goto found;
 
       if (r == before_old)
-	if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1))
+	if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1, rte_update_pool))
 	  goto found;
     }
 
@@ -609,7 +609,7 @@ mpnh_merge_rta(struct mpnh *nhs, rta *a, int max)
 }
 
 rte *
-rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tmpa, int silent)
+rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tmpa, int silent, linpool *pool)
 {
   // struct proto *p = ah->proto;
   struct mpnh *nhs = NULL;
@@ -621,25 +621,17 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
   if (!rte_is_valid(best0))
     return NULL;
 
-  /* This non-static function could be called from outside rt-table.c file and
-   * we need to ensure that a temporary allocated linpool memory @rte_update_pool
-   * will be freed */
-  rte_update_lock();
-
-  best = export_filter(ah, best0, rt_free, tmpa, silent);
+  best = export_filter(ah, best0, rt_free, tmpa, silent, pool);
 
   if (!best || !rte_is_reachable(best))
-  {
-    rte_update_unlock();
     return best;
-  }
 
   for (rt0 = best0->next; rt0; rt0 = rt0->next)
   {
     if (!rte_mergable(best0, rt0))
       continue;
 
-    rt = export_filter(ah, rt0, &tmp, NULL, 1);
+    rt = export_filter(ah, rt0, &tmp, NULL, 1, pool);
 
     if (!rt)
       continue;
@@ -657,7 +649,7 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
 
     if (nhs->next)
     {
-      best = rte_cow_rta(best, rte_update_pool);
+      best = rte_cow_rta(best, pool);
       best->attrs->dest = RTD_MULTIPATH;
       best->attrs->nexthops = nhs;
     }
@@ -665,8 +657,6 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
 
   if (best != best0)
     *rt_free = best;
-
-  rte_update_unlock();
 
   return best;
 }
@@ -694,10 +684,10 @@ rt_notify_merged(struct announce_hook *ah, net *net, rte *new_changed, rte *old_
   if ((new_best == old_best) && !refeed)
   {
     new_changed = rte_mergable(new_best, new_changed) ?
-      export_filter(ah, new_changed, &new_changed_free, NULL, 1) : NULL;
+      export_filter(ah, new_changed, &new_changed_free, NULL, 1, rte_update_pool) : NULL;
 
     old_changed = rte_mergable(old_best, old_changed) ?
-      export_filter(ah, old_changed, &old_changed_free, NULL, 1) : NULL;
+      export_filter(ah, old_changed, &old_changed_free, NULL, 1, rte_update_pool) : NULL;
 
     if (!new_changed && !old_changed)
       return;
@@ -710,12 +700,12 @@ rt_notify_merged(struct announce_hook *ah, net *net, rte *new_changed, rte *old_
 
   /* Prepare new merged route */
   if (new_best)
-    new_best = rt_export_merged(ah, net, &new_best_free, &tmpa, 0);
+    new_best = rt_export_merged(ah, net, &new_best_free, &tmpa, 0, rte_update_pool);
 
   /* Prepare old merged route (without proper merged next hops) */
   /* There are some issues with running filter on old route - see rt_notify_basic() */
   if (old_best && !refeed)
-    old_best = export_filter(ah, old_best, &old_best_free, NULL, 1);
+    old_best = export_filter(ah, old_best, &old_best_free, NULL, 1, rte_update_pool);
 
   if (new_best || old_best)
     do_rt_notify(ah, net, new_best, old_best, tmpa, refeed);
@@ -2473,7 +2463,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
       if ((d->export_mode == RSEM_EXPORT) && (d->export_protocol->accept_ra_types == RA_MERGED))
         {
 	  rte *rt_free;
-	  e = rt_export_merged(a, n, &rt_free, &tmpa, 1);
+	  e = rt_export_merged(a, n, &rt_free, &tmpa, 1, rte_update_pool);
 	  pass = 1;
 
 	  if (!e)

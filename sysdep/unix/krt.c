@@ -613,7 +613,7 @@ krt_export_net(struct krt_proto *p, net *net, rte **rt_free, ea_list **tmpa)
   rte *rt;
 
   if (p->p.accept_ra_types == RA_MERGED)
-    return rt_export_merged(ah, net, rt_free, tmpa, 1);
+    return rt_export_merged(ah, net, rt_free, tmpa, 1, krt_filter_lp);
 
   rt = net->routes;
   *rt_free = NULL;

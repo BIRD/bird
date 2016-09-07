@@ -276,7 +276,7 @@ void rte_update2(struct announce_hook *ah, net *net, rte *new, struct rte_src *s
 static inline void rte_update(struct proto *p, net *net, rte *new) { rte_update2(p->main_ahook, net, new, p->main_source); }
 void rte_discard(rtable *tab, rte *old);
 int rt_examine(rtable *t, ip_addr prefix, int pxlen, struct proto *p, struct filter *filter);
-rte *rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, struct ea_list **tmpa, int silent);
+rte *rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, struct ea_list **tmpa, int silent, linpool *pool);
 void rt_refresh_begin(rtable *t, struct announce_hook *ah);
 void rt_refresh_end(rtable *t, struct announce_hook *ah);
 void rte_dump(rte *);
