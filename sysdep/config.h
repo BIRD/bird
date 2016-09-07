@@ -6,11 +6,15 @@
 #ifndef _BIRD_CONFIG_H_
 #define _BIRD_CONFIG_H_
 
-/* BIRD version */
-#define BIRD_VERSION "1.6.0"
-
 /* Include parameters determined by configure script */
 #include "sysdep/autoconf.h"
+
+/* BIRD version */
+#ifdef GIT_VERSION
+#define BIRD_VERSION GIT_VERSION
+#else
+#define BIRD_VERSION "1.6.0"
+#endif
 
 /* Include OS configuration file as chosen in autoconf.h */
 #include SYSCONF_INCLUDE
