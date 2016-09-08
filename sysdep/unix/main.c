@@ -625,52 +625,43 @@ static char *use_group;
 static int run_in_foreground = 0;
 
 static void
-display_usage_(void)
-{
-  fprintf(stderr, "Usage: %s [-c <config-file>] [-d] [-D <debug-file>] [-f] [-g <group>] [-h] [-l] [-p] [-P <pid-file>]  [-R] [-s <control-socket>] [-u <user>] [-v] \n", bird_name);
-}
-
-static void
 display_usage(void)
 {
-  display_usage_();
-  exit(EXIT_FAILURE);
+  fprintf(stderr, "Usage: %s [--version] [--help] [-c <config-file>] [OPTIONS]\n", bird_name);
 }
 
 static void
 display_help(void)
 {
-  display_usage_();
+  display_usage();
 
-  fprintf(stderr, "\n");
-  fprintf(stderr, "Options: \n");
-  fprintf(stderr, "  -c <config-file>            Use given configuration file instead \n");
-  fprintf(stderr, "                              of prefix/etc/bird.conf. \n");
-  fprintf(stderr, "  -d                          Enable debug messages and run bird in foreground.\n");
-  fprintf(stderr, "  -D <debug-file>             Log debugging information to given file instead \n");
-  fprintf(stderr, "                              of stderr. \n");
-  fprintf(stderr, "  -f                          Run bird in foreground. \n");
-  fprintf(stderr, "  -g <group>                  Use that group ID. \n");
-  fprintf(stderr, "  -h, --help                  Display this information. \n");
-  fprintf(stderr, "  -l                          Look for a configuration file and a communication\n");
-  fprintf(stderr, "                              socket file in the current working directory. \n");
-  fprintf(stderr, "  -p                          Test configuration file and exit without start. \n");
-  fprintf(stderr, "  -P <pid-file>               Create a PID file with given filename. \n");
-  fprintf(stderr, "  -R                          Apply graceful restart recovery after start. \n");
-  fprintf(stderr, "  -s <control-socket>         Use given filename for a socket for \n");
-  fprintf(stderr, "                              communications with the client, default is \n");
-  fprintf(stderr, "                              prefix/var/run/bird.ctl \n");
-  fprintf(stderr, "  -u <user>                   Drop privileges and use that user ID. \n");
-  fprintf(stderr, "  -v, --version               Display version of BIRD. \n");
+  fprintf(stderr,
+    "\n"
+    "Options: \n"
+    "  -c <config-file>     Use given configuration file instead\n"
+    "                       of prefix/etc/bird.conf\n"
+    "  -d                   Enable debug messages and run bird in foreground\n"
+    "  -D <debug-file>      Log debug messages to given file instead of stderr\n"
+    "  -f                   Run bird in foreground\n"
+    "  -g <group>           Use given group ID\n"
+    "  -h, --help           Display this information\n"
+    "  -l                   Look for a configuration file and a communication socket\n"
+    "                       file in the current working directory\n"
+    "  -p                   Test configuration file and exit without start\n"
+    "  -P <pid-file>        Create a PID file with given filename\n"
+    "  -R                   Apply graceful restart recovery after start\n"
+    "  -s <control-socket>  Use given filename for a control socket\n"
+    "  -u <user>            Drop privileges and use given user ID\n"
+    "  -v, --version        Display version of BIRD\n");
 
-  exit(EXIT_SUCCESS);
+  exit(0);
 }
 
 static void
 display_version(void)
 {
   fprintf(stderr, "BIRD version " BIRD_VERSION "\n");
-  exit(EXIT_SUCCESS);
+  exit(0);
 }
 
 static inline char *
@@ -797,10 +788,15 @@ parse_args(int argc, char **argv)
 	display_help();
 	break;
       default:
+	fputc('\n', stderr);
 	display_usage();
+	exit(1);
       }
   if (optind < argc)
-    display_usage();
+   {
+     display_usage();
+     exit(1);
+   }
 }
 
 /*
