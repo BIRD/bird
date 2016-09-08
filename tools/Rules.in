@@ -21,6 +21,11 @@ clean-dirs:=$(all-dirs) proto sysdep
 
 CPPFLAGS=-I$(root-rel) -I$(srcdir) @CPPFLAGS@
 CFLAGS=$(CPPFLAGS) @CFLAGS@
+git-version := $(shell git describe --abbrev=4 --dirty --always --tags)
+ifneq ($(strip $(git-version)),)
+	CFLAGS=$(CPPFLAGS) @CFLAGS@ -DGIT_VERSION=\"$(git-version)\"
+endif
+
 LDFLAGS=@LDFLAGS@
 LIBS=@LIBS@
 CLIENT_LIBS=@CLIENT_LIBS@

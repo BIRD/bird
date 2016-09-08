@@ -191,11 +191,6 @@ fi
 sysname=`echo $sysdesc | sed 's/\.h$//'`
 AC_DEFINE_UNQUOTED(SYSCONF_INCLUDE, "$sysdesc")
 
-git_version=`git describe --abbrev=4 --dirty --always --tags`
-if test -n "$git_version" ; then
-	AC_DEFINE_UNQUOTED(GIT_VERSION, "$git_version")
-fi
-
 AC_MSG_CHECKING([system-dependent directories])
 sysdep_dirs="`sed <$sysdesc '/^Link: /!d;s/^Link: \(.*\)$/\1/' | tr '\012' ' '` lib"
 AC_MSG_RESULT($sysdep_dirs)
