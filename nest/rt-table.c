@@ -259,8 +259,16 @@ rte_trace_out(uint flag, struct proto *p, rte *e, char *msg)
     rte_trace(p, e, '<', msg);
 }
 
+static rte *export_filter_(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, linpool *pool, int silent);
+
 static rte *
-export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, int silent, linpool *pool)
+export_filter(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, int silent)
+{
+  return export_filter_(ah, rt0, rt_free, tmpa, rte_update_pool, silent);
+}
+
+static rte *
+export_filter_(struct announce_hook *ah, rte *rt0, rte **rt_free, ea_list **tmpa, linpool *pool, int silent)
 {
   struct proto *p = ah->proto;
   struct filter *filter = ah->out_filter;
@@ -446,10 +454,10 @@ rt_notify_basic(struct announce_hook *ah, net *net, rte *new0, rte *old0, int re
    */
 
   if (new)
-    new = export_filter(ah, new, &new_free, &tmpa, 0, rte_update_pool);
+    new = export_filter(ah, new, &new_free, &tmpa, 0);
 
   if (old && !refeed)
-    old = export_filter(ah, old, &old_free, NULL, 1, rte_update_pool);
+    old = export_filter(ah, old, &old_free, NULL, 1);
 
   if (!new && !old)
   {
@@ -510,7 +518,7 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
   /* First, find the new_best route - first accepted by filters */
   for (r=net->routes; rte_is_valid(r); r=r->next)
     {
-      if (new_best = export_filter(ah, r, &new_free, &tmpa, 0, rte_update_pool))
+      if (new_best = export_filter(ah, r, &new_free, &tmpa, 0))
 	break;
 
       /* Note if we walked around the position of old_changed route */
@@ -561,7 +569,7 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
 
   /* First case */
   if (old_meet)
-    if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1, rte_update_pool))
+    if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1))
       goto found;
 
   /* Second case */
@@ -579,11 +587,11 @@ rt_notify_accepted(struct announce_hook *ah, net *net, rte *new_changed, rte *ol
   /* Fourth case */
   for (r=r->next; rte_is_valid(r); r=r->next)
     {
-      if (old_best = export_filter(ah, r, &old_free, NULL, 1, rte_update_pool))
+      if (old_best = export_filter(ah, r, &old_free, NULL, 1))
 	goto found;
 
       if (r == before_old)
-	if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1, rte_update_pool))
+	if (old_best = export_filter(ah, old_changed, &old_free, NULL, 1))
 	  goto found;
     }
 
@@ -609,7 +617,13 @@ mpnh_merge_rta(struct mpnh *nhs, rta *a, int max)
 }
 
 rte *
-rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tmpa, int silent, linpool *pool)
+rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tmpa, int silent)
+{
+  return rt_export_merged_(ah, net, rt_free, tmpa, rte_update_pool, silent);
+}
+
+rte *
+rt_export_merged_(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tmpa, linpool *pool, int silent)
 {
   // struct proto *p = ah->proto;
   struct mpnh *nhs = NULL;
@@ -621,7 +635,7 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
   if (!rte_is_valid(best0))
     return NULL;
 
-  best = export_filter(ah, best0, rt_free, tmpa, silent, pool);
+  best = export_filter_(ah, best0, rt_free, tmpa, pool, silent);
 
   if (!best || !rte_is_reachable(best))
     return best;
@@ -631,7 +645,7 @@ rt_export_merged(struct announce_hook *ah, net *net, rte **rt_free, ea_list **tm
     if (!rte_mergable(best0, rt0))
       continue;
 
-    rt = export_filter(ah, rt0, &tmp, NULL, 1, pool);
+    rt = export_filter_(ah, rt0, &tmp, NULL, pool, 1);
 
     if (!rt)
       continue;
@@ -684,10 +698,10 @@ rt_notify_merged(struct announce_hook *ah, net *net, rte *new_changed, rte *old_
   if ((new_best == old_best) && !refeed)
   {
     new_changed = rte_mergable(new_best, new_changed) ?
-      export_filter(ah, new_changed, &new_changed_free, NULL, 1, rte_update_pool) : NULL;
+      export_filter(ah, new_changed, &new_changed_free, NULL, 1) : NULL;
 
     old_changed = rte_mergable(old_best, old_changed) ?
-      export_filter(ah, old_changed, &old_changed_free, NULL, 1, rte_update_pool) : NULL;
+      export_filter(ah, old_changed, &old_changed_free, NULL, 1) : NULL;
 
     if (!new_changed && !old_changed)
       return;
@@ -700,12 +714,12 @@ rt_notify_merged(struct announce_hook *ah, net *net, rte *new_changed, rte *old_
 
   /* Prepare new merged route */
   if (new_best)
-    new_best = rt_export_merged(ah, net, &new_best_free, &tmpa, 0, rte_update_pool);
+    new_best = rt_export_merged(ah, net, &new_best_free, &tmpa, 0);
 
   /* Prepare old merged route (without proper merged next hops) */
   /* There are some issues with running filter on old route - see rt_notify_basic() */
   if (old_best && !refeed)
-    old_best = export_filter(ah, old_best, &old_best_free, NULL, 1, rte_update_pool);
+    old_best = export_filter(ah, old_best, &old_best_free, NULL, 1);
 
   if (new_best || old_best)
     do_rt_notify(ah, net, new_best, old_best, tmpa, refeed);
@@ -2463,7 +2477,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
       if ((d->export_mode == RSEM_EXPORT) && (d->export_protocol->accept_ra_types == RA_MERGED))
         {
 	  rte *rt_free;
-	  e = rt_export_merged(a, n, &rt_free, &tmpa, 1, rte_update_pool);
+	  e = rt_export_merged(a, n, &rt_free, &tmpa, 1);
 	  pass = 1;
 
 	  if (!e)
