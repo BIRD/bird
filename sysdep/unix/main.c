@@ -617,7 +617,7 @@ signal_init(void)
  *	Parsing of command-line arguments
  */
 
-static char *opt_list = "c:dD:ps:P:u:g:flRhv";
+static char *opt_list = "c:dD:ps:P:u:g:flRh";
 static int parse_and_exit;
 char *bird_name;
 static char *use_user;
@@ -652,7 +652,7 @@ display_help(void)
     "  -R                   Apply graceful restart recovery after start\n"
     "  -s <control-socket>  Use given filename for a control socket\n"
     "  -u <user>            Drop privileges and use given user ID\n"
-    "  -v, --version        Display version of BIRD\n");
+    "  --version            Display version of BIRD\n");
 
   exit(0);
 }
