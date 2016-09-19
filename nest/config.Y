@@ -87,7 +87,7 @@ CF_GRAMMAR
 
 CF_ADDTO(conf, rtrid)
 
-rtrid: 
+rtrid:
    ROUTER ID idval ';' { new_config->router_id = $3; }
  | ROUTER ID FROM iface_patt ';' { new_config->router_id_from = this_ipatt; }
  ;
@@ -125,7 +125,7 @@ listen_opts:
  | listen_opts listen_opt
  ;
 
-listen_opt: 
+listen_opt:
    ADDRESS ipa { new_config->listen_bgp_addr = $2; }
  | PORT expr { new_config->listen_bgp_port = $2; }
  | V6ONLY { new_config->listen_bgp_flags = 0; }
@@ -293,7 +293,7 @@ iface_negate:
  ;
 
 iface_patt_node:
-   iface_patt_node_init iface_negate iface_patt_node_body 
+   iface_patt_node_init iface_negate iface_patt_node_body
  ;
 
 
@@ -397,7 +397,7 @@ password_list:
  | password_item
 ;
 
-password_items: 
+password_items:
     /* empty */
   | password_item ';' password_items
 ;
@@ -426,7 +426,7 @@ password_item_begin:
 ;
 
 password_item_params:
-   /* empty */ { } 
+   /* empty */ { }
  | GENERATE FROM datetime ';' password_item_params { this_p_item->genfrom = $3; }
  | GENERATE TO datetime ';' password_item_params { this_p_item->gento = $3; }
  | ACCEPT FROM datetime ';' password_item_params { this_p_item->accfrom = $3; }
@@ -602,7 +602,7 @@ sym_args:
 
 
 roa_table_arg:
-   /* empty */ { 
+   /* empty */ {
      if (roa_table_default == NULL)
        cf_error("No ROA table defined");
      $$ = roa_table_default;
