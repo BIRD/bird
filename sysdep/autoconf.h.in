@@ -6,9 +6,6 @@
 /* System configuration file */
 #define SYSCONF_INCLUDE ?
 
-/* GIT version */
-#undef GIT_VERSION
-
 /* Include debugging code */
 #undef DEBUGGING
 
