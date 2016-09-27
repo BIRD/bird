@@ -117,7 +117,7 @@ for IPv4 and one for IPv6), with completely separate setups (configuration
 files, tools ...).
 
 
-<sect><label id="install">Installing BIRD
+<label id="install"><sect>Installing BIRD
 
 <p>On a recent UNIX system with GNU development tools (GCC, binutils, m4, make)
 and Perl, installing BIRD should be as easy as:
@@ -137,7 +137,7 @@ BIRD executable by configuring out routing protocols you don't use, and
 <tt/--prefix=/ to install BIRD to a place different from <file>/usr/local</file>.
 
 
-<sect><label id="argv">Running BIRD
+<label id="argv"><sect>Running BIRD
 
 <p>You can pass several command-line options to bird:
 
@@ -183,7 +183,7 @@ BIRD executable by configuring out routing protocols you don't use, and
 <p>BIRD writes messages about its work to log files or syslog (according to config).
 
 
-<sect><label id="privileges">Privileges
+<label id="privileges"><sect>Privileges
 
 <p>BIRD, as a routing daemon, uses several privileged operations (like setting
 routing table and using raw sockets). Traditionally, BIRD is executed and runs
@@ -207,7 +207,7 @@ is generally easy -- BIRD needs just the standard library, privileges to read
 the config file and create the control socket and the CAP_NET_* capabilities.
 
 
-<chapt><label id="routing-tables">About routing tables
+<label id="routing-tables"><chapt>About routing tables
 
 <p>BIRD has one or more routing tables which may or may not be synchronized with
 OS kernel and which may or may not be synchronized with each other (see the Pipe
@@ -258,7 +258,7 @@ advantage is that routes are shown sorted in <cf/show route/, minor disadvantage
 is that it is slightly more computationally expensive.
 
 
-<sect><label id="graceful-restart">Graceful restart
+<label id="graceful-restart"><sect>Graceful restart
 
 <p>When BIRD is started after restart or crash, it repopulates routing tables in
 an uncoordinated manner, like after clean start. This may be impractical in some
@@ -273,7 +273,7 @@ configured for all relevant protocols and requires protocol-specific support
 particular boot by option <cf/-R/.
 
 
-<chapt><label id="config">Configuration
+<label id="config"><chapt>Configuration
 
 <sect>Introduction
 
@@ -318,7 +318,7 @@ protocol rip {
 </code>
 
 
-<sect><label id="global-opts">Global options
+<label id="global-opts"><sect>Global options
 
 <p><descrip>
 	<label id="opt-include"><tag>include "<m/filename/"</tag>
@@ -484,7 +484,7 @@ protocol rip {
 </descrip>
 
 
-<sect><label id="protocol-opts">Protocol options
+<label id="protocol-opts"><sect>Protocol options
 
 <p>For each protocol instance, you can configure a bunch of options. Some of
 them (those described in this section) are generic, some are specific to the
@@ -687,7 +687,7 @@ agreement").
 	The last time of the usage of the password for packet verification.
 </descrip>
 
-<chapt><label id="remote-control">Remote control
+<label id="remote-control"><chapt>Remote control
 
 <p>You can use the command-line client <file>birdc</file> to talk with a running
 BIRD. Communication is done using a <file/bird.ctl/ UNIX domain socket (unless
@@ -894,7 +894,7 @@ This argument can be omitted if there exists only a single instance.
 </descrip>
 
 
-<chapt><label id="filters">Filters
+<label id="filters"><chapt>Filters
 
 <sect>Introduction
 
@@ -983,7 +983,7 @@ bird>
 </code>
 
 
-<sect><label id="data-types">Data types
+<label id="data-types"><sect>Data types
 
 <p>Each variable and each value has certain type. Booleans, integers and enums
 are incompatible with each other (that is to prevent you from shooting in the
@@ -1208,7 +1208,7 @@ foot).
 </descrip>
 
 
-<sect><label id="operators">Operators
+<label id="operators"><sect>Operators
 
 <p>The filter language supports common integer operators <cf>(+,-,*,/)</cf>,
 parentheses <cf/(a*(b+c))/, comparison <cf/(a=b, a!=b, a&lt;b, a&gt;=b)/.
@@ -1238,7 +1238,7 @@ ROAs but none of them match. There is also an extended variant
 prefix and an ASN as arguments.
 
 
-<sect><label id="control-structures">Control structures
+<label id="control-structures"><sect>Control structures
 
 <p>Filters support two control structures: conditions and case switches.
 
@@ -1273,7 +1273,7 @@ if 1234 = i then printn "."; else {
 </code>
 
 
-<sect><label id="route-attributes">Route attributes
+<label id="route-attributes"><sect>Route attributes
 
 <p>A filter is implicitly passed a route, and it can access its attributes just
 like it accesses variables. Attempts to access undefined attribute result in a
@@ -1356,7 +1356,7 @@ clist for most purposes.
 corresponding protocol sections.
 
 
-<sect><label id="other-statements">Other statements
+<label id="other-statements"><sect>Other statements
 
 <p>The following statements are available:
 
@@ -1380,9 +1380,9 @@ corresponding protocol sections.
 </descrip>
 
 
-<chapt><label id="protocols">Protocols
+<label id="protocols"><chapt>Protocols
 
-<sect><label id="babel">Babel
+<label id="babel"><sect>Babel
 
 <sect1>Introduction
 
@@ -1506,7 +1506,7 @@ protocol babel {
 </code>
 
 
-<sect><label id="bfd">BFD
+<label id="bfd"><sect>BFD
 
 <sect1>Introduction
 
@@ -1684,7 +1684,7 @@ protocol bfd {
 </code>
 
 
-<sect><label id="bgp">BGP
+<label id="bgp"><sect>BGP
 
 <p>The Border Gateway Protocol is the routing protocol used for backbone level
 routing in the today's Internet. Contrary to other protocols, its convergence
@@ -2227,7 +2227,7 @@ protocol bgp {
 </code>
 
 
-<sect><label id="device">Device
+<label id="device"><sect>Device
 
 <p>The Device protocol is not a real routing protocol. It doesn't generate any
 routes and it only serves as a module for getting information about network
@@ -2275,7 +2275,7 @@ protocol device {
 </code>
 
 
-<sect><label id="direct">Direct
+<label id="direct"><sect>Direct
 
 <p>The Direct protocol is a simple generator of device routes for all the
 directly connected networks according to the list of interfaces provided by the
@@ -2328,7 +2328,7 @@ protocol direct {
 </code>
 
 
-<sect><label id="krt">Kernel
+<label id="krt"><sect>Kernel
 
 <p>The Kernel protocol is not a real routing protocol. Instead of communicating
 with other routers in the network, it performs synchronization of BIRD's routing
@@ -2497,7 +2497,7 @@ protocol kernel {		# Secondary routing table
 </code>
 
 
-<sect><label id="ospf">OSPF
+<label id="ospf"><sect>OSPF
 
 <sect1>Introduction
 
@@ -3047,7 +3047,7 @@ protocol ospf MyOSPF {
 </code>
 
 
-<sect><label id="pipe">Pipe
+<label id="pipe"><sect>Pipe
 
 <sect1>Introduction
 
@@ -3168,7 +3168,7 @@ protocol pipe {				# The Pipe
 </code>
 
 
-<sect><label id="radv">RAdv
+<label id="radv"><sect>RAdv
 
 <sect1>Introduction
 
@@ -3415,7 +3415,7 @@ protocol radv {
 </code>
 
 
-<sect><label id="rip">RIP
+<label id="rip"><sect>RIP
 
 <sect1>Introduction
 
@@ -3676,7 +3676,7 @@ protocol rip {
 </code>
 
 
-<sect><label id="static">Static
+<label id="static"><sect>Static
 
 <p>The Static protocol doesn't communicate with other routers in the network,
 but instead it allows you to define routes manually. This is often used for
@@ -3797,7 +3797,7 @@ protocol static {
 </code>
 
 
-<chapt><label id="conclusion">Conclusions
+<label id="conclusion"><chapt>Conclusions
 
 <sect>Future work
 
