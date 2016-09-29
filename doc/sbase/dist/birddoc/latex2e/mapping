@@ -56,7 +56,7 @@
 </newline>
 
 <label>			"\\label{[ID]}"
-</label>	
+</label>
 
 <header>	+	"\\markboth"
 </header>
@@ -110,7 +110,7 @@
 <heading>		"{"
 </heading>		"}\n\n"
 
-<p>
+<p>			"\\phantomsection{}"
 </p>			"\n\n"
 
 <itemize>	+	"\\begin{itemize}"	+
@@ -128,7 +128,7 @@
 <item>		+	"\\item "
 </item>
 
-<tag>		+	"\\item\[{\\ttfamily "
+<tag>		+	"\\phantomsection\\item\[{\\ttfamily "
 </tag>			"}\] \\hfil\\break\n"	+
 
 <tagp>		+	"\\item\[ "
@@ -224,17 +224,17 @@
 <cparam>		"\\cparam{"
 </cparam>		"}"
 
-<ref>			"\\ref{[ID]} {([NAME])}"
+<ref>			"\\hyperref\[[ID]\]{[NAME]} (p.\\,\\getpagerefnumber{[ID]})"
 </ref>
 
 <pageref>		"\\pageref{[ID]}"
 </pageref>
 
 %url added by HG
-<url>			"\\nameurl{[URL]}{[NAME]}"
+<url>			"\\href{[URL]}{[NAME]}"
 </url>
 
-<htmlurl>		"\\onlynameurl{[NAME]}"
+<htmlurl>		"\\href{[URL]}{[NAME]}"
 </htmlurl>
 
 <x>

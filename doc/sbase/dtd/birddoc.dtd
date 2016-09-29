@@ -564,9 +564,9 @@ anywhere else. <pavel@ucw.cz>
 <!element rhead - o (%inline)>
 <!entity % sect "heading, header?, p* " >
 <!element heading o o (%inline)>
-<!element chapt - o (%sect, sect*) +(footnote)> 
+<!element chapt - o (%sect, sect*) +(footnote)>
 <!element sect  - o (%sect, sect1*) +(footnote)>
-<!element sect1 - o (%sect, sect2*)>
+<!element sect1 - o (%sect, sect2*) +(footnote)>
 <!element sect2 - o (%sect, sect3*)>
 <!element sect3 - o (%sect, sect4*)>
 <!element sect4 - o (%sect)>
