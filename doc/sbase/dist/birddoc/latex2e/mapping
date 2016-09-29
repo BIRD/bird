@@ -3,6 +3,7 @@
 
 % The \relax is there to avoid sgml2latex rewriting the class
 <book>		+ "\\relax\\documentclass\[a4paper,10pt,openany\]{book}\n"
+			"\\usepackage\[colorlinks=true,linkcolor=blue,pdftitle={BIRD User's Guide}\]{hyperref}\n"
 			"\\usepackage{birddoc}\n"
 			"\\usepackage{qwertz}\n"
 			"\\usepackage{url}\n"
