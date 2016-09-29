@@ -21,7 +21,7 @@
 </notes>	+	"<@@enddoc>"		+
 
 % Manual Pages are expected to be formatted using nroff (or groff), unless
-% they are included  as sections of other qwertz documents.  
+% they are included  as sections of other qwertz documents.
 
 <manpage>
 </manpage>
@@ -35,7 +35,7 @@
 <title>		+	"<@@title>"
 </title>
 
-<subtitle>	+	"<H2>"	
+<subtitle>	+	"<H2>"
 </subtitle>		"</H2>"			+
 
 <author>
@@ -48,26 +48,26 @@
 </and>
 
 <thanks>	+	"Thanks "
-</thanks>		
+</thanks>
 
 <inst>		+	"<H3>"
 </inst>			"</H3>"			+
 
 <newline>		"<BR>"
-	
+
 <label>		+	"<@@label>[ID]"		+
-	
-<header>	
-</header>	
+
+<header>
+</header>
 
 <lhead>		+	"<!-- "
-</lhead>		" -->"			+			
+</lhead>		" -->"			+
 
 <rhead>		+	"<!-- "
 </rhead>		" -->"			+
 
 <comment>	+	"<H4>Comment</H4>"	+
-</comment>		
+</comment>
 
 <abstract>	+	"<P><HR>\n<EM>"
 </abstract>		"</EM>\n<HR>"		+
@@ -99,7 +99,7 @@
 <sect3>		+	"<@@head>"
 </sect3>
 
-<sect4>		+	"<@@head>"		
+<sect4>		+	"<@@head>"
 </sect4>
 
 <heading>
@@ -203,7 +203,7 @@
 			"<@@endurl>"		+
 </htmlurl>
 
-% ref modified to have an optional name field 
+% ref modified to have an optional name field
 <ref>		+	"<@@ref>[ID]\n"
 			"[NAME]</A>\n"
 			"<@@endref>"		+
@@ -228,7 +228,7 @@
 </mc>			"</MC>"
 
 <biblio>	+	"<BIBLIO STYLE=\"[STYLE]\" FILES=\"[FILES]\">" +
-</biblio>	
+</biblio>
 
 <code>		+	"<HR>\n<PRE>"		+
 </code>		+	"</PRE>\n<HR>"		+
@@ -244,28 +244,28 @@
 
 % theorems and such
 
-<def>		+	"<DEF>"			
+<def>		+	"<DEF>"
 </def>		+	"</DEF>"		+
 
-<prop>		+	"<PROP>"		
+<prop>		+	"<PROP>"
 </prop>		+	"</PROP>"		+
 
-<lemma>		+	"<LEMMA>"		
+<lemma>		+	"<LEMMA>"
 </lemma>	+	"</LEMMA>"		+
 
-<coroll>	+	"<COROLL>"		
+<coroll>	+	"<COROLL>"
 </coroll>	+	"</COROLL>"		+
 
-<proof>		+	"<PROOF>"		
+<proof>		+	"<PROOF>"
 </proof>	+	"</PROOF>"		+
 
-<theorem>	+	"<THEOREM>"		
+<theorem>	+	"<THEOREM>"
 </theorem>	+	"</THEOREM>"		+
 
 <thtag>			"<THTAG>"
 </thtag>		"</THTAG>"
 
-% mathematics 
+% mathematics
 
 <f>
 </f>
@@ -315,11 +315,11 @@
 <ar>			"<AR>"
 </ar>			"</AR>"
 
-<arr>                   "<ARR>" 
-</arr>			
+<arr>                   "<ARR>"
+</arr>
 
 <arc>                   "<ARC>"
-</arc>		
+</arc>
 
 <sup>			"<SUP>"
 </sup>			"</SUP>"
@@ -354,13 +354,13 @@
 </figure>	+	"</FIGURE>"			+
 
 <eps>		+   	"<EPS FILE=\"[FILE]\">"  +
-</eps>                	
-            	
+</eps>
+
 <img>		+	"<IMG SRC=\"[SRC]\">"	+
 </img>
 
 <ph>		+	"<PH VSPACE=\"[VSPACE]\">"	+
-</ph>	
+</ph>
 
 <caption>	+	"<CAPTION>"
 </caption>		"</CAPTION>" 	+
@@ -403,7 +403,7 @@
 </opening>		"</OPENING>"		+
 
 
-<from>		+	"<FROM>"			
+<from>		+	"<FROM>"
 </from>		+	"</FROM>"	+
 
 
@@ -419,7 +419,7 @@
 <email>		+	"<EMAIL>"
 </email>		"</EMAIL>"	+
 
-<phone>		+	"<PHONE>"	
+<phone>		+	"<PHONE>"
 </phone>		"</PHONE>"	+
 
 
@@ -430,16 +430,16 @@
 </subject>		"</SUBJECT>"	+
 
 
-<sref>		+	"<SREF>"	
+<sref>		+	"<SREF>"
 </sref>			"</SREF>"	+
 
-<rref>		+	"<RREF>"	
+<rref>		+	"<RREF>"
 </rref>			"</RREF>"	+
 
 <rdate>		+	"<RDATE>"
 </rdate>		"</RDATE>"	+
 
-<closing>	+	"<CLOSING>"	
+<closing>	+	"<CLOSING>"
 </closing>		"</CLOSING>"	+
 
 <cc>		+	"<CC>"
