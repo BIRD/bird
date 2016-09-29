@@ -73,8 +73,8 @@ running on background which does the dynamic part of Internet routing, that is
 it communicates with the other routers, calculates routing tables and sends them
 to the OS kernel which does the actual packet forwarding. There already exist
 other such routing daemons: routed (RIP only), GateD (non-free),
-Zebra <HTMLURL URL="http://www.zebra.org"> and
-MRTD <HTMLURL URL="http://sourceforge.net/projects/mrt">,
+<HTMLURL URL="http://www.zebra.org" name="Zebra"> and
+<HTMLURL URL="http://sourceforge.net/projects/mrt" name="MRTD">,
 but their capabilities are limited and they are relatively hard to configure
 and maintain.
 
@@ -1553,13 +1553,13 @@ protocols are notified and act accordingly (e.g. break an OSPF adjacency when
 the BFD session went down).
 
 <p>BIRD implements basic BFD behavior as defined in
-RFC 5880<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5880.txt">
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5880.txt" name="RFC 5880">
 (some advanced features like the echo mode or authentication are not implemented),
 IP transport for BFD as defined in
-RFC 5881<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5881.txt"> and
-RFC 5883<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5883.txt">
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5881.txt" name="RFC 5881"> and
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5883.txt" name="RFC 5883">
 and interaction with client protocols as defined in
-RFC 5882<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5882.txt">.
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5882.txt" name="RFC 5882">.
 
 <p>Note that BFD implementation in BIRD is currently a new feature in
 development, expect some rough edges and possible UI and configuration changes
@@ -1736,31 +1736,31 @@ the packet will travel through if it uses the particular route) in order to
 avoid routing loops.
 
 <p>BIRD supports all requirements of the BGP4 standard as defined in
-RFC 4271<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4271.txt">
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4271.txt" name="4271">
 It also supports the community attributes
-(RFC 1997<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc1997.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc1997.txt" name="1997">),
 capability negotiation
-(RFC 5492<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5492.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5492.txt" name="5492">),
 MD5 password authentication
-(RFC 2385<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2385.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2385.txt" name="2385">),
 extended communities
-(RFC 4360<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4360.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4360.txt" name="4360">),
 route reflectors
-(RFC 4456<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4456.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4456.txt" name="4456">),
 graceful restart
-(RFC 4724<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4724.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4724.txt" name="4724">),
 multiprotocol extensions
-(RFC 4760<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4760.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4760.txt" name="4760">),
 4B AS numbers
-(RFC 4893<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4893.txt">),
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4893.txt" name="4893">),
 and 4B AS numbers in extended communities
-(RFC 5668<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5668.txt">).
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5668.txt" name="5668">).
 
 
 For IPv6, it uses the standard multiprotocol extensions defined in
-RFC 4760<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4760.txt">
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4760.txt" name="4760">
 and applied to IPv6 according to
-RFC 2545<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2545.txt">.
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2545.txt" name="2545">.
 
 <sect1>Route selection rules
 <label id="bgp-route-select-rules">
@@ -2182,7 +2182,7 @@ some of them (marked with `<tt/O/') are optional.
 	when a route is exported to an external BGP instance to ensure that the
 	attribute received from a neighboring AS is not propagated to other
 	neighboring ASes. A new value might be set in the export filter of an
-	external BGP instance. See RFC 4451<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4451.txt">
+	external BGP instance. See <htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4451.txt" name="4451">
 	for further discussion of BGP MED attribute.
 
 	<tag><label id="rta-bgp-origin">enum bgp_origin/</tag>
@@ -2544,10 +2544,10 @@ protocol kernel {		# Secondary routing table
 <label id="ospf-intro">
 
 <p>Open Shortest Path First (OSPF) is a quite complex interior gateway
-protocol. The current IPv4 version (OSPFv2) is defined in RFC 2328
-<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2328.txt">
-and the current IPv6 version (OSPFv3) is defined in RFC 5340
-<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5340.txt">
+protocol. The current IPv4 version (OSPFv2) is defined in
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc2328.txt" name="RFC 2328">
+and the current IPv6 version (OSPFv3) is defined in
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc5340.txt" name="RFC 5340">
 It's a link state (a.k.a. shortest path first) protocol -- each router maintains
 a database describing the autonomous system's topology. Each participating
 router has an identical copy of the database and all routers run the same
@@ -2672,7 +2672,7 @@ protocol ospf &lt;name&gt; {
 <descrip>
 	<tag><label id="ospf-rfc1583compat">rfc1583compat <M>switch</M></tag>
 	This option controls compatibility of routing table calculation with
-	RFC 1583 <htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc1583.txt">.
+	<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc1583.txt" name="RFC 1583">.
 	Default	value is no.
 
 	<tag><label id="ospf-instance-id">instance id <m/num/</tag>
@@ -2690,9 +2690,9 @@ protocol ospf &lt;name&gt; {
 	that participates in the OSPF topology but does not allow transit
 	traffic. In OSPFv2, this is implemented by advertising maximum metric
 	for outgoing links. In OSPFv3, the stub router behavior is announced by
-	clearing the R-bit in the router LSA. See RFC 6987
-	<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc6987.txt"> for
-	details. Default value is no.
+	clearing the R-bit in the router LSA. See <htmlurl
+	url="ftp://ftp.rfc-editor.org/in-notes/rfc6987.txt" name="RFC 6987">
+	for details. Default value is no.
 
 	<tag><label id="ospf-tick">tick <M>num</M></tag>
 	The routing table calculation and clean-up of areas' databases is not
@@ -2804,9 +2804,10 @@ protocol ospf &lt;name&gt; {
 	You can specify alternative instance ID for the interface definition,
 	therefore it is possible to have several instances of that interface
 	with different options or even in different areas. For OSPFv2,
-	instance ID support is an extension (RFC 6549
-	<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc6549.txt">) and is
-	supposed to be set per-protocol. For OSPFv3, it is an integral feature.
+	instance ID support is an extension ( <htmlurl
+	url="ftp://ftp.rfc-editor.org/in-notes/rfc6549.txt" name="RFC
+	6549">) and is supposed to be set per-protocol. For OSPFv3, it is
+	an integral feature.
 
 	<tag><label id="ospf-virtual-link">virtual link <M>id</M> [instance <m/num/]</tag>
 	Virtual link to router with the router id. Virtual link acts as a
@@ -3230,9 +3231,9 @@ time intervals or as an answer to a request) advertisement packets to connected
 networks. These packets contain basic information about a local network (e.g. a
 list of network prefixes), which allows network hosts to autoconfigure network
 addresses and choose a default route. BIRD implements router behavior as defined
-in RFC 4861<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4861.txt">
+in <htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc4861.txt" name="4861">
 and also the DNS extensions from
-RFC 6106<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc6106.txt">.
+<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc6106.txt" name="6106">.
 
 <sect1>Configuration
 <label id="radv-config">
@@ -3488,11 +3489,11 @@ you can't use RIP on networks where maximal distance is higher than 15
 hosts.
 
 <p>BIRD supports RIPv1
-(RFC 1058<htmlurl url="http://www.rfc-editor.org/rfc/rfc1058.txt">),
-RIPv2 (RFC 2453<htmlurl url="http://www.rfc-editor.org/rfc/rfc2453.txt">),
-RIPng (RFC 2080<htmlurl url="http://www.rfc-editor.org/rfc/rfc2080.txt">),
+(<htmlurl url="http://www.rfc-editor.org/rfc/rfc1058.txt" name="1058">),
+RIPv2 (<htmlurl url="http://www.rfc-editor.org/rfc/rfc2453.txt" name="2453">),
+RIPng (<htmlurl url="http://www.rfc-editor.org/rfc/rfc2080.txt" name="2080">),
 and RIP cryptographic authentication (SHA-1 not implemented)
-(RFC 4822<htmlurl url="http://www.rfc-editor.org/rfc/rfc4822.txt">).
+(<htmlurl url="http://www.rfc-editor.org/rfc/rfc4822.txt" name="4822">).
 
 <p>RIP is a very simple protocol, and it has a lot of shortcomings. Slow
 convergence, big network load and inability to handle larger networks makes it
