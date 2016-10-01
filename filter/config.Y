@@ -67,6 +67,14 @@ f_merge_items(struct f_tree *a, struct f_tree *b)
 static inline struct f_tree *
 f_new_pair_item(int fa, int ta, int fb, int tb)
 {
+  check_u16(fa);
+  check_u16(ta);
+  check_u16(fb);
+  check_u16(tb);
+
+  if ((ta < fa) || (tb < fb))
+    cf_error( "From value cannot be higher that To value in pair sets");
+
   struct f_tree *t = f_new_tree();
   t->right = t;
   t->from.type = t->to.type = T_PAIR;
@@ -78,14 +86,16 @@ f_new_pair_item(int fa, int ta, int fb, int tb)
 static inline struct f_tree *
 f_new_pair_set(int fa, int ta, int fb, int tb)
 {
-  struct f_tree *lst = NULL;
-  int i;
+  check_u16(fa);
+  check_u16(ta);
+  check_u16(fb);
+  check_u16(tb);
 
-  if ((fa == ta) || ((fb == 0) && (tb == 0xFFFF)))
-    return f_new_pair_item(fa, ta, fb, tb);
-  
   if ((ta < fa) || (tb < fb))
     cf_error( "From value cannot be higher that To value in pair sets");
+
+  struct f_tree *lst = NULL;
+  int i;
 
   for (i = fa; i <= ta; i++)
     lst = f_merge_items(lst, f_new_pair_item(i, i, fb, tb));
@@ -93,7 +103,9 @@ f_new_pair_set(int fa, int ta, int fb, int tb)
   return lst;
 }
 
+#define CC_ALL 0xFFFF
 #define EC_ALL 0xFFFFFFFF
+#define LC_ALL 0xFFFFFFFF
 
 static struct f_tree *
 f_new_ec_item(u32 kind, u32 ipv4_used, u32 key, u32 vf, u32 vt)
@@ -130,6 +142,17 @@ f_new_ec_item(u32 kind, u32 ipv4_used, u32 key, u32 vf, u32 vt)
   t->from.type = t->to.type = T_EC;
   t->from.val.ec = fm;
   t->to.val.ec = to;
+  return t;
+}
+
+static struct f_tree *
+f_new_lc_item(u32 f1, u32 t1, u32 f2, u32 t2, u32 f3, u32 t3)
+{
+  struct f_tree *t = f_new_tree();
+  t->right = t;
+  t->from.type = t->to.type = T_LC;
+  t->from.val.lc = (lcomm) {f1, f2, f3};
+  t->to.val.lc = (lcomm) {t1, t2, t3};
   return t;
 }
 
@@ -327,9 +350,9 @@ CF_KEYWORDS(FUNCTION, PRINT, PRINTN, UNSET, RETURN,
 
 %type <x> term block cmds cmds_int cmd function_body constant constructor print_one print_list var_list var_listn dynamic_attr static_attr function_call symbol bgp_path_expr
 %type <f> filter filter_body where_filter
-%type <i> type break_command pair_expr ec_kind
-%type <i32> pair_atom ec_expr
-%type <e> pair_item ec_item set_item switch_item set_items switch_items switch_body
+%type <i> type break_command ec_kind
+%type <i32> cnum
+%type <e> pair_item ec_item lc_item set_item switch_item set_items switch_items switch_body
 %type <trie> fprefix_set
 %type <v> set_atom switch_atom fprefix fprefix_s fipa
 %type <s> decls declsn one_decl function_params 
@@ -550,29 +573,22 @@ switch_atom:
  | ENUM  { $$.type = pair_a($1); $$.val.i = pair_b($1); }
  ;
 
-pair_expr:
-   term { $$ = f_eval_int($1); check_u16($$); }
-
-pair_atom:
-   pair_expr { $$ = pair($1, $1); }
- | pair_expr DDOT pair_expr { $$ = pair($1, $3); }
- | '*' { $$ = 0xFFFF; }
- ;
+cnum:
+   term { $$ = f_eval_int($1); }
 
 pair_item:
-   '(' pair_atom ',' pair_atom ')' {
-     $$ = f_new_pair_set(pair_a($2), pair_b($2), pair_a($4), pair_b($4));
-   }
- | '(' pair_atom ',' pair_atom ')' DDOT '(' pair_expr ',' pair_expr ')' {
-     /* Hack: $2 and $4 should be pair_expr, but that would cause shift/reduce conflict */
-     if ((pair_a($2) != pair_b($2)) || (pair_a($4) != pair_b($4)))
-       cf_error("syntax error");
-     $$ = f_new_pair_item(pair_b($2), $8, pair_b($4), $10); 
-   }
+   '(' cnum ',' cnum ')'		{ $$ = f_new_pair_item($2, $2, $4, $4); }
+ | '(' cnum ',' cnum DDOT cnum ')'	{ $$ = f_new_pair_item($2, $2, $4, $6); }
+ | '(' cnum ',' '*' ')'			{ $$ = f_new_pair_item($2, $2, 0, CC_ALL); }
+ | '(' cnum DDOT cnum ',' cnum ')'	{ $$ = f_new_pair_set($2, $4, $6, $6); }
+ | '(' cnum DDOT cnum ',' cnum DDOT cnum ')' { $$ = f_new_pair_set($2, $4, $6, $8); }
+ | '(' cnum DDOT cnum ',' '*' ')'	{ $$ = f_new_pair_item($2, $4, 0, CC_ALL); }
+ | '(' '*' ',' cnum ')'			{ $$ = f_new_pair_set(0, CC_ALL, $4, $4); }
+ | '(' '*' ',' cnum DDOT cnum ')'	{ $$ = f_new_pair_set(0, CC_ALL, $4, $6); }
+ | '(' '*' ',' '*' ')'			{ $$ = f_new_pair_item(0, CC_ALL, 0, CC_ALL); }
+ | '(' cnum ',' cnum ')' DDOT '(' cnum ',' cnum ')'
+   { $$ = f_new_pair_item($2, $8, $4, $10); }
  ;
-
-ec_expr:
-   term { $$ = f_eval_int($1); }
 
 ec_kind:
    RT { $$ = EC_RT; }
@@ -582,14 +598,27 @@ ec_kind:
  ;
 
 ec_item:
-   '(' ec_kind ',' ec_expr ',' ec_expr ')' { $$ = f_new_ec_item($2, 0, $4, $6, $6); }
- | '(' ec_kind ',' ec_expr ',' ec_expr DDOT ec_expr ')' { $$ = f_new_ec_item($2, 0, $4, $6, $8); }
- | '(' ec_kind ',' ec_expr ',' '*' ')' {  $$ = f_new_ec_item($2, 0, $4, 0, EC_ALL); }
+   '(' ec_kind ',' cnum ',' cnum ')'		{ $$ = f_new_ec_item($2, 0, $4, $6, $6); }
+ | '(' ec_kind ',' cnum ',' cnum DDOT cnum ')'	{ $$ = f_new_ec_item($2, 0, $4, $6, $8); }
+ | '(' ec_kind ',' cnum ',' '*' ')'		{ $$ = f_new_ec_item($2, 0, $4, 0, EC_ALL); }
  ;
+
+lc_item:
+   '(' cnum ',' cnum ',' cnum ')'	    { $$ = f_new_lc_item($2, $2, $4, $4, $6, $6); }
+ | '(' cnum ',' cnum ',' cnum DDOT cnum ')' { $$ = f_new_lc_item($2, $2, $4, $4, $6, $8); }
+ | '(' cnum ',' cnum ',' '*' ')'	    { $$ = f_new_lc_item($2, $2, $4, $4, 0, LC_ALL); }
+ | '(' cnum ',' cnum DDOT cnum ',' '*' ')'  { $$ = f_new_lc_item($2, $2, $4, $6, 0, LC_ALL); }
+ | '(' cnum ',' '*' ',' '*' ')'		    { $$ = f_new_lc_item($2, $2, 0, LC_ALL, 0, LC_ALL); }
+ | '(' cnum DDOT cnum ',' '*' ',' '*' ')'   { $$ = f_new_lc_item($2, $4, 0, LC_ALL, 0, LC_ALL); }
+ | '(' '*' ',' '*' ',' '*' ')'		    { $$ = f_new_lc_item(0, LC_ALL, 0, LC_ALL, 0, LC_ALL); }
+ | '(' cnum ',' cnum ',' cnum ')' DDOT '(' cnum ',' cnum ',' cnum ')'
+   { $$ = f_new_lc_item($2, $10, $4, $12, $6, $14); }
+;
 
 set_item:
    pair_item
  | ec_item
+ | lc_item
  | set_atom { $$ = f_new_item($1, $1); }
  | set_atom DDOT set_atom { $$ = f_new_item($1, $3); }
  ;
@@ -597,6 +626,7 @@ set_item:
 switch_item:
    pair_item
  | ec_item
+ | lc_item
  | switch_atom { $$ = f_new_item($1, $1); }
  | switch_atom DDOT switch_atom { $$ = f_new_item($1, $3); }
  ;
