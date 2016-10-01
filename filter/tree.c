@@ -165,6 +165,9 @@ tree_format(struct f_tree *t, buffer *buf)
  
   tree_node_format(t, buf);
 
+  if (buf->pos == buf->end)
+    return;
+
   /* Undo last separator */
   if (buf->pos[-1] != '[')
     buf->pos -= 2;
