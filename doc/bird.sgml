@@ -154,39 +154,39 @@ BIRD executable by configuring out routing protocols you don't use, and
 	<tag><label id="argv-log-file">-D <m/filename of debug log/</tag>
 	log debugging information to given file instead of stderr.
 
-	<tag><label id="argv-parse">-p</tag>
-	just parse the config file and exit. Return value is zero if the config
-	file is valid, nonzero if there are some errors.
-
-	<tag><label id="argv-socket">-s <m/name of communication socket/</tag>
-	use given filename for a socket for communications with the client,
-	default is <it/prefix/<file>/var/run/bird.ctl</file>.
-
-	<tag><label id="argv-pid">-P <m/name of PID file/</tag>
-	create a PID file with given filename.
-
-	<tag><label id="argv-user">-u <m/user/</tag>
-	drop privileges and use that user ID, see the next section for details.
+	<tag><label id="argv-foreground">-f</tag>
+	run bird in foreground.
 
 	<tag><label id="argv-group">-g <m/group/</tag>
 	use that group ID, see the next section for details.
 
-	<tag><label id="argv-foreground">-f</tag>
-	run bird in foreground.
+	<tag><label id="argv-help">-h, --help</tag>
+	display command-line options to bird.
 
 	<tag><label id="argv-local">-l</tag>
 	look for a configuration file and a communication socket in the current
 	working directory instead of in default system locations. However, paths
 	specified by options <cf/-c/, <cf/-s/ have higher priority.
 
+	<tag><label id="argv-parse">-p</tag>
+	just parse the config file and exit. Return value is zero if the config
+	file is valid, nonzero if there are some errors.
+
+	<tag><label id="argv-pid">-P <m/name of PID file/</tag>
+	create a PID file with given filename.
+
 	<tag><label id="argv-recovery">-R</tag>
 	apply graceful restart recovery after start.
 
+	<tag><label id="argv-socket">-s <m/name of communication socket/</tag>
+	use given filename for a socket for communications with the client,
+	default is <it/prefix/<file>/var/run/bird.ctl</file>.
+
+	<tag><label id="argv-user">-u <m/user/</tag>
+	drop privileges and use that user ID, see the next section for details.
+
 	<tag><label id="argv-version">--version</tag>
 	display bird version.
-
-	<tag><label id="argv-help">-h, --help</tag>
-	display command-line options to bird.
 </descrip>
 
 <p>BIRD writes messages about its work to log files or syslog (according to config).
