@@ -344,7 +344,7 @@ protocol rip {
 
 	<tag><label id="opt-log">log "<m/filename/"|syslog [name <m/name/]|stderr all|{ <m/list of classes/ }</tag>
 	Set logging of messages having the given class (either <cf/all/ or
-	<cf/{ error, trace }/ etc.) into selected destination (a file specified
+	<cf/{ error|trace [, <m/.../] }/ etc.) into selected destination (a file specified
 	as a filename string, syslog with optional name argument, or the stderr
 	output). Classes are:
 	<cf/info/, <cf/warning/, <cf/error/ and <cf/fatal/ for messages about local problems,
@@ -356,7 +356,7 @@ protocol rip {
 	You may specify more than one <cf/log/ line to establish logging to
 	multiple destinations. Default: log everything to the system log.
 
-	<tag><label id="opt-debug-protocols">debug protocols all|off|{ states, routes, filters, interfaces, events, packets }</tag>
+	<tag><label id="opt-debug-protocols">debug protocols all|off|{ states|routes|filters|interfaces|events|packets [, <m/.../] }</tag>
 	Set global defaults of protocol debugging options. See <cf/debug/ in the
 	following section. Default: off.
 
@@ -386,7 +386,7 @@ protocol rip {
 	Set MRTdump file name. This option must be specified to allow MRTdump
 	feature. Default: no dump file.
 
-	<tag><label id="opt-mrtdump-protocols">mrtdump protocols all|off|{ states, messages }</tag>
+	<tag><label id="opt-mrtdump-protocols">mrtdump protocols all|off|{ states|messages [, <m/.../] }</tag>
 	Set global defaults of MRTdump options. See <cf/mrtdump/ in the
 	following section. Default: off.
 
@@ -427,7 +427,7 @@ protocol rip {
 	version, the lowest IP address of a non-loopback interface. In IPv6
 	version, this option is mandatory.
 
-	<tag><label id="opt-router-id-from">router id from [-] [ "<m/mask/" ] [ <m/prefix/ ] [, ...]</tag>
+	<tag><label id="opt-router-id-from">router id from [-] [ "<m/mask/" ] [ <m/prefix/ ] [, <m/.../]</tag>
 	Set BIRD's router ID based on an IP address of an interface specified by
 	an interface pattern. The option is applicable for IPv4 version only.
 	See <ref id="proto-iface" name="interface"> section for detailed
@@ -522,7 +522,7 @@ agreement").
 	command line interface without needing to touch the configuration.
 	Disabled protocols are not activated. Default: protocol is enabled.
 
-	<tag><label id="proto-debug">debug all|off|{ states, routes, filters, interfaces, events, packets }</tag>
+	<tag><label id="proto-debug">debug all|off|{ states|routes|filters|interfaces|events|packets [, <m/.../] }</tag>
 	Set protocol debugging options. If asked, each protocol is capable of
 	writing trace messages about its work to the log (with category
 	<cf/trace/). You can either request printing of <cf/all/ trace messages
@@ -533,7 +533,7 @@ agreement").
 	protocol, <cf/events/ for events internal to the protocol and <cf/packets/
 	for packets sent and received by the protocol. Default: off.
 
-	<tag><label id="proto-mrtdump">mrtdump all|off|{ states, messages }</tag>
+	<tag><label id="proto-mrtdump">mrtdump all|off|{ states|messages [, <m/.../] }</tag>
 	Set protocol MRTdump flags. MRTdump is a standard binary format for
 	logging information from routing protocols and daemons. These flags
 	control what kind of information is logged from the protocol to the
@@ -603,7 +603,7 @@ agreement").
 <p>There are several options that give sense only with certain protocols:
 
 <descrip>
-	<tag><label id="proto-iface">interface [-] [ "<m/mask/" ] [ <m/prefix/ ] [, ...] [ { <m/option/ ; [...] } ]</tag>
+	<tag><label id="proto-iface">interface [-] [ "<m/mask/" ] [ <m/prefix/ ] [, <m/.../] [ { <m/option/; [<m/.../] } ]</tag>
 	Specifies a set of interfaces on which the protocol is activated with
 	given interface-specific options. A set of interfaces specified by one
 	interface option is described using an interface pattern. The interface
@@ -895,7 +895,7 @@ This argument can be omitted if there exists only a single instance.
 	<tag><label id="cli-down">down</tag>
 	Shut BIRD down.
 
-	<tag><label id="cli-debug">debug <m/protocol/|<m/pattern/|all all|off|{ states | routes | filters | events | packets }</tag>
+	<tag><label id="cli-debug">debug <m/protocol/|<m/pattern/|all all|off|{ states|routes|filters|events|packets [, <m/.../] }</tag>
 	Control protocol debugging.
 
 	<tag><label id="cli-dump">dump resources|sockets|interfaces|neighbors|attributes|routes|protocols</tag>
@@ -1621,7 +1621,7 @@ protocol bfd [&lt;name&gt;] {
 </code>
 
 <descrip>
-	<tag><label id="bfd-iface">interface <m/pattern [, ...]/ { <m/options/ }</tag>
+	<tag><label id="bfd-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
 	Interface definitions allow to specify options for sessions associated
 	with such interfaces and also may contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common option for a detailed
@@ -2345,7 +2345,7 @@ on Linux systems BIRD cannot change non-BIRD route in the kernel routing table.
 <p>There are just few configuration options for the Direct protocol:
 
 <p><descrip>
-	<tag><label id="direct-iface">interface <m/pattern [, ...]/</tag>
+	<tag><label id="direct-iface">interface <m/pattern [, <m/.../]/</tag>
 	By default, the Direct protocol will generate device routes for all the
 	interfaces available. If you want to restrict it to some subset of
 	interfaces or addresses (e.g. if you're using multiple routing tables
@@ -3250,7 +3250,7 @@ and also the DNS extensions from
 definitions, prefix definitions and DNS definitions:
 
 <descrip>
-	<tag><label id="radv-iface">interface <m/pattern [, ...]/ { <m/options/ }</tag>
+	<tag><label id="radv-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
 	Interface definitions specify a set of interfaces on which the
 	protocol is activated and contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common options for
@@ -3563,7 +3563,7 @@ protocol rip [&lt;name&gt;] {
 	nexthops in one route. By default, ECMP is disabled. If enabled,
 	default	value of the limit is 16.
 
-	<tag><label id="rip-iface">interface <m/pattern [, ...]/ { <m/options/ }</tag>
+	<tag><label id="rip-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
 	Interface definitions specify a set of interfaces on which the
 	protocol is activated and contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common options for
