@@ -181,6 +181,12 @@ BIRD executable by configuring out routing protocols you don't use, and
 
 	<tag><label id="argv-recovery">-R</tag>
 	apply graceful restart recovery after start.
+
+	<tag><label id="argv-version">--version</tag>
+	display bird version.
+
+	<tag><label id="argv-help">-h, --help</tag>
+	display command-line options to bird.
 </descrip>
 
 <p>BIRD writes messages about its work to log files or syslog (according to config).
