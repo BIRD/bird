@@ -815,7 +815,7 @@ This argument can be omitted if there exists only a single instance.
 	number of networks, number of routes before and after filtering). If
 	you use <cf/count/ instead, only the statistics will be printed.
 
-	<tag><label id="cli-show-roa">show roa [<m/prefix/ | in <m/prefix/ | for <m/prefix/] [as <m/num/] [table <m/t/>]</tag>
+	<tag><label id="cli-show-roa">show roa [<m/prefix/ | in <m/prefix/ | for <m/prefix/] [as <m/num/] [table <m/t/]</tag>
 	Show contents of a ROA table (by default of the first one). You can
 	specify a <m/prefix/ to print ROA entries for a specific network. If you
 	use <cf>for <m/prefix/</cf>, you'll get all entries relevant for route
@@ -824,16 +824,16 @@ This argument can be omitted if there exists only a single instance.
 	entries covered by the network prefix. You could also use <cf/as/ option
 	to show just entries for given AS.
 
-	<tag><label id="cli-add-roa">add roa <m/prefix/ max <m/num/] as <m/num/ [table <m/t/>]</tag>
+	<tag><label id="cli-add-roa">add roa <m/prefix/ max <m/num/ as <m/num/ [table <m/t/]</tag>
 	Add a new ROA entry to a ROA table. Such entry is called <it/dynamic/
 	compared to <it/static/ entries specified in the config file. These
 	dynamic entries survive reconfiguration.
 
-	<tag><label id="cli-delete-roa">delete roa <m/prefix/ max <m/num/] as <m/num/ [table <m/t/>]</tag>
+	<tag><label id="cli-delete-roa">delete roa <m/prefix/ max <m/num/ as <m/num/ [table <m/t/]</tag>
 	Delete the specified ROA entry from a ROA table. Only dynamic ROA
 	entries (i.e., the ones added by <cf/add roa/ command) can be deleted.
 
-	<tag><label id="cli-flush-roa">flush roa [table <m/t/>]</tag>
+	<tag><label id="cli-flush-roa">flush roa [table <m/t/]</tag>
 	Remove all dynamic ROA entries from a ROA table.
 
 	<tag><label id="cli-configure">configure [soft] ["<m/config file/"] [timeout [<m/num/]]</tag>
