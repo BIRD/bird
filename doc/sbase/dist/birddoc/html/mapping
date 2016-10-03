@@ -202,9 +202,7 @@
 			"<@@endurl>"		+
 </url>
 
-<htmlurl>	+	"<@@url>[URL]\n"
-			"[NAME]</A>\n"
-			"<@@endurl>"		+
+<htmlurl>		"<A HREF=\"[URL]\">[NAME]</A>"
 </htmlurl>
 
 % ref modified to have an optional name field
