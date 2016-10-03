@@ -1526,6 +1526,12 @@ nl_async_hook(sock *sk, int size UNUSED)
 }
 
 static void
+nl_async_err_hook(sock *sk, int e UNUSED)
+{
+  nl_async_hook(sk, 0);
+}
+
+static void
 nl_open_async(void)
 {
   sock *sk;
@@ -1563,6 +1569,7 @@ nl_open_async(void)
   sk = nl_async_sk = sk_new(krt_pool);
   sk->type = SK_MAGIC;
   sk->rx_hook = nl_async_hook;
+  sk->err_hook = nl_async_err_hook;
   sk->fd = fd;
   if (sk_open(sk) < 0)
     bug("Netlink: sk_open failed");

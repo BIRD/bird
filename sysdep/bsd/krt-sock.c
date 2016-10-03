@@ -911,6 +911,12 @@ krt_sock_hook(sock *sk, int size UNUSED)
   return 0;
 }
 
+static void
+krt_sock_err_hook(sock *sk, int e UNUSED)
+{
+  krt_sock_hook(sk, 0);
+}
+
 static sock *
 krt_sock_open(pool *pool, void *data, int table_id)
 {
@@ -932,6 +938,7 @@ krt_sock_open(pool *pool, void *data, int table_id)
   sk = sk_new(pool);
   sk->type = SK_MAGIC;
   sk->rx_hook = krt_sock_hook;
+  sk->err_hook = krt_sock_err_hook;
   sk->fd = fd;
   sk->data = data;
 

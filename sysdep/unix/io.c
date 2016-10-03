@@ -1857,7 +1857,7 @@ void
 sk_err(sock *s, int revents)
 {
   int se = 0, sse = sizeof(se);
-  if (revents & POLLERR)
+  if ((s->type != SK_MAGIC) && (revents & POLLERR))
     if (getsockopt(s->fd, SOL_SOCKET, SO_ERROR, &se, &sse) < 0)
     {
       log(L_ERR "IO: Socket error: SO_ERROR: %m");

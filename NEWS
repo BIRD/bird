@@ -1,3 +1,6 @@
+Version 1.6.2 (2016-09-29)
+  o Fixes serious bug introduced in the previous version
+
 Version 1.6.1 (2016-09-22)
   o Support for IPv6 ECMP
   o Better handling of IPv6 tentative addresses
