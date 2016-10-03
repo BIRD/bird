@@ -780,7 +780,7 @@ This argument can be omitted if there exists only a single instance.
 	Show the list of symbols defined in the configuration (names of
 	protocols, routing tables etc.).
 
-	<tag><label id="cli-show-route">show route [[for] <m/prefix/|<m/IP/] [table <m/sym/] [filter <m/f/|where <m/c/] [(export|preexport|noexport) <m/p/] [protocol <m/p/] [<m/options/]</tag>
+	<tag><label id="cli-show-route">show route [[for] <m/prefix/|<m/IP/] [table <m/t/] [filter <m/f/|where <m/c/] [(export|preexport|noexport) <m/p/] [protocol <m/p/] [<m/options/]</tag>
 	Show contents of a routing table (by default of the main one or the
 	table attached to a respective protocol), that is routes, their metrics
 	and (in case the <cf/all/ switch is given) all their attributes.
