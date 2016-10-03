@@ -1412,7 +1412,9 @@ corresponding protocol sections.
 <sect1>Introduction
 <label id="babel-intro">
 
-<p>The Babel protocol (RFC6126) is a loop-avoiding distance-vector routing
+<p>The Babel protocol
+(<htmlurl url="ftp://ftp.rfc-editor.org/in-notes/rfc6126.txt" name="RFC 6126">)
+is a loop-avoiding distance-vector routing
 protocol that is robust and efficient both in ordinary wired networks and in
 wireless mesh networks. Babel is conceptually very simple in its operation and
 "just works" in its default configuration, though some configuration is possible
