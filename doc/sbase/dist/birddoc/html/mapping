@@ -135,6 +135,9 @@
 <ncite>			"[<I>[NOTE] ([ID])</I>]"
 </ncite>
 
+<file>			"<CODE>"
+</file>			"</CODE>"
+
 <footnote>	+	"<BLOCKQUOTE>"
 </footnote>		"</BLOCKQUOTE>"		+
 

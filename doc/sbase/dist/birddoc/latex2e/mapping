@@ -156,7 +156,7 @@
 % The idea here is to automatically insert soft hyphens after every slash in
 % the filename, so long filenames will break naturally.  The url{} macro is
 % a kluge but it works,
-<file>			"\\url{"
+<file>			"{\\tt "
 </file>			"}"
 
 <footnote>		"\\footnote{"
