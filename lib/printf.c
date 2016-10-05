@@ -456,8 +456,7 @@ buffer_print(buffer *buf, const char *fmt, ...)
   i=bvsnprintf((char *) buf->pos, buf->end - buf->pos, fmt, args);
   va_end(args);
 
-  if (i >= 0)
-    buf->pos += i;
+  buf->pos = (i >= 0) ? (buf->pos + i) : buf->end;
 
   return i;
 }

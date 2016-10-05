@@ -300,6 +300,9 @@ trie_format(struct f_trie *t, buffer *buf)
     buffer_print(buf, "%I/%d", IPA_NONE, 0);
   trie_node_format(t->root, buf);
 
+  if (buf->pos == buf->end)
+    return;
+
   /* Undo last separator */
   if (buf->pos[-1] != '[')
     buf->pos -= 2;
