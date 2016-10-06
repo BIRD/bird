@@ -116,7 +116,7 @@ int
 ec_set_format(struct adata *set, int from, byte *buf, uint size)
 {
   u32 *z = int_set_get_data(set);
-  byte *end = buf + size - 24;
+  byte *end = buf + size - 64;
   int from2 = MAX(from, 0);
   int to = int_set_get_size(set);
   int i;
@@ -137,6 +137,43 @@ ec_set_format(struct adata *set, int from, byte *buf, uint size)
 
       buf += ec_format(buf, ec_get(z, i));
     }
+  *buf = 0;
+  return 0;
+}
+
+int
+lc_format(byte *buf, lcomm lc)
+{
+  return bsprintf(buf, "(%u, %u, %u)", lc.asn, lc.ldp1, lc.ldp2);
+}
+
+int
+lc_set_format(struct adata *set, int from, byte *buf, uint bufsize)
+{
+  u32 *d = (u32 *) set->data;
+  byte *end = buf + bufsize - 64;
+  int from2 = MAX(from, 0);
+  int to = set->length / 4;
+  int i;
+
+  for (i = from2; i < to; i += 3)
+    {
+      if (buf > end)
+	{
+	  if (from < 0)
+	    strcpy(buf, "...");
+	  else
+	    buf[-1] = 0;
+	  return i;
+	}
+
+      buf += bsprintf(buf, "(%u, %u, %u)", d[i], d[i+1], d[i+2]);
+      *buf++ = ' ';
+    }
+
+  if (i != from2)
+    buf--;
+
   *buf = 0;
   return 0;
 }
@@ -177,6 +214,24 @@ ec_set_contains(struct adata *list, u64 val)
   return 0;
 }
 
+int
+lc_set_contains(struct adata *list, lcomm val)
+{
+  if (!list)
+    return 0;
+
+  u32 *l = int_set_get_data(list);
+  int len = int_set_get_size(list);
+  int i;
+
+  for (i = 0; i < len; i += 3)
+    if (lc_match(l, i, val))
+      return 1;
+
+  return 0;
+}
+
+
 struct adata *
 int_set_add(struct linpool *pool, struct adata *list, u32 val)
 {
@@ -208,13 +263,30 @@ ec_set_add(struct linpool *pool, struct adata *list, u64 val)
   if (list)
     memcpy(res->data, list->data, list->length);
 
-  u32 *l = (u32 *) (res->data + res->length - 8);
+  u32 *l = (u32 *) (res->data + olen);
   l[0] = ec_hi(val);
   l[1] = ec_lo(val);
 
   return res;
 }
 
+struct adata *
+lc_set_add(struct linpool *pool, struct adata *list, lcomm val)
+{
+  if (lc_set_contains(list, val))
+    return list;
+
+  int olen = list ? list->length : 0;
+  struct adata *res = lp_alloc(pool, sizeof(struct adata) + olen + LCOMM_LENGTH);
+  res->length = olen + LCOMM_LENGTH;
+
+  if (list)
+    memcpy(res->data, list->data, list->length);
+
+  lc_put((u32 *) (res->data + olen), val);
+
+  return res;
+}
 
 struct adata *
 int_set_del(struct linpool *pool, struct adata *list, u32 val)
@@ -265,6 +337,27 @@ ec_set_del(struct linpool *pool, struct adata *list, u64 val)
   return res;
 }
 
+struct adata *
+lc_set_del(struct linpool *pool, struct adata *list, lcomm val)
+{
+  if (!lc_set_contains(list, val))
+    return list;
+
+  struct adata *res;
+  res = lp_alloc(pool, sizeof(struct adata) + list->length - LCOMM_LENGTH);
+  res->length = list->length - LCOMM_LENGTH;
+
+  u32 *l = int_set_get_data(list);
+  u32 *k = int_set_get_data(res);
+  int len = int_set_get_size(list);
+  int i;
+
+  for (i=0; i < len; i += 3)
+    if (! lc_match(l, i, val))
+      k = lc_copy(k, l+i);
+
+  return res;
+}
 
 struct adata *
 int_set_union(struct linpool *pool, struct adata *l1, struct adata *l2)
@@ -317,6 +410,36 @@ ec_set_union(struct linpool *pool, struct adata *l1, struct adata *l2)
 	*k++ = l[i];
 	*k++ = l[i+1];
       }
+
+  if (k == tmp)
+    return l1;
+
+  len = (k - tmp) * 4;
+  res = lp_alloc(pool, sizeof(struct adata) + l1->length + len);
+  res->length = l1->length + len;
+  memcpy(res->data, l1->data, l1->length);
+  memcpy(res->data + l1->length, tmp, len);
+  return res;
+}
+
+struct adata *
+lc_set_union(struct linpool *pool, struct adata *l1, struct adata *l2)
+{
+  if (!l1)
+    return l2;
+  if (!l2)
+    return l1;
+
+  struct adata *res;
+  int len = int_set_get_size(l2);
+  u32 *l = int_set_get_data(l2);
+  u32 tmp[len];
+  u32 *k = tmp;
+  int i;
+
+  for (i = 0; i < len; i += 3)
+    if (!lc_set_contains(l1, lc_get(l, i)))
+      k = lc_copy(k, l+i);
 
   if (k == tmp)
     return l1;

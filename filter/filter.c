@@ -106,6 +106,18 @@ u64_cmp(u64 i1, u64 i2)
   return (int)(i1 > i2) - (int)(i1 < i2);
 }
 
+static inline int
+lcomm_cmp(lcomm v1, lcomm v2)
+{
+  if (v1.asn != v2.asn)
+    return (v1.asn > v2.asn) ? 1 : -1;
+  if (v1.ldp1 != v2.ldp1)
+    return (v1.ldp1 > v2.ldp1) ? 1 : -1;
+  if (v1.ldp2 != v2.ldp2)
+    return (v1.ldp2 > v2.ldp2) ? 1 : -1;
+  return 0;
+}
+
 /**
  * val_compare - compare two values
  * @v1: first value
@@ -149,6 +161,8 @@ val_compare(struct f_val v1, struct f_val v2)
     return uint_cmp(v1.val.i, v2.val.i);
   case T_EC:
     return u64_cmp(v1.val.ec, v2.val.ec);
+  case T_LC:
+    return lcomm_cmp(v1.val.lc, v2.val.lc);
   case T_IP:
     return ipa_compare(v1.val.px.ip, v2.val.px.ip);
   case T_PREFIX:
@@ -214,6 +228,7 @@ val_same(struct f_val v1, struct f_val v2)
   case T_PATH:
   case T_CLIST:
   case T_ECLIST:
+  case T_LCLIST:
     return adata_same(v1.val.ad, v2.val.ad);
   case T_SET:
     return same_tree(v1.val.t, v2.val.t);
@@ -266,6 +281,10 @@ static inline int
 eclist_set_type(struct f_tree *set)
 { return set->from.type == T_EC; }
 
+static inline int
+lclist_set_type(struct f_tree *set)
+{ return set->from.type == T_LC; }
+
 static int
 clist_match_set(struct adata *clist, struct f_tree *set)
 {
@@ -304,6 +323,30 @@ eclist_match_set(struct adata *list, struct f_tree *set)
   v.type = T_EC;
   for (i = 0; i < len; i += 2) {
     v.val.ec = ec_get(l, i);
+    if (find_tree(set, v))
+      return 1;
+  }
+
+  return 0;
+}
+
+static int
+lclist_match_set(struct adata *list, struct f_tree *set)
+{
+  if (!list)
+    return 0;
+
+  if (!lclist_set_type(set))
+    return CMP_ERROR;
+
+  struct f_val v;
+  u32 *l = int_set_get_data(list);
+  int len = int_set_get_size(list);
+  int i;
+
+  v.type = T_LC;
+  for (i = 0; i < len; i += 3) {
+    v.val.lc = lc_get(l, i);
     if (find_tree(set, v))
       return 1;
   }
@@ -380,6 +423,38 @@ eclist_filter(struct linpool *pool, struct adata *list, struct f_val set, int po
   return res;
 }
 
+static struct adata *
+lclist_filter(struct linpool *pool, struct adata *list, struct f_val set, int pos)
+{
+  if (!list)
+    return NULL;
+
+  int tree = (set.type == T_SET);	/* 1 -> set is T_SET, 0 -> set is T_CLIST */
+  struct f_val v;
+
+  int len = int_set_get_size(list);
+  u32 *l = int_set_get_data(list);
+  u32 tmp[len];
+  u32 *k = tmp;
+  int i;
+
+  v.type = T_LC;
+  for (i = 0; i < len; i += 3) {
+    v.val.lc = lc_get(l, i);
+    /* pos && member(val, set) || !pos && !member(val, set),  member() depends on tree */
+    if ((tree ? !!find_tree(set.val.t, v) : lc_set_contains(set.val.ad, v.val.lc)) == pos)
+      k = lc_copy(k, l+i);
+  }
+
+  int nl = (k - tmp) * 4;
+  if (nl == list->length)
+    return list;
+
+  struct adata *res = adata_empty(pool, nl);
+  memcpy(res->data, tmp, nl);
+  return res;
+}
+
 /**
  * val_in_range - implement |~| operator
  * @v1: element
@@ -407,6 +482,9 @@ val_in_range(struct f_val v1, struct f_val v2)
   if ((v1.type == T_EC) && (v2.type == T_ECLIST))
     return ec_set_contains(v2.val.ad, v1.val.ec);
 
+  if ((v1.type == T_LC) && (v2.type == T_LCLIST))
+    return lc_set_contains(v2.val.ad, v1.val.lc);
+
   if ((v1.type == T_STRING) && (v2.type == T_STRING))
     return patmatch(v2.val.s, v1.val.s);
 
@@ -433,6 +511,9 @@ val_in_range(struct f_val v1, struct f_val v2)
   if (v1.type == T_ECLIST)
     return eclist_match_set(v1.val.ad, v2.val.t);
 
+  if (v1.type == T_LCLIST)
+    return lclist_match_set(v1.val.ad, v2.val.t);
+
   if (v1.type == T_PATH)
     return as_path_match_set(v1.val.ad, v2.val.t);
 
@@ -457,12 +538,14 @@ val_format(struct f_val v, buffer *buf)
   case T_PAIR:	buffer_print(buf, "(%u,%u)", v.val.i >> 16, v.val.i & 0xffff); return;
   case T_QUAD:	buffer_print(buf, "%R", v.val.i); return;
   case T_EC:	ec_format(buf2, v.val.ec); buffer_print(buf, "%s", buf2); return;
+  case T_LC:	lc_format(buf2, v.val.lc); buffer_print(buf, "%s", buf2); return;
   case T_PREFIX_SET: trie_format(v.val.ti, buf); return;
   case T_SET:	tree_format(v.val.t, buf); return;
   case T_ENUM:	buffer_print(buf, "(enum %x)%u", v.type, v.val.i); return;
   case T_PATH:	as_path_format(v.val.ad, buf2, 1000); buffer_print(buf, "(path %s)", buf2); return;
   case T_CLIST:	int_set_format(v.val.ad, 1, -1, buf2, 1000); buffer_print(buf, "(clist %s)", buf2); return;
   case T_ECLIST: ec_set_format(v.val.ad, -1, buf2, 1000); buffer_print(buf, "(eclist %s)", buf2); return;
+  case T_LCLIST: lc_set_format(v.val.ad, -1, buf2, 1000); buffer_print(buf, "(lclist %s)", buf2); return;
   case T_PATH_MASK: pm_format(v.val.path_mask, buf); return;
   default:	buffer_print(buf, "[unknown type %x]", v.type); return;
   }
@@ -656,6 +739,7 @@ interpret(struct f_inst *what)
 	runtime("Can't operate with value of non-integer type in EC constructor");
       val = v2.val.i;
 
+      /* XXXX */
       res.type = T_EC;
 
       if (what->aux == EC_GENERIC) {
@@ -673,6 +757,24 @@ interpret(struct f_inst *what)
 
       if (check && (val > 0xFFFF))
 	runtime("Can't operate with value out of bounds in EC constructor");
+
+      break;
+    }
+
+  case P('m','l'):
+    {
+      TWOARGS;
+
+      /* Third argument hack */
+      struct f_val v3 = interpret(INST3(what).p);
+      if (v3.type & T_RETURN)
+	return v3;
+
+      if ((v1.type != T_INT) || (v2.type != T_INT) || (v3.type != T_INT))
+	runtime( "Can't operate with value of non-integer type in LC constructor" );
+
+      res.type = T_LC;
+      res.val.lc = (lcomm) { v1.val.i, v2.val.i, v3.val.i };
 
       break;
     }
@@ -912,6 +1014,13 @@ interpret(struct f_inst *what)
 	  break;
 	}
 
+	/* The same special case for lc_set */
+	if ((what->aux & EAF_TYPE_MASK) == EAF_TYPE_LC_SET) {
+	  res.type = T_LCLIST;
+	  res.val.ad = adata_empty(f_pool, 0);
+	  break;
+	}
+
 	/* Undefined value */
 	res.type = T_VOID;
 	break;
@@ -949,6 +1058,10 @@ interpret(struct f_inst *what)
 	break;
       case EAF_TYPE_EC_SET:
 	res.type = T_ECLIST;
+	res.val.ad = e->u.ptr;
+	break;
+      case EAF_TYPE_LC_SET:
+	res.type = T_LCLIST;
 	res.val.ad = e->u.ptr;
 	break;
       case EAF_TYPE_UNDEF:
@@ -1041,6 +1154,11 @@ interpret(struct f_inst *what)
 	  runtime( "Setting eclist attribute to non-eclist value" );
 	l->attrs[0].u.ptr = v1.val.ad;
 	break;
+      case EAF_TYPE_LC_SET:
+	if (v1.type != T_LCLIST)
+	  runtime( "Setting lclist attribute to non-lclist value" );
+	l->attrs[0].u.ptr = v1.val.ad;
+	break;
       case EAF_TYPE_UNDEF:
 	if (v1.type != T_VOID)
 	  runtime( "Setting void attribute to non-void value" );
@@ -1082,6 +1200,7 @@ interpret(struct f_inst *what)
     case T_PATH:   res.val.i = as_path_getlen(v1.val.ad); break;
     case T_CLIST:  res.val.i = int_set_get_size(v1.val.ad); break;
     case T_ECLIST: res.val.i = ec_set_get_size(v1.val.ad); break;
+    case T_LCLIST: res.val.i = lc_set_get_size(v1.val.ad); break;
     default: runtime( "Prefix, path, clist or eclist expected" );
     }
     break;
@@ -1277,7 +1396,7 @@ interpret(struct f_inst *what)
       else if (v2.type == T_ECLIST)
 	arg_set = 2;
       else if (v2.type != T_EC)
-	runtime("Can't add/delete non-pair");
+	runtime("Can't add/delete non-ec");
 
       res.type = T_ECLIST;
       switch (what->aux)
@@ -1308,8 +1427,50 @@ interpret(struct f_inst *what)
 	bug("unknown Ca operation");
       }
     }
+    else if (v1.type == T_LCLIST)
+    {
+      /* Large community list */
+      int arg_set = 0;
+
+      /* v2.val is either LC or LC-set */
+      if ((v2.type == T_SET) && lclist_set_type(v2.val.t))
+	arg_set = 1;
+      else if (v2.type == T_LCLIST)
+	arg_set = 2;
+      else if (v2.type != T_LC)
+	runtime("Can't add/delete non-lc");
+
+      res.type = T_LCLIST;
+      switch (what->aux)
+      {
+      case 'a':
+	if (arg_set == 1)
+	  runtime("Can't add set");
+	else if (!arg_set)
+	  res.val.ad = lc_set_add(f_pool, v1.val.ad, v2.val.lc);
+	else
+	  res.val.ad = lc_set_union(f_pool, v1.val.ad, v2.val.ad);
+	break;
+
+      case 'd':
+	if (!arg_set)
+	  res.val.ad = lc_set_del(f_pool, v1.val.ad, v2.val.lc);
+	else
+	  res.val.ad = lclist_filter(f_pool, v1.val.ad, v2, 0);
+	break;
+
+      case 'f':
+	if (!arg_set)
+	  runtime("Can't filter lc");
+	res.val.ad = lclist_filter(f_pool, v1.val.ad, v2, 1);
+	break;
+
+      default:
+	bug("unknown Ca operation");
+      }
+    }
     else
-      runtime("Can't add/delete to non-(e)clist");
+      runtime("Can't add/delete to non-[e|l]clist");
 
     break;
 
@@ -1400,6 +1561,12 @@ i_same(struct f_inst *f1, struct f_inst *f2)
   case '!': ONEARG; break;
   case '~': TWOARGS; break;
   case P('d','e'): ONEARG; break;
+
+  case P('m','l'):
+    TWOARGS;
+    if (!i_same(INST3(f1).p, INST3(f2).p))
+      return 0;
+    break;
 
   case 's':
     ARG(v2, a2.p);

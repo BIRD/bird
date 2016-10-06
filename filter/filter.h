@@ -38,6 +38,17 @@ struct f_inst_roa_check {
   struct roa_table_config *rtc;	
 };
 
+struct f_inst3 {
+  struct f_inst i;
+  union {
+    int i;
+    void *p;
+  } a3;
+};
+
+#define INST3(x) (((struct f_inst3 *) x)->a3)
+
+
 struct f_prefix {
   ip_addr ip;
   int len;
@@ -53,6 +64,7 @@ struct f_val {
   union {
     uint i;
     u64 ec;
+    lcomm lc;
     /*    ip_addr ip; Folded into prefix */	
     struct f_prefix px;
     char *s;
@@ -168,8 +180,10 @@ void val_format(struct f_val v, buffer *buf);
 #define T_PATH_MASK 0x23	/* mask for BGP path */
 #define T_PATH 0x24		/* BGP path */
 #define T_CLIST 0x25		/* Community list */
-#define T_ECLIST 0x26		/* Extended community list */
-#define T_EC 0x27		/* Extended community value, u64 */
+#define T_EC 0x26		/* Extended community value, u64 */
+#define T_ECLIST 0x27		/* Extended community list */
+#define T_LC 0x28		/* Large community value, lcomm */
+#define T_LCLIST 0x29		/* Large community list */
 
 #define T_RETURN 0x40
 #define T_SET 0x80
