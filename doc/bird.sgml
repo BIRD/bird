@@ -1067,7 +1067,16 @@ foot).
 	for <cf/key/ and <cf/value/ parts, (e.g. <cf/(ro, myas, 3*10)/, where
 	<cf/myas/ is an integer variable).
 
-	<tag><label id="type-set">int|pair|quad|ip|prefix|ec|enum set</tag>
+	<tag><label id="type-lc">lc</tag>
+	This is a specialized type used to represent BGP large community
+	values. It is essentially a triplet of 32bit values, where the first
+	value is reserved for the AS number of the issuer, while meaning of
+	remaining parts is defined by the issuer. Literals of this type are
+	written as <cf/(123, 456, 789)/, with any integer values. Similarly to
+	pairs, LCs can be constructed using expressions for its parts, (e.g.
+	<cf/(myas, 10+20, 3*10)/, where <cf/myas/ is an integer variable).
+
+	<tag><label id="type-set">int|pair|quad|ip|prefix|ec|lc|enum set</tag>
 	Filters recognize four types of sets. Sets are similar to strings: you
 	can pass them around but you can't modify them. Literals of type <cf>int
 	set</cf> look like <cf> [ 1, 2, 5..7 ]</cf>. As you can see, both simple
@@ -1086,9 +1095,15 @@ foot).
 	(like <cf/(rt, *, 3)/) are not allowed (as they usually have 4B range
 	for ASNs).
 
-	You can also use expressions for int, pair and EC set values. However it
-	must be possible to evaluate these expressions before daemon boots. So
-	you can use only constants inside them. E.g.
+	Also LC sets use similar expressions like pair sets. You can use ranges
+	and wildcards, but if one field uses that, more specific (later) fields
+	must be wildcards. E.g., <cf/(10, 20..30, *)/ or <cf/(10, 20, 30..40)/
+	is valid, while <cf/(10, *, 20..30)/ or <cf/(10, 20..30, 40)/ is not
+	valid.
+
+	You can also use expressions for int, pair, EC and LC set values.
+	However, it must be possible to evaluate these expressions before daemon
+	boots. So you can use only constants inside them. E.g.
 
 	<code>
 	 define one=1;
@@ -1224,6 +1239,13 @@ foot).
 	The same operations (like <cf/add/, <cf/delete/ or <cf/&tilde;/ and
 	<cf/!&tilde;/ membership operators) can be used to modify or test
 	eclists, with ECs instead of pairs as arguments.
+
+	<tag/lclist/
+	Lclist is a data type used for BGP large community lists. Like eclists,
+	lclists are very similar to clists, but they are sets of LCs instead of
+	pairs. The same operations (like <cf/add/, <cf/delete/ or <cf/&tilde;/
+	and <cf/!&tilde;/ membership operators) can be used to modify or test
+	lclists, with LCs instead of pairs as arguments.
 </descrip>
 
 
@@ -2231,6 +2253,14 @@ some of them (marked with `<tt/O/') are optional.
 	extended range (to allow 4B ASNs) and a nontrivial structure with a type
 	field. Individual community values are represented using an <cf/ec/ data
 	type inside the filters.
+
+	<tag><label id="rta-bgp-large-community">lclist <cf/bgp_large_community/ [O]</tag>
+	List of large community values associated with the route. Large BGP
+	communities is another variant of communities, but contrary to extended
+	communities they behave very much the same way as regular communities,
+	just larger -- they are uniform untyped triplets of 32bit numbers.
+	Individual community values are represented using an <cf/lc/ data type
+	inside the filters.
 
 	<tag><label id="rta-bgp-originator-id">quad bgp_originator_id/ [I, O]</tag>
 	This attribute is created by the route reflector when reflecting the

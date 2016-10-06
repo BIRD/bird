@@ -68,12 +68,16 @@ int as_path_match(struct adata *path, struct f_path_mask *mask);
 /* Transitive bit (for first u32 half of EC) */
 #define EC_TBIT 0x40000000
 
+#define ECOMM_LENGTH 8
 
 static inline int int_set_get_size(struct adata *list)
 { return list->length / 4; }
 
 static inline int ec_set_get_size(struct adata *list)
 { return list->length / 8; }
+
+static inline int lc_set_get_size(struct adata *list)
+{ return list->length / 12; }
 
 static inline u32 *int_set_get_data(struct adata *list)
 { return (u32 *) list->data; }
@@ -98,17 +102,45 @@ static inline u64 ec_ip4(u64 kind, u64 key, u64 val)
 static inline u64 ec_generic(u64 key, u64 val)
 { return (key << 32) | val; }
 
+/* Large community value */
+typedef struct lcomm {
+  u32 asn;
+  u32 ldp1;
+  u32 ldp2;
+} lcomm;
+
+#define LCOMM_LENGTH 12
+
+static inline lcomm lc_get(const u32 *l, int i)
+{ return (lcomm) { l[i], l[i+1], l[i+2] }; }
+
+static inline void lc_put(u32 *l, lcomm v)
+{ l[0] = v.asn; l[1] = v.ldp1; l[2] = v.ldp2; }
+
+static inline int lc_match(const u32 *l, int i, lcomm v)
+{ return (l[i] == v.asn && l[i+1] == v.ldp1 && l[i+2] == v.ldp2); }
+
+static inline u32 *lc_copy(u32 *dst, const u32 *src)
+{ memcpy(dst, src, LCOMM_LENGTH); return dst + 3; }
+
+
 int int_set_format(struct adata *set, int way, int from, byte *buf, uint size);
 int ec_format(byte *buf, u64 ec);
 int ec_set_format(struct adata *set, int from, byte *buf, uint size);
+int lc_format(byte *buf, lcomm lc);
+int lc_set_format(struct adata *set, int from, byte *buf, uint size);
 int int_set_contains(struct adata *list, u32 val);
 int ec_set_contains(struct adata *list, u64 val);
+int lc_set_contains(struct adata *list, lcomm val);
 struct adata *int_set_add(struct linpool *pool, struct adata *list, u32 val);
 struct adata *ec_set_add(struct linpool *pool, struct adata *list, u64 val);
+struct adata *lc_set_add(struct linpool *pool, struct adata *list, lcomm val);
 struct adata *int_set_del(struct linpool *pool, struct adata *list, u32 val);
 struct adata *ec_set_del(struct linpool *pool, struct adata *list, u64 val);
+struct adata *lc_set_del(struct linpool *pool, struct adata *list, lcomm val);
 struct adata *int_set_union(struct linpool *pool, struct adata *l1, struct adata *l2);
 struct adata *ec_set_union(struct linpool *pool, struct adata *l1, struct adata *l2);
+struct adata *lc_set_union(struct linpool *pool, struct adata *l1, struct adata *l2);
 
 
 #endif
