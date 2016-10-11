@@ -205,6 +205,10 @@
 <htmlurl>		"<A HREF=\"[URL]\">[NAME]</A>"
 </htmlurl>
 
+<rfc>			"<A HREF=\"http://www.rfc-editor.org/info/rfc[ID]\">RFC [ID]</A>"
+</rfc>
+
+
 % ref modified to have an optional name field
 <ref>		+	"<@@ref>[ID]\n"
 			"[NAME]</A>\n"

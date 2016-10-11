@@ -485,10 +485,9 @@ protocol rip {
 	used to validate route origination of BGP routes. A ROA table contains
 	ROA entries, each consist of a network prefix, a max prefix length and
 	an AS number. A ROA entry specifies prefixes which could be originated
-	by that AS number. ROA tables could be filled with data from RPKI
-	(<htmlurl url="https://tools.ietf.org/html/rfc6480" name="RFC 6480">)
-	or from public databases like Whois. ROA tables are examined by
-	<cf/roa_check()/ operator in filters.
+	by that AS number. ROA tables could be filled with data from RPKI (<rfc
+	id="6480">) or from public databases like Whois. ROA tables are
+	examined by <cf/roa_check()/ operator in filters.
 
 	Currently, there is just one option, <cf>roa <m/prefix/ max <m/num/ as
 	<m/num/</cf>, which can be used to populate the ROA table with static
@@ -1271,14 +1270,14 @@ clist) or on clist and pair/quad set (returning true if there is an element of
 the clist that is also a member of the pair/quad set).
 
 <p>There is one operator related to ROA infrastructure - <cf/roa_check()/. It
-examines a ROA table and does <htmlurl url="https://tools.ietf.org/html/rfc6483"
-name="RFC 6483"> route origin validation for a given network prefix. The basic
-usage is <cf>roa_check(<m/table/)</cf>, which checks current route (which
-should be from BGP to have AS_PATH argument) in the specified ROA table and
-returns ROA_UNKNOWN if there is no relevant ROA, ROA_VALID if there is a
-matching ROA, or ROA_INVALID if there are some relevant ROAs but none of them
-match. There is also an extended variant <cf>roa_check(<m/table/, <m/prefix/,
-<m/asn/)</cf>, which allows to specify a prefix and an ASN as arguments.
+examines a ROA table and does <rfc id="6483"> route origin validation for a
+given network prefix. The basic usage is <cf>roa_check(<m/table/)</cf>, which
+checks current route (which should be from BGP to have AS_PATH argument) in the
+specified ROA table and returns ROA_UNKNOWN if there is no relevant ROA,
+ROA_VALID if there is a matching ROA, or ROA_INVALID if there are some relevant
+ROAs but none of them match. There is also an extended variant
+<cf>roa_check(<m/table/, <m/prefix/, <m/asn/)</cf>, which allows to specify a
+prefix and an ASN as arguments.
 
 
 <sect>Control structures
@@ -1436,12 +1435,11 @@ corresponding protocol sections.
 <label id="babel-intro">
 
 <p>The Babel protocol
-(<htmlurl url="https://tools.ietf.org/html/rfc6126" name="RFC 6126">)
-is a loop-avoiding distance-vector routing
-protocol that is robust and efficient both in ordinary wired networks and in
-wireless mesh networks. Babel is conceptually very simple in its operation and
-"just works" in its default configuration, though some configuration is possible
-and in some cases desirable.
+(<rfc id="6126">) is a loop-avoiding distance-vector routing protocol that is
+robust and efficient both in ordinary wired networks and in wireless mesh
+networks. Babel is conceptually very simple in its operation and "just works"
+in its default configuration, though some configuration is possible and in some
+cases desirable.
 
 <p>While the Babel protocol is dual stack (i.e., can carry both IPv4 and IPv6
 routes over the same IPv6 transport), BIRD presently implements only the IPv6
@@ -1583,14 +1581,10 @@ addresses and associated interfaces. When a session changes its state, these
 protocols are notified and act accordingly (e.g. break an OSPF adjacency when
 the BFD session went down).
 
-<p>BIRD implements basic BFD behavior as defined in
-<htmlurl url="https://tools.ietf.org/html/rfc5880" name="RFC 5880">
-(some advanced features like the echo mode or authentication are not implemented),
-IP transport for BFD as defined in
-<htmlurl url="https://tools.ietf.org/html/rfc5881" name="RFC 5881"> and
-<htmlurl url="https://tools.ietf.org/html/rfc5883" name="RFC 5883">
-and interaction with client protocols as defined in
-<htmlurl url="https://tools.ietf.org/html/rfc5882" name="RFC 5882">.
+<p>BIRD implements basic BFD behavior as defined in <rfc id="5880"> (some
+advanced features like the echo mode or authentication are not implemented), IP
+transport for BFD as defined in <rfc id="5881"> and <rfc id="5883"> and
+interaction with client protocols as defined in <rfc id="5882">.
 
 <p>Note that BFD implementation in BIRD is currently a new feature in
 development, expect some rough edges and possible UI and configuration changes
@@ -1767,31 +1761,16 @@ the packet will travel through if it uses the particular route) in order to
 avoid routing loops.
 
 <p>BIRD supports all requirements of the BGP4 standard as defined in
-<htmlurl url="https://tools.ietf.org/html/rfc4271" name="RFC 4271">
-It also supports the community attributes
-(<htmlurl url="https://tools.ietf.org/html/rfc1997" name="RFC 1997">),
-capability negotiation
-(<htmlurl url="https://tools.ietf.org/html/rfc5492" name="RFC 5492">),
-MD5 password authentication
-(<htmlurl url="https://tools.ietf.org/html/rfc2385" name="RFC 2385">),
-extended communities
-(<htmlurl url="https://tools.ietf.org/html/rfc4360" name="RFC 4360">),
-route reflectors
-(<htmlurl url="https://tools.ietf.org/html/rfc4456" name="RFC 4456">),
-graceful restart
-(<htmlurl url="https://tools.ietf.org/html/rfc4724" name="RFC 4724">),
-multiprotocol extensions
-(<htmlurl url="https://tools.ietf.org/html/rfc4760" name="RFC 4760">),
-4B AS numbers
-(<htmlurl url="https://tools.ietf.org/html/rfc4893" name="RFC 4893">),
-and 4B AS numbers in extended communities
-(<htmlurl url="https://tools.ietf.org/html/rfc5668" name="RFC 5668">).
+<rfc id="4271"> It also supports the community attributes (<rfc id="1997">),
+capability negotiation (<rfc id="5492">), MD5 password authentication (<rfc
+id="2385">), extended communities (<rfc id="4360">), route reflectors (<rfc
+id="4456">), graceful restart (<rfc id="4724">), multiprotocol extensions
+(<rfc id="4760">), 4B AS numbers (<rfc id="4893">), and 4B AS numbers in
+extended communities (<rfc id="5668">).
 
 
 For IPv6, it uses the standard multiprotocol extensions defined in
-<htmlurl url="https://tools.ietf.org/html/rfc4760" name="RFC 4760">
-and applied to IPv6 according to
-<htmlurl url="https://tools.ietf.org/html/rfc2545" name="RFC 2545">.
+<rfc id="4760"> and applied to IPv6 according to <rfc id="2545">.
 
 <sect1>Route selection rules
 <label id="bgp-route-select-rules">
@@ -1941,21 +1920,18 @@ using the following configuration parameters:
 	<ref id="bfd" name="BFD"> section for details. Default: disabled.
 
 	<tag><label id="bgp-ttl-security">ttl security <m/switch/</tag>
-	Use GTSM (<htmlurl url="https://tools.ietf.org/html/rfc5082"
-	name="RFC 5082"> - the generalized TTL security mechanism). GTSM
+	Use GTSM (<rfc id="5082"> - the generalized TTL security mechanism). GTSM
 	protects against spoofed packets by ignoring received packets with a
 	smaller than expected TTL. To work properly, GTSM have to be enabled on
 	both sides of a BGP session. If both <cf/ttl security/ and
 	<cf/multihop/ options are enabled, <cf/multihop/ option should specify
 	proper hop value to compute expected TTL. Kernel support required:
 	Linux: 2.6.34+ (IPv4), 2.6.35+ (IPv6), BSD: since long ago, IPv4 only.
-	Note that full (ICMP protection, for example) <htmlurl
-	url="https://tools.ietf.org/html/rfc5082" name="RFC 5082"> support is
+	Note that full (ICMP protection, for example) <rfc id="5082"> support is
 	provided by Linux only. Default: disabled.
 
 	<tag><label id="bgp-pass">password <m/string/</tag>
-	Use this password for MD5 authentication of BGP sessions (<htmlurl
-	url="https://tools.ietf.org/html/rfc2385" name="RFC 2385">). When
+	Use this password for MD5 authentication of BGP sessions (<rfc id="2385">). When
 	used on BSD systems, see also <cf/setkey/ option below. Default: no
 	authentication.
 
@@ -1991,9 +1967,8 @@ using the following configuration parameters:
 	Be a route server and treat the neighbor as a route server client.
 	A route server is used as a replacement for full mesh EBGP routing in
 	Internet exchange points in a similar way to route reflectors used in
-	IBGP routing. BIRD does not implement obsoleted <htmlurl
-	url="https://tools.ietf.org/html/rfc1863" name="RFC 1863">, but uses
-	ad-hoc implementation, which behaves like plain EBGP but reduces
+	IBGP routing. BIRD does not implement obsoleted <rfc id="1863">, but
+	uses ad-hoc implementation, which behaves like plain EBGP but reduces
 	modifications to advertised route attributes to be transparent (for
 	example does not prepend its AS number to AS PATH attribute and
 	keeps MED attribute). Default: disabled.
@@ -2030,30 +2005,28 @@ using the following configuration parameters:
 	to keep BGP speakers synchronized. Sometimes (e.g., if BGP speaker
 	changes its import filter, or if there is suspicion of inconsistency) it
 	is necessary to do a new complete route exchange. BGP protocol extension
-	Route Refresh (<htmlurl url="https://tools.ietf.org/html/rfc2918"
-	name="RFC 2918">) allows BGP speaker to request re-advertisement of
-	all routes from its neighbor. BGP protocol extension Enhanced Route
-	Refresh (<htmlurl url="https://tools.ietf.org/html/rfc7313"
-	name="RFC 7313">) specifies explicit begin and end for such exchanges,
-	therefore the receiver can remove stale routes that were not advertised
-	during the exchange. This option specifies whether BIRD advertises
-	these capabilities and supports related procedures. Note that even when
-	disabled, BIRD can send route refresh requests.  Default: on.
+	Route Refresh (<rfc id="2918">) allows BGP speaker to request
+	re-advertisement of all routes from its neighbor. BGP protocol
+	extension Enhanced Route Refresh (<rfc id="7313">) specifies explicit
+	begin and end for such exchanges, therefore the receiver can remove
+	stale routes that were not advertised during the exchange. This option
+	specifies whether BIRD advertises these capabilities and supports
+	related procedures. Note that even when disabled, BIRD can send route
+	refresh requests.  Default: on.
 
 	<tag><label id="bgp-graceful-restart">graceful restart <m/switch/|aware</tag>
 	When a BGP speaker restarts or crashes, neighbors will discard all
 	received paths from the speaker, which disrupts packet forwarding even
-	when the forwarding plane of the speaker remains intact. <htmlurl
-	url="https://tools.ietf.org/html/rfc4724" name="RFC 4724">
-	specifies an optional graceful restart mechanism to alleviate this
-	issue. This option controls the mechanism. It has three states:
-	Disabled, when no support is provided. Aware, when the graceful restart
-	support is announced and the support for restarting neighbors is
-	provided, but no local graceful restart is allowed (i.e. receiving-only
-	role). Enabled, when the full graceful restart support is provided
-	(i.e. both restarting and receiving role). Note that proper support for
-	local graceful restart requires also configuration of other protocols.
-	Default: aware.
+	when the forwarding plane of the speaker remains intact. <rfc
+	id="4724"> specifies an optional graceful restart mechanism to
+	alleviate this issue. This option controls the mechanism. It has three
+	states: Disabled, when no support is provided. Aware, when the graceful
+	restart support is announced and the support for restarting neighbors
+	is provided, but no local graceful restart is allowed (i.e.
+	receiving-only role). Enabled, when the full graceful restart
+	support is provided (i.e. both restarting and receiving role). Note
+	that proper support for local graceful restart requires also
+	configuration of other protocols.  Default: aware.
 
 	<tag><label id="bgp-graceful-restart-time">graceful restart time <m/number/</tag>
 	The restart time is announced in the BGP graceful restart capability
@@ -2062,16 +2035,15 @@ using the following configuration parameters:
 	120 seconds.
 
 	<tag><label id="bgp-interpret-communities">interpret communities <m/switch/</tag>
-	<htmlurl url="https://tools.ietf.org/html/rfc1997" name="RFC 1997">
-	demands that BGP speaker should process well-known communities
-	like no-export (65535, 65281) or no-advertise (65535, 65282). For
-	example, received route carrying a no-adverise community should not be
-	advertised to any of its neighbors. If this option is enabled (which is
-	by default), BIRD has such behavior automatically (it is evaluated when
-	a route is exported to the BGP protocol just before the export filter).
-	Otherwise, this integrated processing of well-known communities is
-	disabled. In that case, similar behavior can be implemented in the
-	export filter. Default: on.
+	<rfc id="1997"> demands that BGP speaker should process well-known
+	communities like no-export (65535, 65281) or no-advertise (65535,
+	65282). For example, received route carrying a no-adverise community
+	should not be advertised to any of its neighbors. If this option is
+	enabled (which is by default), BIRD has such behavior automatically (it
+	is evaluated when a route is exported to the BGP protocol just before
+	the export filter).  Otherwise, this integrated processing of
+	well-known communities is disabled. In that case, similar behavior can
+	be implemented in the export filter.  Default: on.
 
 	<tag><label id="bgp-enable-as4">enable as4 <m/switch/</tag>
 	BGP protocol was designed to use 2B AS numbers and was extended later to
@@ -2096,8 +2068,7 @@ using the following configuration parameters:
 
 	<tag><label id="bgp-advertise-ipv4">advertise ipv4 <m/switch/</tag>
 	Advertise IPv4 multiprotocol capability. This is not a correct behavior
-	according to the strict interpretation of <htmlurl
-	url="https://tools.ietf.org/html/rfc4760" name="RFC 4760">, but it is
+	according to the strict interpretation of <rfc id="4760">, but it is
 	widespread and required by some BGP implementations (Cisco and Quagga).
 	This option is relevant to IPv4 mode with enabled capability
 	advertisement only. Default: on.
@@ -2107,7 +2078,7 @@ using the following configuration parameters:
 	the route limit is exceeded, the connection is closed with an error.
 	Limit is currently implemented as <cf>import limit <m/number/ action
 	restart</cf>. This option is obsolete and it is replaced by
-	<ref id="proto-import-limit" name="import limit option">. Default: no	limit.
+	<ref id="proto-import-limit" name="import limit option">. Default: no limit.
 
 	<tag><label id="bgp-disable-after-error">disable after error <m/switch/</tag>
 	When an error is encountered (either locally or by the other side),
@@ -2164,19 +2135,16 @@ using the following configuration parameters:
 	BGP route selection algorithm is often viewed as a comparison between
 	individual routes (e.g. if a new route appears and is better than the
 	current best one, it is chosen as the new best one). But the proper
-	route selection, as specified by <htmlurl
-	url="https://tools.ietf.org/html/rfc4271" name="RFC 4271">, cannot be
-	fully implemented in that way. The problem is mainly in handling the
-	MED attribute. BIRD, by default, uses an simplification based on
-	individual route comparison, which in some cases may lead to temporally
-	dependent behavior (i.e. the selection is dependent on the order in
-	which routes appeared). This option enables a different (and
-	slower) algorithm implementing proper <htmlurl
-	url="https://tools.ietf.org/html/rfc4271" name="RFC 4271"> route
-	selection, which is deterministic. Alternative way how to get
-	deterministic behavior is to use <cf/med metric/ option. This option is
-	incompatible with <ref id="dsc-table-sorted" name="sorted tables">.
-	Default: off.
+	route selection, as specified by <rfc id="4271">, cannot be fully
+	implemented in that way. The problem is mainly in handling the MED
+	attribute. BIRD, by default, uses an simplification based on individual
+	route comparison, which in some cases may lead to temporally dependent
+	behavior (i.e. the selection is dependent on the order in which routes
+	appeared). This option enables a different (and slower) algorithm
+	implementing proper <rfc id="4271"> route selection, which is
+	deterministic. Alternative way how to get deterministic behavior is to
+	use <cf/med metric/ option. This option is incompatible with <ref
+	id="dsc-table-sorted" name="sorted tables">.  Default: off.
 
 	<tag><label id="bgp-igp-metric">igp metric <m/switch/</tag>
 	Enable comparison of internal distances to boundary routers during best
@@ -2185,8 +2153,7 @@ using the following configuration parameters:
 	<tag><label id="bgp-prefer-older">prefer older <m/switch/</tag>
 	Standard route selection algorithm breaks ties by comparing router IDs.
 	This changes the behavior to prefer older routes (when both are external
-	and from different peer). For details, see <htmlurl
-	url="https://tools.ietf.org/html/rfc5004" name="RFC 5004">. Default: off.
+	and from different peer). For details, see <rfc id="5004">. Default: off.
 
 	<tag><label id="bgp-default-med">default bgp_med <m/number/</tag>
 	Value of the Multiple Exit Discriminator to be used during route
@@ -2226,9 +2193,8 @@ some of them (marked with `<tt/O/') are optional.
 	when a route is exported to an external BGP instance to ensure that the
 	attribute received from a neighboring AS is not propagated to other
 	neighboring ASes. A new value might be set in the export filter of an
-	external BGP instance. See <htmlurl
-	url="https://tools.ietf.org/html/rfc4451" name="RFC 4451"> for further
-	discussion of BGP MED attribute.
+	external BGP instance. See <rfc id="4451"> for further discussion of
+	BGP MED attribute.
 
 	<tag><label id="rta-bgp-origin">enum bgp_origin/</tag>
 	Origin of the route: either <cf/ORIGIN_IGP/ if the route has originated
@@ -2597,15 +2563,13 @@ protocol kernel {		# Secondary routing table
 <label id="ospf-intro">
 
 <p>Open Shortest Path First (OSPF) is a quite complex interior gateway
-protocol. The current IPv4 version (OSPFv2) is defined in
-<htmlurl url="https://tools.ietf.org/html/rfc2328" name="RFC 2328">
-and the current IPv6 version (OSPFv3) is defined in
-<htmlurl url="https://tools.ietf.org/html/rfc5340" name="RFC 5340">
-It's a link state (a.k.a. shortest path first) protocol -- each router maintains
-a database describing the autonomous system's topology. Each participating
-router has an identical copy of the database and all routers run the same
-algorithm calculating a shortest path tree with themselves as a root. OSPF
-chooses the least cost path as the best path.
+protocol. The current IPv4 version (OSPFv2) is defined in <rfc id="2328"> and
+the current IPv6 version (OSPFv3) is defined in <rfc id="5340"> It's a link
+state (a.k.a. shortest path first) protocol -- each router maintains a database
+describing the autonomous system's topology. Each participating router has an
+identical copy of the database and all routers run the same algorithm
+calculating a shortest path tree with themselves as a root. OSPF chooses the
+least cost path as the best path.
 
 <p>In OSPF, the autonomous system can be split to several areas in order to
 reduce the amount of resources consumed for exchanging the routing information
@@ -2725,8 +2689,7 @@ protocol ospf &lt;name&gt; {
 <descrip>
 	<tag><label id="ospf-rfc1583compat">rfc1583compat <M>switch</M></tag>
 	This option controls compatibility of routing table calculation with
-	<htmlurl url="https://tools.ietf.org/html/rfc1583" name="RFC 1583">.
-	Default	value is no.
+	<rfc id="1583">. Default value is no.
 
 	<tag><label id="ospf-instance-id">instance id <m/num/</tag>
 	When multiple OSPF protocol instances are active on the same links, they
@@ -2743,9 +2706,8 @@ protocol ospf &lt;name&gt; {
 	that participates in the OSPF topology but does not allow transit
 	traffic. In OSPFv2, this is implemented by advertising maximum metric
 	for outgoing links. In OSPFv3, the stub router behavior is announced by
-	clearing the R-bit in the router LSA. See <htmlurl
-	url="https://tools.ietf.org/html/rfc6987" name="RFC 6987">
-	for details. Default value is no.
+	clearing the R-bit in the router LSA. See <rfc id="6987"> for details.
+	Default value is no.
 
 	<tag><label id="ospf-tick">tick <M>num</M></tag>
 	The routing table calculation and clean-up of areas' databases is not
@@ -2856,11 +2818,9 @@ protocol ospf &lt;name&gt; {
 
 	You can specify alternative instance ID for the interface definition,
 	therefore it is possible to have several instances of that interface
-	with different options or even in different areas. For OSPFv2,
-	instance ID support is an extension (<htmlurl
-	url="https://tools.ietf.org/html/rfc6549" name="RFC
-	6549">) and is supposed to be set per-protocol. For OSPFv3, it is
-	an integral feature.
+	with different options or even in different areas. For OSPFv2, instance
+	ID support is an extension (<rfc id="6549">) and is supposed to be set
+	per-protocol. For OSPFv3, it is an integral feature.
 
 	<tag><label id="ospf-virtual-link">virtual link <M>id</M> [instance <m/num/]</tag>
 	Virtual link to router with the router id. Virtual link acts as a
@@ -3284,9 +3244,7 @@ time intervals or as an answer to a request) advertisement packets to connected
 networks. These packets contain basic information about a local network (e.g. a
 list of network prefixes), which allows network hosts to autoconfigure network
 addresses and choose a default route. BIRD implements router behavior as defined
-in <htmlurl url="https://tools.ietf.org/html/rfc4861" name="RFC 4861">
-and also the DNS extensions from
-<htmlurl url="https://tools.ietf.org/html/rfc6106" name="RFC 6106">.
+in <rfc id="4861"> and also the DNS extensions from <rfc id="6106">.
 
 <sect1>Configuration
 <label id="radv-config">
@@ -3541,12 +3499,9 @@ counting to infinity is necessary, because it is slow. Due to infinity being 16,
 you can't use RIP on networks where maximal distance is higher than 15
 hosts.
 
-<p>BIRD supports RIPv1
-(<htmlurl url="http://www.rfc-editor.org/rfc/rfc1058.txt" name="RFC 1058">),
-RIPv2 (<htmlurl url="http://www.rfc-editor.org/rfc/rfc2453.txt" name="RFC 2453">),
-RIPng (<htmlurl url="http://www.rfc-editor.org/rfc/rfc2080.txt" name="RFC 2080">),
-and RIP cryptographic authentication (SHA-1 not implemented)
-(<htmlurl url="http://www.rfc-editor.org/rfc/rfc4822.txt" name="RFC 4822">).
+<p>BIRD supports RIPv1 (<rfc id="1058">), RIPv2 (<rfc id="2453">), RIPng (<rfc
+id="2080">), and RIP cryptographic authentication (SHA-1 not implemented)
+(<rfc id="4822">).
 
 <p>RIP is a very simple protocol, and it has a lot of shortcomings. Slow
 convergence, big network load and inability to handle larger networks makes it
@@ -3725,9 +3680,9 @@ protocol rip [&lt;name&gt;] {
 	compatibility with neighbors regardless of whether they use ttl
 	security.
 
-	For RIPng, TTL security is a standard behavior (required by <htmlurl
-	url="https://tools.ietf.org/html/rfc2080" name="RFC 2080">) and
-	therefore default value is yes. For IPv4 RIP, default value is no.
+	For RIPng, TTL security is a standard behavior (required by <rfc
+	id="2080">) and therefore default value is yes. For IPv4 RIP, default
+	value is no.
 
 	<tag><label id="rip-iface-tx-class">tx class|dscp|priority <m/number/</tag>
 	These options specify the ToS/DiffServ/Traffic class/Priority of the

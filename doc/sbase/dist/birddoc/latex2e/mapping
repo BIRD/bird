@@ -238,6 +238,9 @@
 <htmlurl>		"\\href{[URL]}{[NAME]}"
 </htmlurl>
 
+<rfc>			"\\href{http://www.rfc-editor.org/info/rfc[ID]}{RFC [ID]}"
+</rfc>
+
 <x>
 </x>
 

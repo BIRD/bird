@@ -99,7 +99,7 @@ anywhere else. <pavel@ucw.cz>
 
 <!-- url added by HG; htmlurl added by esr -->
 <!entity % xref
-	" label|ref|pageref|cite|url|htmlurl|ncite " >
+	" label|ref|pageref|cite|url|htmlurl|rfc|ncite " >
 
 <!entity % inline
 	" (#pcdata | f| x| %emph; |sq| %xref | %index | file )* " >
@@ -500,6 +500,10 @@ anywhere else. <pavel@ucw.cz>
 <!attlist htmlurl
         url cdata #required
         name cdata "&urlnam" >
+
+<!element rfc - o empty>
+<!attlist rfc
+        id cdata #required>
 
 <!element pageref - o empty>
 <!attlist pageref
