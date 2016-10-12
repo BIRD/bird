@@ -397,7 +397,7 @@ protocol rip {
 	<tag><label id="opt-function">function <m/name/ (<m/parameters/) <m/local variables/ { <m/commands/ }</tag>
 	Define a function. You can learn more about functions in the following chapter.
 
-	<tag><label id="opt-protocol">protocol rip|ospf|bgp|... [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
+	<tag><label id="opt-protocol">protocol rip|ospf|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
 	Define a protocol instance called <cf><m/name/</cf> (or with a name like
 	"rip5" generated automatically if you don't specify any
 	<cf><m/name/</cf>). You can learn more about configuring protocols in
@@ -406,7 +406,7 @@ protocol rip {
 	<cf><m/name2/</cf> You can run more than one instance of most protocols
 	(like RIP or BGP). By default, no instances are configured.
 
-	<tag><label id="opt-template">template rip|bgp|... [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
+	<tag><label id="opt-template">template rip|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
 	Define a protocol template instance called <m/name/ (or with a name like
 	"bgp1" generated automatically if you don't specify any	<m/name/).
 	Protocol templates can be used to group common options when many
@@ -480,7 +480,7 @@ protocol rip {
 	Option <cf/sorted/ can be used to enable sorting of routes, see
 	<ref id="dsc-table-sorted" name="sorted table"> description for details.
 
-	<tag><label id="opt-roa-table">roa table <m/name/ [ { roa table options ... } ]</tag>
+	<tag><label id="opt-roa-table">roa table <m/name/ [ { <m/roa table options .../ } ]</tag>
 	Create a new ROA (Route Origin Authorization) table. ROA tables can be
 	used to validate route origination of BGP routes. A ROA table contains
 	ROA entries, each consist of a network prefix, a max prefix length and
@@ -1638,7 +1638,7 @@ protocol bfd [&lt;name&gt;] {
 </code>
 
 <descrip>
-	<tag><label id="bfd-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
+	<tag><label id="bfd-iface">interface <m/pattern/ [, <m/.../] { <m/options/ }</tag>
 	Interface definitions allow to specify options for sessions associated
 	with such interfaces and also may contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common option for a detailed
@@ -2356,7 +2356,7 @@ on Linux systems BIRD cannot change non-BIRD route in the kernel routing table.
 <p>There are just few configuration options for the Direct protocol:
 
 <p><descrip>
-	<tag><label id="direct-iface">interface <m/pattern [, <m/.../]/</tag>
+	<tag><label id="direct-iface">interface <m/pattern/ [, <m/.../]</tag>
 	By default, the Direct protocol will generate device routes for all the
 	interfaces available. If you want to restrict it to some subset of
 	interfaces or addresses (e.g. if you're using multiple routing tables
@@ -3253,7 +3253,7 @@ in <rfc id="4861"> and also the DNS extensions from <rfc id="6106">.
 definitions, prefix definitions and DNS definitions:
 
 <descrip>
-	<tag><label id="radv-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
+	<tag><label id="radv-iface">interface <m/pattern/ [, <m/.../] { <m/options/ }</tag>
 	Interface definitions specify a set of interfaces on which the
 	protocol is activated and contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common options for
@@ -3563,7 +3563,7 @@ protocol rip [&lt;name&gt;] {
 	nexthops in one route. By default, ECMP is disabled. If enabled,
 	default	value of the limit is 16.
 
-	<tag><label id="rip-iface">interface <m/pattern [, <m/.../]/ { <m/options/ }</tag>
+	<tag><label id="rip-iface">interface <m/pattern/ [, <m/.../] { <m/options/ }</tag>
 	Interface definitions specify a set of interfaces on which the
 	protocol is activated and contain interface specific options.
 	See <ref id="proto-iface" name="interface"> common options for
@@ -3795,7 +3795,7 @@ definition of the protocol contains mainly a list of static routes.
 	interface can be specified as a part of the address (e.g.,
 	<cf/via fe80::1234%eth0/).
 
-	<tag><label id="static-route-via-mpath">route <m/prefix/ multipath via <m/ip/ [weight <m/num/] [bfd <m/switch/] [via ...]</tag>
+	<tag><label id="static-route-via-mpath">route <m/prefix/ multipath via <m/ip/ [weight <m/num/] [bfd <m/switch/] [via <m/.../]</tag>
 	Static multipath route. Contains several nexthops (gateways), possibly
 	with their weights.
 
