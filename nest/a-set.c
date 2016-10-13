@@ -260,12 +260,12 @@ ec_set_add(struct linpool *pool, struct adata *list, u64 val)
   struct adata *res = lp_alloc(pool, sizeof(struct adata) + olen + 8);
   res->length = olen + 8;
 
-  if (list)
-    memcpy(res->data, list->data, list->length);
-
-  u32 *l = (u32 *) (res->data + olen);
+  u32 *l = (u32 *) res->data;
   l[0] = ec_hi(val);
   l[1] = ec_lo(val);
+
+  if (list)
+    memcpy((char *) res->data + 8, list->data, list->length);
 
   return res;
 }
