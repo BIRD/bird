@@ -65,7 +65,7 @@ enum pdu_type {
   PDU_TYPE_MAX
 };
 
-static const char *str_pdu_type[] = {
+static const char *str_pdu_type_[] = {
   [SERIAL_NOTIFY] 		= "Serial Notify",
   [SERIAL_QUERY] 		= "Serial Query",
   [RESET_QUERY] 		= "Reset Query",
@@ -78,6 +78,13 @@ static const char *str_pdu_type[] = {
   [ROUTER_KEY] 			= "Router Key",
   [ERROR] 			= "Error"
 };
+
+static const char * const str_pdu_type(uint type) {
+  if (type < PDU_TYPE_MAX)
+    return str_pdu_type_[type];
+  else
+    return "Undefined packet type";
+}
 
 /*
  *  0          8          16         24        31
@@ -257,7 +264,7 @@ rpki_pdu_to_network_byte_order(struct pdu_header *pdu)
     break;
 
   default:
-    bug("PDU type %s should not be sent by us", str_pdu_type[pdu->type]);
+    bug("PDU type %s should not be sent by us", str_pdu_type(pdu->type));
   }
 }
 
@@ -358,7 +365,7 @@ rpki_log_packet(struct rpki_cache *cache, const struct pdu_header *pdu, const en
   if (!(cache->p->p.debug & D_PACKETS))
     return;
 
-  const char *str_type = str_pdu_type[pdu->type];
+  const char *str_type = str_pdu_type(pdu->type);
   char detail[256];
 
 #define SAVE(fn)		\
@@ -436,7 +443,7 @@ rpki_log_packet(struct rpki_cache *cache, const struct pdu_header *pdu, const en
     /* Optional encapsulated erroneous packet */
     if (err->len_enc_pdu)
     {
-      SAVE(bsnprintf(detail + strlen(detail), sizeof(detail) - strlen(detail), ", %s packet:", str_pdu_type[((struct pdu_header *) err->rest)->type]));
+      SAVE(bsnprintf(detail + strlen(detail), sizeof(detail) - strlen(detail), ", %s packet:", str_pdu_type(((struct pdu_header *) err->rest)->type)));
       if (err->rest + err->len_enc_pdu <= (byte *)err + err->len)
       {
 	for (const byte *c = err->rest; c != err->rest + err->len_enc_pdu; c++)
@@ -575,7 +582,7 @@ rpki_check_receive_packet(struct rpki_cache *cache, const struct pdu_header *pdu
 
   if (pdu_len < min_pdu_size[pdu->type])
   {
-    rpki_send_error_pdu(cache, CORRUPT_DATA, pdu_len, pdu, "Received %s packet with %d bytes, but expected at least %d bytes", str_pdu_type[pdu->type], pdu_len, min_pdu_size[pdu->type]);
+    rpki_send_error_pdu(cache, CORRUPT_DATA, pdu_len, pdu, "Received %s packet with %d bytes, but expected at least %d bytes", str_pdu_type(pdu->type), pdu_len, min_pdu_size[pdu->type]);
     return RPKI_ERROR;
   }
 
@@ -839,7 +846,7 @@ rpki_rx_packet(struct rpki_cache *cache, struct pdu_header *pdu)
   {
   case RESET_QUERY:
   case SERIAL_QUERY:
-    RPKI_WARN(p, "Received a %s packet that is destined for cache server", str_pdu_type[pdu->type]);
+    RPKI_WARN(p, "Received a %s packet that is destined for cache server", str_pdu_type(pdu->type));
     break;
 
   case SERIAL_NOTIFY:
