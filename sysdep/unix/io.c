@@ -1415,6 +1415,10 @@ sk_ssh_connect(sock *s)
     switch (ssh_connect(s->ssh->session))
     {
     case SSH_AGAIN:
+      /* A quick look into libSSH shows that ssh_get_fd() should return non-(-1)
+       * after SSH_AGAIN is returned by ssh_connect(). This is however nowhere
+       * documented but our code relies on that.
+       */
       return SSH_AGAIN;
 
     case SSH_OK:
