@@ -21,7 +21,7 @@
 #include "lib/lists.h"
 #include "lib/socket.h"
 #include "lib/string.h"
-#include "lib/timer.h"
+#include "sysdep/unix/timer.h"
 
 #ifndef IPV6
 #error "The Babel protocol only speaks IPv6"
