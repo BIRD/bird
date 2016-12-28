@@ -27,6 +27,10 @@ const u8 net_max_prefix_length[] = {
   [NET_FLOW4] 	= IP4_MAX_PREFIX_LENGTH,
   [NET_FLOW6] 	= IP6_MAX_PREFIX_LENGTH,
   [NET_MPLS]	= 0,
+  [NET_IP4_MPLS] 	= IP4_MAX_PREFIX_LENGTH,
+  [NET_IP6_MPLS] 	= IP6_MAX_PREFIX_LENGTH,
+  [NET_VPN4_MPLS] 	= IP4_MAX_PREFIX_LENGTH,
+  [NET_VPN6_MPLS] 	= IP6_MAX_PREFIX_LENGTH,
 };
 
 const u16 net_max_text_length[] = {
@@ -39,6 +43,10 @@ const u16 net_max_text_length[] = {
   [NET_FLOW4] 	= 0,	/* "flow4 { ... }" */
   [NET_FLOW6] 	= 0,	/* "flow6 { ... }" */
   [NET_MPLS]	= 7,	/* "1048575" */
+  [NET_IP4_MPLS] = 18 + 5 + 8*MPLS_MAX_LABEL_STACK, /* ip + " mpls " + "1048575/1048575/..." */
+  [NET_IP6_MPLS] = 43 + 5 + 8*MPLS_MAX_LABEL_STACK,
+  [NET_VPN4_MPLS] = 40 + 5 + 8*MPLS_MAX_LABEL_STACK,
+  [NET_VPN6_MPLS] = 65 + 5 + 8*MPLS_MAX_LABEL_STACK,
 };
 
 static int
@@ -93,6 +101,23 @@ net_format_flow6(const net_addr_flow6 *n, char *buf, int buflen)
 static int
 net_format_mpls(const net_addr_mpls *n, char *buf, int buflen)
 { return bsnprintf(buf, buflen, "%u", n->label); }
+
+#define NET_DO(f) \
+static int net_format_##f##_mpls(const net_addr_##f##_mpls *n, char *buf, int buflen) { \
+  int k = net_format_##f(&(n->addr), buf, buflen); \
+  if (!NET_ADDR_MPLS_LABEL_STACK_LEN(n)) \
+    return k; \
+  k += bsnprintf(buf, buflen, "mpls %u", n->label[0]); \
+  for (uint i = 1; i < NET_ADDR_MPLS_LABEL_STACK_LEN(n); i++) \
+    k += bsnprintf(buf, buflen, "/%u"); \
+  return k; \
+}
+
+NET_DO(ip4)
+NET_DO(ip6)
+NET_DO(vpn4)
+NET_DO(vpn6)
+#undef NET_DO
 
 int
 net_format(const net_addr *n, char *buf, int buflen)
