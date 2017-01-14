@@ -9,6 +9,9 @@
 #include <net/if_dl.h>
 #include <netinet/in_systm.h> // Workaround for some BSDs
 #include <netinet/ip.h>
+#ifdef __FreeBSD__
+#include <sys/param.h> // FreeBSD_version definition
+#endif
 
 
 #ifdef __NetBSD__
@@ -179,8 +182,8 @@ sk_prepare_ip_header(sock *s, void *hdr, int dlen)
   ip->ip_src = ipa_to_in4(s->saddr);
   ip->ip_dst = ipa_to_in4(s->daddr);
 
-#ifdef __OpenBSD__
-  /* OpenBSD expects ip_len in network order, other BSDs expect host order */
+#if defined __OpenBSD__ || (defined __FreeBSD__ && (__FreeBSD_version >= 1100030))
+  /* OpenBSD and FreeBSD (since 11) expects ip_len in network order, other BSDs expect host order */
   ip->ip_len = htons(ip->ip_len);
 #endif
 }
