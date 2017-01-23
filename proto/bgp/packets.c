@@ -1534,7 +1534,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
   },
   {
     .afi = BGP_AF_IPV4_MPLS,
-    .net = NET_IP4_MPLS,
+    .net = NET_IP4,
     .name = "ipv4-mpls",
     .encode_nlri = bgp_encode_nlri_ip4_mpls,
     .decode_nlri = bgp_decode_nlri_ip4_mpls,
@@ -1564,7 +1564,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
   },
   {
     .afi = BGP_AF_IPV6_MPLS,
-    .net = NET_IP6_MPLS,
+    .net = NET_IP6,
     .name = "ipv6-mpls",
     .encode_nlri = bgp_encode_nlri_ip6_mpls,
     .decode_nlri = bgp_decode_nlri_ip6_mpls,
@@ -1574,7 +1574,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
   },
   {
     .afi = BGP_AF_VPN4_MPLS,
-    .net = NET_VPN4_MPLS,
+    .net = NET_VPN4,
     .name = "vpn4-mpls",
     .encode_nlri = bgp_encode_nlri_vpn4_mpls,
     .decode_nlri = bgp_decode_nlri_vpn4_mpls,
@@ -1584,7 +1584,7 @@ static const struct bgp_af_desc bgp_af_table[] = {
   },
   {
     .afi = BGP_AF_VPN6_MPLS,
-    .net = NET_VPN6_MPLS,
+    .net = NET_VPN6,
     .name = "vpn6-mpls",
     .encode_nlri = bgp_encode_nlri_vpn6_mpls,
     .decode_nlri = bgp_decode_nlri_vpn6_mpls,

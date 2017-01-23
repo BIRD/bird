@@ -40,6 +40,7 @@
 #define NB_MPLS		(1 << NET_MPLS)
 
 #define NB_IP		(NB_IP4 | NB_IP6)
+#define NB_VPN		(NB_VPN4 | NB_VPN6)
 #define NB_ANY		0xffffffff
 
 #define NET_DO_ALL \
