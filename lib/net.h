@@ -244,6 +244,26 @@ static inline void net_fill_flow6(net_addr *a, ip6_addr prefix, uint pxlen, byte
   memcpy(f->data, data, dlen);
 }
 
+static inline void net_add_mpls_label_stack(net_addr *a, uint len, u32 *label)
+{
+  switch (a->type) {
+#define NET_DO(mi,mj) \
+    case NET_##mj: \
+      a->type = NET_##mj##_MPLS; \
+      a->length = sizeof(net_addr_##mi##_mpls) + len * 4; \
+      for (uint i=0; i<len; i++) \
+	a->mi##_mpls.label[i] = label[i]; \
+      break;
+    NET_DO(ip4,IP4)
+    NET_DO(ip6,IP6)
+    NET_DO(vpn4,VPN4)
+    NET_DO(vpn6,VPN6)
+#undef NET_DO
+    default:
+      bug("Adding mpls stack to net_addr_%s not implemented.", net_label[a->type]);
+  }
+}
+
 static inline int net_val_match(u8 type, u32 mask)
 { return !!((1 << type) & mask); }
 
@@ -458,12 +478,7 @@ static inline u32 net_hash_mpls(const net_addr_mpls *n)
 
 #define NET_DO(f) \
   static inline u32 net_hash_##f##_mpls(const net_addr_##f##_mpls *n) \
-  { \
-    u64 h; mem_hash_init(&h); \
-    u32 ah = net_hash_##f(&(n->addr)); mem_hash_mix(&h, &ah, sizeof(ah)); \
-    mem_hash_mix(&h, n->label, NET_ADDR_MPLS_LABEL_STACK_LEN(n) * 4); \
-    return mem_hash_value(&h); \
-  }
+  { return net_hash_##f(&(n->addr)); }
 NET_DO(ip4)
 NET_DO(ip6)
 NET_DO(vpn4)

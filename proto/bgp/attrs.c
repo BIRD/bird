@@ -636,6 +636,13 @@ bgp_decode_unknown(struct bgp_parse_state *s, uint code, uint flags, byte *data,
   bgp_set_attr_data(to, s->pool, code, flags, data, len);
 }
 
+static inline void
+bgp_export__mpls_label_stack(struct bgp_export_state *s, eattr *a)
+{
+  net_add_mpls_label_stack(s->n, (a->u.ptr->length)/4, (u32 *) a->u.ptr->data);
+  UNSET(a);
+}
+
 
 /*
  *	Attribute table
@@ -763,6 +770,11 @@ static const struct bgp_attr_desc bgp_attr_table[] = {
     .export = bgp_export_large_community,
     .encode = bgp_encode_u32s,
     .decode = bgp_decode_large_community,
+  },
+  [BA__MPLS_LABEL_STACK] = {
+    .name = "_mpls_label_stack",
+    .type = EAF_TYPE_INT_SET,
+    .export = bgp_export__mpls_label_stack,
   },
 };
 
@@ -1229,6 +1241,7 @@ static struct bgp_prefix *
 bgp_get_prefix(struct bgp_channel *c, net_addr *net, u32 path_id)
 {
   u32 hash = net_hash(net) ^ u32_hash(path_id);
+
   struct bgp_prefix *px = HASH_FIND(c->prefix_hash, PXH, net, path_id, hash);
 
   if (px)
@@ -1333,11 +1346,13 @@ bgp_cluster_list_prepend(ea_list **attrs, struct linpool *pool, u32 id)
 }
 
 static ea_list *
-bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *attrs, struct linpool *pool)
+bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *attrs, net_addr *n, struct linpool *pool)
 {
   struct proto *SRC = e->attrs->src->proto;
   struct bgp_proto *src = (SRC->proto == &proto_bgp) ? (void *) SRC : NULL;
-  struct bgp_export_state s = { .proto = p, .channel =c, .pool = pool, .src = src, .route = e };
+  struct bgp_export_state s = {
+    .proto = p, .channel = c, .pool = pool, .src = src, .route = e, .n = n,
+  };
   eattr *a;
 
   /* ORIGIN attribute - mandatory, attach if missing */
@@ -1423,9 +1438,14 @@ bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old, ea
   struct bgp_prefix *px;
   u32 path;
 
+  net_addr *na = n->n.addr;
+
   if (new)
   {
-    attrs = bgp_update_attrs(p, c, new, attrs, bgp_linpool);
+    na = alloca(sizeof(net_addr) + MPLS_MAX_LABEL_STACK * sizeof(u32));
+    net_copy(na, n->n.addr);
+
+    attrs = bgp_update_attrs(p, c, new, attrs, na, bgp_linpool);
 
     /* If attributes are invalid, we fail back to withdraw */
     buck = attrs ? bgp_get_bucket(c, attrs) : bgp_get_withdraw_bucket(c);
@@ -1439,7 +1459,7 @@ bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old, ea
     path = old->attrs->src->global_id;
   }
 
-  px = bgp_get_prefix(c, n->n.addr, c->add_path_tx ? path : 0);
+  px = bgp_get_prefix(c, na, c->add_path_tx ? path : 0);
   add_tail(&buck->prefixes, &px->buck_node);
 
   bgp_schedule_packet(p->conn, c, PKT_UPDATE);

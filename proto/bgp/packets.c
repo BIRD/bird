@@ -678,6 +678,7 @@ bgp_rx_open(struct bgp_conn *conn, byte *pkt, uint len)
 
 #define BAD_NEXT_HOP	"Invalid NEXT_HOP attribute"
 #define NO_NEXT_HOP	"Missing NEXT_HOP attribute"
+#define TOO_MANY_LABELS	"Too deep MPLS stack"
 
 
 static void
@@ -775,6 +776,46 @@ bgp_update_next_hop_ip(struct bgp_export_state *s, eattr *a, ea_list **to)
     {
       ip_addr nh[2] = { s->channel->next_hop_addr, s->channel->link_addr };
       bgp_set_attr_data(to, s->pool, BA_NEXT_HOP, 0, nh, ipa_nonzero(nh[1]) ? 32 : 16);
+     
+      /* TODO: Use local MPLS assigned label */
+    }
+  }
+
+  /* Check if next hop is valid */
+  a = bgp_find_attr(*to, BA_NEXT_HOP);
+  if (!a)
+    WITHDRAW(NO_NEXT_HOP);
+
+  ip_addr *nh = (void *) a->u.ptr->data;
+  ip_addr peer = s->proto->cf->remote_ip;
+  uint len = a->u.ptr->length;
+
+  if (ipa_zero(nh[0]) && ((len != 32) || ipa_zero(nh[1])))
+    WITHDRAW(BAD_NEXT_HOP);
+
+  if (ipa_equal(peer, nh[0]) || ((len == 32) && ipa_equal(peer, nh[1])))
+    WITHDRAW(BAD_NEXT_HOP);
+}
+
+static void
+bgp_update_next_hop_ip_mpls(struct bgp_export_state *s, eattr *a, ea_list **to)
+{
+  if (!a || !bgp_use_next_hop(s, a))
+  {
+    if (bgp_use_gateway(s))
+    {
+      ip_addr nh[1] = { s->route->attrs->nh.gw };
+      bgp_set_attr_data(to, s->pool, BA_NEXT_HOP, 0, nh, 16);
+
+      if (s->route->attrs->nh.labels)
+	bgp_set_attr_data(to, s->pool, BA__MPLS_LABEL_STACK, 0, s->route->attrs->nh.label, s->route->attrs->nh.labels * 4);
+    }
+    else
+    {
+      ip_addr nh[2] = { s->channel->next_hop_addr, s->channel->link_addr };
+      bgp_set_attr_data(to, s->pool, BA_NEXT_HOP, 0, nh, ipa_nonzero(nh[1]) ? 32 : 16);
+     
+      /* TODO: Use local MPLS assigned label */
     }
   }
 
@@ -1066,6 +1107,409 @@ bgp_decode_next_hop_ip6(struct bgp_parse_state *s, byte *data, uint len, rta *a)
   bgp_apply_next_hop(s, a, nh[0], nh[1]);
 }
 
+#define ENCODE_MPLS_STACK(pos, size, len, stack) \
+  do { \
+    for (uint i=0; i<len; i++) \
+    { \
+      u32 label = (stack[i] << 4) | (i+1 == len); \
+      *pos = (label & 0xff0000) >> 16; \
+      ADVANCE(pos, size, 1); \
+      *pos = (label & 0xff00) >> 8; \
+      ADVANCE(pos, size, 1); \
+      *pos = (label & 0xff); \
+      ADVANCE(pos, size, 1); \
+    } \
+  } while (0)
+
+#define DECODE_MPLS_STACK(s, pos, len, pxlen, stklen, stack) \
+  do { \
+    stklen = 0; \
+    u32 label; \
+    do { \
+      if (pxlen < 24) \
+	bgp_parse_error(s, 1); \
+      if (stklen >= MPLS_MAX_LABEL_STACK) \
+	WITHDRAW(TOO_MANY_LABELS); \
+      label = (pos[0] << 16) + (pos[1] << 8) + pos[2]; \
+      ADVANCE(pos, len, 3); \
+      pxlen -= 24; \
+      stack[stklen++] = label >> 4; \
+    } while (!(label & 1)); \
+  } while (0)
+
+static uint
+bgp_encode_nlri_ip4_mpls(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
+{
+  byte *pos = buf;
+
+  while (!EMPTY_LIST(buck->prefixes) && (size >= (5 + sizeof(ip4_addr))))
+  {
+    struct bgp_prefix *px = HEAD(buck->prefixes);
+    struct net_addr_ip4_mpls *net = &(px->net->ip4_mpls);
+
+    /* Encode path ID */
+    if (s->add_path)
+    {
+      put_u32(pos, px->path_id);
+      ADVANCE(pos, size, 4);
+    }
+
+    ip4_addr a = ip4_hton(net->addr.prefix);
+    uint b = (net->pxlen + 7) / 8;
+
+    /* Encode prefix length */
+    *pos = net->pxlen + NET_ADDR_MPLS_LABEL_STACK_LEN(net)*24;
+    ADVANCE(pos, size, 1);
+
+    /* Encode labels */
+    ENCODE_MPLS_STACK(pos, size, NET_ADDR_MPLS_LABEL_STACK_LEN(net), net->label);
+
+    /* Encode prefix body */
+    memcpy(pos, &a, b);
+    ADVANCE(pos, size, b);
+
+    bgp_free_prefix(s->channel, px);
+  }
+
+  return pos - buf;
+}
+
+static void
+bgp_decode_nlri_ip4_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
+{
+  while (len)
+  {
+    net_addr_ip4 net;
+    u32 path_id = 0;
+
+    /* Decode path ID */
+    if (s->add_path)
+    {
+      if (len < 5)
+	bgp_parse_error(s, 1);
+
+      path_id = get_u32(pos);
+      ADVANCE(pos, len, 4);
+    }
+
+    /* Decode prefix length */
+    uint l = *pos;
+    ADVANCE(pos, len, 1);
+
+    uint b = (l + 7) / 8;
+
+    if (len < b)
+      bgp_parse_error(s, 1);
+
+    DECODE_MPLS_STACK(s, pos, len, l, a->nh.labels, a->nh.label);
+
+    b = (l + 7) / 8;
+
+    if (l > IP4_MAX_PREFIX_LENGTH)
+      bgp_parse_error(s, 10);
+
+    /* Decode prefix body */
+    ip4_addr addr = IP4_NONE;
+    memcpy(&addr, pos, b);
+    ADVANCE(pos, len, b);
+
+    net = NET_ADDR_IP4(ip4_ntoh(addr), l);
+    net_normalize_ip4(&net);
+
+    // XXXX validate prefix
+
+    s->cached_rta = NULL; /* We were changing route attributes */
+    bgp_rte_update(s, (net_addr *) &net, path_id, a);
+    a->nh.labels = 0; /* Nexthop labels cleanup */
+  }
+}
+
+static uint
+bgp_encode_nlri_ip6_mpls(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
+{
+  byte *pos = buf;
+
+  while (!EMPTY_LIST(buck->prefixes) && (size >= (5 + sizeof(ip6_addr))))
+  {
+    struct bgp_prefix *px = HEAD(buck->prefixes);
+    struct net_addr_ip6_mpls *net = &(px->net->ip6_mpls);
+
+    /* Encode path ID */
+    if (s->add_path)
+    {
+      put_u32(pos, px->path_id);
+      ADVANCE(pos, size, 4);
+    }
+
+    ip6_addr a = ip6_hton(net->addr.prefix);
+    uint b = (net->pxlen + 7) / 8;
+
+    /* Encode prefix length */
+    *pos = net->pxlen + NET_ADDR_MPLS_LABEL_STACK_LEN(net)*24;
+    ADVANCE(pos, size, 1);
+
+    /* Encode labels */
+    ENCODE_MPLS_STACK(pos, size, NET_ADDR_MPLS_LABEL_STACK_LEN(net), net->label);
+
+    /* Encode prefix body */
+    memcpy(pos, &a, b);
+    ADVANCE(pos, size, b);
+
+    bgp_free_prefix(s->channel, px);
+  }
+
+  return pos - buf;
+}
+
+static void
+bgp_decode_nlri_ip6_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
+{
+  while (len)
+  {
+    net_addr_ip6 net;
+    u32 path_id = 0;
+
+    /* Decode path ID */
+    if (s->add_path)
+    {
+      if (len < 5)
+	bgp_parse_error(s, 1);
+
+      path_id = get_u32(pos);
+      ADVANCE(pos, len, 4);
+    }
+
+    /* Decode prefix length */
+    uint l = *pos;
+    ADVANCE(pos, len, 1);
+
+    uint b = (l + 7) / 8;
+
+    if (len < b)
+      bgp_parse_error(s, 1);
+
+    DECODE_MPLS_STACK(s, pos, len, l, a->nh.labels, a->nh.label);
+
+    b = (l + 7) / 8;
+
+    if (l > IP6_MAX_PREFIX_LENGTH)
+      bgp_parse_error(s, 10);
+
+    /* Decode prefix body */
+    ip6_addr addr = IP6_NONE;
+    memcpy(&addr, pos, b);
+    ADVANCE(pos, len, b);
+
+    net = NET_ADDR_IP6(ip6_ntoh(addr), l);
+    net_normalize_ip6(&net);
+
+    // XXXX validate prefix
+
+    bgp_rte_update(s, (net_addr *) &net, path_id, a);
+  }
+}
+
+#define ENCODE_VPN_RD(pos, size, rd) \
+  do { \
+    put_u32(pos, rd >> 32); \
+    ADVANCE(pos, size, 4); \
+    put_u32(pos, rd); \
+    ADVANCE(pos, size, 4); \
+  } while (0)
+
+#define DECODE_VPN_RD(s, pos, len, pxlen, rd) \
+  do { \
+    if (pxlen < 64) \
+      bgp_parse_error(s, 1); \
+    pxlen -= 64; \
+    u32 rdu = get_u32(pos); \
+    ADVANCE(pos, len, 4); \
+    u32 rdl = get_u32(pos); \
+    ADVANCE(pos, len, 4); \
+    rd = (((u64) rdu) << 32) | ((u64) rdl); \
+  } while (0)
+
+static uint
+bgp_encode_nlri_vpn4_mpls(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
+{
+  byte *pos = buf;
+
+  while (!EMPTY_LIST(buck->prefixes) && (size >= (40 + sizeof(ip4_addr))))
+  {
+    struct bgp_prefix *px = HEAD(buck->prefixes);
+    struct net_addr_vpn4_mpls *net = &(px->net->vpn4_mpls);
+
+    /* Encode path ID */
+    if (s->add_path)
+    {
+      put_u32(pos, px->path_id);
+      ADVANCE(pos, size, 4);
+    }
+
+    ip4_addr a = ip4_hton(net->addr.prefix);
+    uint b = (net->pxlen + 7) / 8;
+
+    /* Encode prefix length */
+    *pos = net->pxlen + NET_ADDR_MPLS_LABEL_STACK_LEN(net)*24 + 64;
+    ADVANCE(pos, size, 1);
+
+    /* Encode labels */
+    ENCODE_MPLS_STACK(pos, size, NET_ADDR_MPLS_LABEL_STACK_LEN(net), net->label);
+
+    /* Encode route distinguisher */
+    ENCODE_VPN_RD(pos, size, net->addr.rd);
+
+    /* Encode prefix body */
+    memcpy(pos, &a, b);
+    ADVANCE(pos, size, b);
+
+    bgp_free_prefix(s->channel, px);
+  }
+
+  return pos - buf;
+}
+
+static void
+bgp_decode_nlri_vpn4_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
+{
+  while (len)
+  {
+    net_addr_vpn4 net;
+    u32 path_id = 0;
+
+    u64 rd;
+
+    /* Decode path ID */
+    if (s->add_path)
+    {
+      if (len < 5)
+	bgp_parse_error(s, 1);
+
+      path_id = get_u32(pos);
+      ADVANCE(pos, len, 4);
+    }
+
+    /* Decode prefix length */
+    uint l = *pos;
+    ADVANCE(pos, len, 1);
+
+    uint b = (l + 7) / 8;
+
+    if (len < b)
+      bgp_parse_error(s, 1);
+
+    DECODE_MPLS_STACK(s, pos, len, l, a->nh.labels, a->nh.label);
+    DECODE_VPN_RD(s, pos, len, l, rd);
+
+    b = (l + 7) / 8;
+
+    if (l > IP4_MAX_PREFIX_LENGTH)
+      bgp_parse_error(s, 10);
+
+    /* Decode prefix body */
+    ip4_addr addr = IP4_NONE;
+    memcpy(&addr, pos, b);
+    ADVANCE(pos, len, b);
+
+    net = NET_ADDR_VPN4(ip4_ntoh(addr), l, rd);
+    net_normalize_ip4((net_addr_ip4 *) &net);
+
+    // XXXX validate prefix
+
+    bgp_rte_update(s, (net_addr *) &net, path_id, a);
+  }
+}
+
+static uint
+bgp_encode_nlri_vpn6_mpls(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
+{
+  byte *pos = buf;
+
+  while (!EMPTY_LIST(buck->prefixes) && (size >= (5 + sizeof(ip6_addr))))
+  {
+    struct bgp_prefix *px = HEAD(buck->prefixes);
+    struct net_addr_vpn6_mpls *net = &(px->net->vpn6_mpls);
+
+    /* Encode path ID */
+    if (s->add_path)
+    {
+      put_u32(pos, px->path_id);
+      ADVANCE(pos, size, 4);
+    }
+
+    ip6_addr a = ip6_hton(net->addr.prefix);
+    uint b = (net->pxlen + 7) / 8;
+
+    /* Encode prefix length */
+    *pos = net->pxlen + NET_ADDR_MPLS_LABEL_STACK_LEN(net)*24 + 64;
+    ADVANCE(pos, size, 1);
+
+    /* Encode labels */
+    ENCODE_MPLS_STACK(pos, size, NET_ADDR_MPLS_LABEL_STACK_LEN(net), net->label);
+
+    /* Encode route distinguisher */
+    ENCODE_VPN_RD(pos, size, net->addr.rd);
+
+    /* Encode prefix body */
+    memcpy(pos, &a, b);
+    ADVANCE(pos, size, b);
+
+    bgp_free_prefix(s->channel, px);
+  }
+
+  return pos - buf;
+}
+
+static void
+bgp_decode_nlri_vpn6_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a)
+{
+  while (len)
+  {
+    net_addr_vpn6 net;
+    u32 path_id = 0;
+
+    u64 rd;
+
+    /* Decode path ID */
+    if (s->add_path)
+    {
+      if (len < 5)
+	bgp_parse_error(s, 1);
+
+      path_id = get_u32(pos);
+      ADVANCE(pos, len, 4);
+    }
+
+    /* Decode prefix length */
+    uint l = *pos;
+    ADVANCE(pos, len, 1);
+
+    uint b = (l + 7) / 8;
+
+    if (len < b)
+      bgp_parse_error(s, 1);
+
+    DECODE_MPLS_STACK(s, pos, len, l, a->nh.labels, a->nh.label);
+    DECODE_VPN_RD(s, pos, len, l, rd);
+
+    b = (l + 7) / 8;
+
+    if (l > IP6_MAX_PREFIX_LENGTH)
+      bgp_parse_error(s, 10);
+
+    /* Decode prefix body */
+    ip6_addr addr = IP6_NONE;
+    memcpy(&addr, pos, b);
+    ADVANCE(pos, len, b);
+
+    net = NET_ADDR_VPN6(ip6_ntoh(addr), l, rd);
+    net_normalize_ip6((net_addr_ip6 *) &net);
+
+    // XXXX validate prefix
+
+    bgp_rte_update(s, (net_addr *) &net, path_id, a);
+  }
+}
 
 static const struct bgp_af_desc bgp_af_table[] = {
   {
@@ -1089,6 +1533,16 @@ static const struct bgp_af_desc bgp_af_table[] = {
     .update_next_hop = bgp_update_next_hop_ip,
   },
   {
+    .afi = BGP_AF_IPV4_MPLS,
+    .net = NET_IP4_MPLS,
+    .name = "ipv4-mpls",
+    .encode_nlri = bgp_encode_nlri_ip4_mpls,
+    .decode_nlri = bgp_decode_nlri_ip4_mpls,
+    .encode_next_hop = bgp_encode_next_hop_ip4,
+    .decode_next_hop = bgp_decode_next_hop_ip4,
+    .update_next_hop = bgp_update_next_hop_ip_mpls,
+  },
+  {
     .afi = BGP_AF_IPV6,
     .net = NET_IP6,
     .name = "ipv6",
@@ -1107,6 +1561,36 @@ static const struct bgp_af_desc bgp_af_table[] = {
     .encode_next_hop = bgp_encode_next_hop_ip6,
     .decode_next_hop = bgp_decode_next_hop_ip6,
     .update_next_hop = bgp_update_next_hop_ip,
+  },
+  {
+    .afi = BGP_AF_IPV6_MPLS,
+    .net = NET_IP6_MPLS,
+    .name = "ipv6-mpls",
+    .encode_nlri = bgp_encode_nlri_ip6_mpls,
+    .decode_nlri = bgp_decode_nlri_ip6_mpls,
+    .encode_next_hop = bgp_encode_next_hop_ip6,
+    .decode_next_hop = bgp_decode_next_hop_ip6,
+    .update_next_hop = bgp_update_next_hop_ip_mpls,
+  },
+  {
+    .afi = BGP_AF_VPN4_MPLS,
+    .net = NET_VPN4_MPLS,
+    .name = "vpn4-mpls",
+    .encode_nlri = bgp_encode_nlri_vpn4_mpls,
+    .decode_nlri = bgp_decode_nlri_vpn4_mpls,
+    .encode_next_hop = bgp_encode_next_hop_ip4,
+    .decode_next_hop = bgp_decode_next_hop_ip4,
+    .update_next_hop = bgp_update_next_hop_ip_mpls,
+  },
+  {
+    .afi = BGP_AF_VPN6_MPLS,
+    .net = NET_VPN6_MPLS,
+    .name = "vpn6-mpls",
+    .encode_nlri = bgp_encode_nlri_vpn6_mpls,
+    .decode_nlri = bgp_decode_nlri_vpn6_mpls,
+    .encode_next_hop = bgp_encode_next_hop_ip6,
+    .decode_next_hop = bgp_decode_next_hop_ip6,
+    .update_next_hop = bgp_update_next_hop_ip_mpls,
   },
 };
 
@@ -1434,8 +1918,8 @@ bgp_decode_nlri(struct bgp_parse_state *s, u32 afi, byte *nlri, uint len, ea_lis
 
   if (ea)
   {
-    a = alloca(sizeof(struct rta));
-    memset(a, 0, sizeof(struct rta));
+    a = alloca(sizeof(struct rta) + MPLS_MAX_LABEL_STACK * sizeof(u32));
+    memset(a, 0, sizeof(struct rta) + MPLS_MAX_LABEL_STACK * sizeof(u32));
 
     a->source = RTS_BGP;
     a->scope = SCOPE_UNIVERSE;
