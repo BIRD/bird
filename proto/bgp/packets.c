@@ -1421,6 +1421,33 @@ bgp_decode_nlri_vpn4_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a
 }
 
 static uint
+bgp_encode_next_hop_vpn4_mpls(struct bgp_write_state *s, eattr *a, byte *buf, uint size)
+{
+  /* VPN RD is 0 in BGP next hop */
+  put_u32(buf, 0);
+  put_u32(buf+4, 0);
+
+  return 8 + bgp_encode_next_hop_ip4(s, a, buf+8, size);
+}
+
+static void
+bgp_decode_next_hop_vpn4_mpls(struct bgp_parse_state *s, byte *data, uint len, rta *a)
+{
+  if (len != 12)
+    bgp_parse_error(s, 9);
+
+  if ((get_u32(data) != 0) || (get_u32(data+4) != 0))
+    bgp_parse_error(s, 9);
+
+  ip_addr nh = ipa_from_ip4(get_ip4(data+8));
+  
+  // XXXX validate next hop
+
+  bgp_set_attr_data(&(a->eattrs), s->pool, BA_NEXT_HOP, 0, &nh, sizeof(nh));
+  bgp_apply_next_hop(s, a, nh, IPA_NONE);
+}
+
+static uint
 bgp_encode_nlri_vpn6_mpls(struct bgp_write_state *s, struct bgp_bucket *buck, byte *buf, uint size)
 {
   byte *pos = buf;
@@ -1511,6 +1538,67 @@ bgp_decode_nlri_vpn6_mpls(struct bgp_parse_state *s, byte *pos, uint len, rta *a
   }
 }
 
+static uint
+bgp_encode_next_hop_vpn6_mpls(struct bgp_write_state *s UNUSED, eattr *a, byte *buf, uint size UNUSED)
+{
+  ip_addr *nh = (void *) a->u.ptr->data;
+  uint len = a->u.ptr->length;
+
+  ASSERT((len == 16) || (len == 32));
+
+  /* VPN RD is 0 in BGP next hop */
+  put_u32(buf, 0);
+  put_u32(buf+4, 0);
+  put_ip6(buf+8, ipa_to_ip6(nh[0]));
+
+  if (len == 32) {
+    /* VPN RD is 0 in BGP next hop */
+    put_u32(buf+24, 0);
+    put_u32(buf+28, 0);
+    put_ip6(buf+32, ipa_to_ip6(nh[1]));
+    
+    return 48;
+  }
+
+  return 24;
+}
+
+static void
+bgp_decode_next_hop_vpn6_mpls(struct bgp_parse_state *s, byte *data, uint len, rta *a)
+{
+  struct adata *ad = lp_alloc_adata(s->pool, 32);
+  ip_addr *nh = (void *) ad->data;
+
+  if ((len != 24) && (len != 48))
+    bgp_parse_error(s, 9);
+
+  if ((get_u32(data) != 0) || (get_u32(data+4) != 0))
+    bgp_parse_error(s, 9);
+
+  if ((len == 48) && ((get_u32(data+24) != 0) || (get_u32(data+28) != 0)))
+    bgp_parse_error(s, 9);
+
+  nh[0] = ipa_from_ip6(get_ip6(data+8));
+  nh[1] = (len == 48) ? ipa_from_ip6(get_ip6(data+32)) : IPA_NONE;
+
+  if (ip6_is_link_local(nh[0]))
+  {
+    nh[1] = nh[0];
+    nh[0] = IPA_NONE;
+  }
+
+  if (!ip6_is_link_local(nh[1]))
+    nh[1] = IPA_NONE;
+
+  if (ipa_zero(nh[1]))
+    ad->length = 16;
+
+  // XXXX validate next hop
+
+  bgp_set_attr_ptr(&(a->eattrs), s->pool, BA_NEXT_HOP, 0, ad);
+  bgp_apply_next_hop(s, a, nh[0], nh[1]);
+}
+
 static const struct bgp_af_desc bgp_af_table[] = {
   {
     .afi = BGP_AF_IPV4,
@@ -1578,8 +1666,8 @@ static const struct bgp_af_desc bgp_af_table[] = {
     .name = "vpn4-mpls",
     .encode_nlri = bgp_encode_nlri_vpn4_mpls,
     .decode_nlri = bgp_decode_nlri_vpn4_mpls,
-    .encode_next_hop = bgp_encode_next_hop_ip4,
-    .decode_next_hop = bgp_decode_next_hop_ip4,
+    .encode_next_hop = bgp_encode_next_hop_vpn4_mpls,
+    .decode_next_hop = bgp_decode_next_hop_vpn4_mpls,
     .update_next_hop = bgp_update_next_hop_ip_mpls,
   },
   {
@@ -1588,8 +1676,8 @@ static const struct bgp_af_desc bgp_af_table[] = {
     .name = "vpn6-mpls",
     .encode_nlri = bgp_encode_nlri_vpn6_mpls,
     .decode_nlri = bgp_decode_nlri_vpn6_mpls,
-    .encode_next_hop = bgp_encode_next_hop_ip6,
-    .decode_next_hop = bgp_decode_next_hop_ip6,
+    .encode_next_hop = bgp_encode_next_hop_vpn6_mpls,
+    .decode_next_hop = bgp_decode_next_hop_vpn6_mpls,
     .update_next_hop = bgp_update_next_hop_ip_mpls,
   },
 };
