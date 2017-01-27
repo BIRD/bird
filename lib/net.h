@@ -144,7 +144,7 @@ NET_DO(vpn6);
 
 #undef NET_DO
 
-#define NET_ADDR_MPLS_LABEL_STACK_LEN(n) (((n)->length - sizeof(*(n)))/sizeof(u32))
+#define NET_ADDR_MPLS_LABEL_STACK_LEN(n) (((n)->length - sizeof((n)->addr))/sizeof(u32))
 
 
 typedef union net_addr {
