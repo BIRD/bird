@@ -636,13 +636,6 @@ bgp_decode_unknown(struct bgp_parse_state *s, uint code, uint flags, byte *data,
   bgp_set_attr_data(to, s->pool, code, flags, data, len);
 }
 
-static inline void
-bgp_export__mpls_label_stack(struct bgp_export_state *s, eattr *a)
-{
-  net_add_mpls_label_stack(s->n, (a->u.ptr->length)/4, (u32 *) a->u.ptr->data);
-  UNSET(a);
-}
-
 
 /*
  *	Attribute table
@@ -770,11 +763,6 @@ static const struct bgp_attr_desc bgp_attr_table[] = {
     .export = bgp_export_large_community,
     .encode = bgp_encode_u32s,
     .decode = bgp_decode_large_community,
-  },
-  [BA__MPLS_LABEL_STACK] = {
-    .name = "_mpls_label_stack",
-    .type = EAF_TYPE_INT_SET,
-    .export = bgp_export__mpls_label_stack,
   },
 };
 

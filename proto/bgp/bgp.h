@@ -542,9 +542,6 @@ void bgp_update_next_hop(struct bgp_export_state *s, eattr *a, ea_list **to);
 #define BA_AS4_AGGREGATOR       0x12	/* RFC 6793 */
 #define BA_LARGE_COMMUNITY	0x20	/* [draft-ietf-idr-large-community] */
 
-/* Bird's private internal BGP attributes */
-#define BA__MPLS_LABEL_STACK	0xfe	/* MPLS label stack transfer attribute */
-
 /* BGP connection states */
 
 #define BS_IDLE			0

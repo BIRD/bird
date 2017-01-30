@@ -806,9 +806,7 @@ bgp_update_next_hop_ip_mpls(struct bgp_export_state *s, eattr *a, ea_list **to)
     {
       ip_addr nh[1] = { s->route->attrs->nh.gw };
       bgp_set_attr_data(to, s->pool, BA_NEXT_HOP, 0, nh, 16);
-
-      if (s->route->attrs->nh.labels)
-	bgp_set_attr_data(to, s->pool, BA__MPLS_LABEL_STACK, 0, s->route->attrs->nh.label, s->route->attrs->nh.labels * 4);
+      net_add_mpls_label_stack(s->n, s->route->attrs->nh.labels, s->route->attrs->nh.label);
     }
     else
     {
