@@ -4,13 +4,27 @@ variables:
   GIT_STRATEGY: fetch
   DOCKER_CMD: docker --config="$HOME/.docker/$CI_JOB_ID/"
 
-build:
-  image: vorner/bird-debian:latest
+.build: &build_job
+  script:
+  - autoreconf
+  - ./configure --enable-ipv6=$IPV6
+  - make
+
+.debian: &debian_env
+  image: registry.labs.nic.cz/mvaner/bird:debian
   tags:
   - docker
   - linux
   - amd64
-  script:
-  - autoreconf
-  - ./configure
-  - make
+
+build:
+  variables:
+    IPV6: "no"
+  <<: *debian_env
+  <<: *build_job
+
+build-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian_env
+  <<: *build_job
