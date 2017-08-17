@@ -3,12 +3,30 @@ variables:
   LC_ALL: C
   GIT_STRATEGY: fetch
   DOCKER_CMD: docker --config="$HOME/.docker/$CI_JOB_ID/"
+  IMG_BASE: registry.labs.nic.cz/mvaner/bird
 
-.build: &build_job
+stages:
+  - image
+  - build
+
+.docker: &docker_build
+  stage: image
+  allow_failure: true
   script:
-  - autoreconf
-  - ./configure --enable-ipv6=$IPV6
-  - make
+  - $DOCKER_CMD login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.labs.nic.cz
+  - $DOCKER_CMD build -t "bird:$IMG_NAME" "ci/docker/$IMG_NAME"
+  - $DOCKER_CMD tag "bird:$IMG_NAME" "$IMG_BASE:$IMG_NAME"
+  - $DOCKER_CMD push "$IMG_BASE:$IMG_NAME"
+  after_script:
+  - rm -f "$HOME/.docker/$CI_JOB_ID/" # cleanup the credentials
+  tags:
+  - shell
+  - linux
+
+docker_debian:
+  variables:
+    IMG_NAME: "debian"
+  <<: *docker_build
 
 .debian: &debian_env
   image: registry.labs.nic.cz/mvaner/bird:debian
@@ -17,13 +35,20 @@ variables:
   - linux
   - amd64
 
-build:
+.build: &build_job
+  stage: build
+  script:
+  - autoreconf
+  - ./configure --enable-ipv6=$IPV6
+  - make
+
+build-debian:
   variables:
     IPV6: "no"
   <<: *debian_env
   <<: *build_job
 
-build-v6:
+build-build-v6:
   variables:
     IPV6: "yes"
   <<: *debian_env
