@@ -1,0 +1,226 @@
+variables:
+  DEBIAN_FRONTEND: noninteractive
+  LC_ALL: C
+  GIT_STRATEGY: fetch
+  DOCKER_CMD: docker --config="$HOME/.docker/$CI_JOB_ID/"
+  IMG_BASE: registry.labs.nic.cz/labs/bird
+
+stages:
+  - image
+  - build
+
+.docker: &docker_build
+  stage: image
+  allow_failure: true
+  script:
+  - $DOCKER_CMD login -u gitlab-ci-token -p $CI_BUILD_TOKEN registry.labs.nic.cz
+  - $DOCKER_CMD build -t "bird:$IMG_NAME" "misc/docker/$IMG_NAME"
+  - $DOCKER_CMD tag "bird:$IMG_NAME" "$IMG_BASE:$IMG_NAME"
+  - $DOCKER_CMD push "$IMG_BASE:$IMG_NAME"
+  after_script:
+  - rm -f "$HOME/.docker/$CI_JOB_ID/" # cleanup the credentials
+  tags:
+  # That's Docker in Docker
+  - dind
+
+docker_debian-7-amd64:
+  variables:
+    IMG_NAME: "debian-7-amd64"
+  <<: *docker_build
+
+docker_debian-8-amd64:
+  variables:
+    IMG_NAME: "debian-8-amd64"
+  <<: *docker_build
+
+docker_debian-9-amd64:
+  variables:
+    IMG_NAME: "debian-9-amd64"
+  <<: *docker_build
+
+docker_debian-8-i386:
+  variables:
+    IMG_NAME: "debian-8-i386"
+  <<: *docker_build
+
+docker_fedora-amd64:
+  variables:
+    IMG_NAME: "fedora-amd64"
+  <<: *docker_build
+
+docker_centos-amd64:
+  variables:
+    IMG_NAME: "centos-amd64"
+  <<: *docker_build
+
+.debian-8-i386: &debian-8-i386_env
+  image: registry.labs.nic.cz/labs/bird:debian-8-i386
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.debian-7-amd64: &debian-7-amd64_env
+  image: registry.labs.nic.cz/labs/bird:debian-7-amd64
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.debian-8-amd64: &debian-8-amd64_env
+  image: registry.labs.nic.cz/labs/bird:debian-8-amd64
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.debian-9-amd64: &debian-9-amd64_env
+  image: registry.labs.nic.cz/labs/bird:debian-9-amd64
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.fedora-amd64: &fedora-amd64_env
+  image: registry.labs.nic.cz/labs/bird:fedora-amd64
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.centos-amd64: &centos-amd64_env
+  image: registry.labs.nic.cz/labs/bird:centos-amd64
+  tags:
+  - docker
+  - linux
+  - amd64
+
+.freebsd-i386: &freebsd-i386_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
+  tags:
+  - freebsd
+  - i386
+  #only:
+  #- master
+  #- triggers
+  #- tags
+
+.freebsd-amd64: &freebsd-amd64_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
+  tags:
+  - freebsd
+  - amd64
+  #only:
+  #- master
+  #- triggers
+  #- tags
+
+.build: &build_job
+  stage: build
+  script:
+  - autoreconf
+  - ./configure --enable-ipv6=$IPV6
+  # Detect which make is available
+  - MAKE=make
+  - which gmake 2>/dev/null >/dev/null && MAKE=gmake
+  - $MAKE
+  # Run tests if they are available (eg. don't fail if "check" isn't a valid make target)
+  - $MAKE check || [ "$?" = 2 ]
+
+build-debian-7-amd64:
+  variables:
+    IPV6: "no"
+  <<: *debian-7-amd64_env
+  <<: *build_job
+
+build-debian-8-amd64:
+  variables:
+    IPV6: "no"
+  <<: *debian-8-amd64_env
+  <<: *build_job
+
+build-debian-9-amd64:
+  variables:
+    IPV6: "no"
+  <<: *debian-9-amd64_env
+  <<: *build_job
+
+build-debian-7-amd64-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian-7-amd64_env
+  <<: *build_job
+
+build-debian-8-amd64-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian-8-amd64_env
+  <<: *build_job
+
+build-debian-9-amd64-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian-9-amd64_env
+  <<: *build_job
+
+build-fedora-amd64:
+  variables:
+    IPV6: "no"
+  <<: *fedora-amd64_env
+  <<: *build_job
+
+build-fedora-v6-amd64:
+  variables:
+    IPV6: "yes"
+  <<: *fedora-amd64_env
+  <<: *build_job
+
+build-centos-amd64:
+  variables:
+    IPV6: "no"
+  <<: *centos-amd64_env
+  <<: *build_job
+
+build-centos-v6-amd64:
+  variables:
+    IPV6: "yes"
+  <<: *centos-amd64_env
+  <<: *build_job
+
+build-debian-8-i386:
+  variables:
+    IPV6: "no"
+  <<: *debian-8-i386_env
+  <<: *build_job
+
+build-debian-8-i386-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian-8-i386_env
+  <<: *build_job
+
+build-freebsd-amd64:
+  variables:
+    IPV6: "no"
+  <<: *freebsd-amd64_env
+  <<: *build_job
+
+build-freebsd-v6-amd64:
+  variables:
+    IPV6: "yes"
+  <<: *freebsd-amd64_env
+  <<: *build_job
+
+build-freebsd-i386:
+  variables:
+    IPV6: "no"
+  <<: *freebsd-i386_env
+  <<: *build_job
+
+build-freebsd-v6-i386:
+  variables:
+    IPV6: "yes"
+  <<: *freebsd-i386_env
+  <<: *build_job
