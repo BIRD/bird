@@ -1,0 +1,16 @@
+variables:
+  DEBIAN_FRONTEND: noninteractive
+  LC_ALL: C
+  GIT_STRATEGY: fetch
+  DOCKER_CMD: docker --config="$HOME/.docker/$CI_JOB_ID/"
+
+build:
+  image: vorner/bird-debian:latest
+  tags:
+  - docker
+  - linux
+  - amd64
+  script:
+  - autoreconf
+  - ./configure
+  - make
