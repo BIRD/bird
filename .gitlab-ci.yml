@@ -28,6 +28,13 @@ stages:
 #     IMG_NAME: "debian"
 #   <<: *docker_build
 
+.debian-32: &debian-32_env
+  image: registry.labs.nic.cz/mvaner/bird:debian-32
+  tags:
+  - docker
+  - linux
+  - amd64
+
 .debian: &debian_env
   image: registry.labs.nic.cz/mvaner/bird:debian
   tags:
@@ -53,8 +60,20 @@ build-debian:
   <<: *debian_env
   <<: *build_job
 
-build-build-v6:
+build-debian-v6:
   variables:
     IPV6: "yes"
   <<: *debian_env
+  <<: *build_job
+
+build-debian-32:
+  variables:
+    IPV6: "no"
+  <<: *debian-32_env
+  <<: *build_job
+
+build-debian-32-v6:
+  variables:
+    IPV6: "yes"
+  <<: *debian-32_env
   <<: *build_job
