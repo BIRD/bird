@@ -42,6 +42,16 @@ stages:
   - linux
   - amd64
 
+.freebsd-32: &freebsd-32_env
+  tags:
+  - freebsd
+  - i386
+
+.freebsd: &freebsd_env
+  tags:
+  - freebsd
+  - amd64
+
 .build: &build_job
   stage: build
   script:
@@ -76,4 +86,28 @@ build-debian-32-v6:
   variables:
     IPV6: "yes"
   <<: *debian-32_env
+  <<: *build_job
+
+build-freebsd:
+  variables:
+    IPV6: "no"
+  <<: *freebsd_env
+  <<: *build_job
+
+build-freebsd-v6:
+  variables:
+    IPV6: "yes"
+  <<: *freebsd_env
+  <<: *build_job
+
+build-freebsd-32:
+  variables:
+    IPV6: "no"
+  <<: *freebsd-32_env
+  <<: *build_job
+
+build-freebsd-32-v6:
+  variables:
+    IPV6: "yes"
+  <<: *freebsd-32_env
   <<: *build_job
