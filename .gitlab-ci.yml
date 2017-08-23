@@ -23,10 +23,10 @@ stages:
   - shell
   - linux
 
-docker_debian:
-  variables:
-    IMG_NAME: "debian"
-  <<: *docker_build
+# docker_debian:
+#   variables:
+#     IMG_NAME: "debian"
+#   <<: *docker_build
 
 .debian: &debian_env
   image: registry.labs.nic.cz/mvaner/bird:debian
@@ -40,7 +40,12 @@ docker_debian:
   script:
   - autoreconf
   - ./configure --enable-ipv6=$IPV6
-  - make
+  # Detect which make is available
+  - MAKE=make
+  - which gmake 2>/dev/null >/dev/null && MAKE=gmake
+  - $MAKE
+  # Run tests if they are available (eg. don't fail if "check" isn't a valid make target)
+  - $MAKE check || [ "$?" = 2 ]
 
 build-debian:
   variables:
