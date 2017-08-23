@@ -42,6 +42,13 @@ stages:
   - linux
   - amd64
 
+.fedora: &fedora_env
+  image: registry.labs.nic.cz/mvaner/bird:fedora
+  tags:
+  - docker
+  - linux
+  - amd64
+
 .freebsd-32: &freebsd-32_env
   tags:
   - freebsd
@@ -83,6 +90,19 @@ build-debian-v6:
     IPV6: "yes"
   <<: *debian_env
   <<: *build_job
+
+build-fedora:
+  variables:
+    IPV6: "no"
+  <<: *fedora_env
+  <<: *build_job
+
+build-fedora-v6:
+  variables:
+    IPV6: "yes"
+  <<: *fedora_env
+  <<: *build_job
+
 
 build-debian-32:
   variables:
