@@ -49,6 +49,13 @@ stages:
   - linux
   - amd64
 
+.centos: &centos_env
+  image: registry.labs.nic.cz/mvaner/bird:centos
+  tags:
+  - docker
+  - linux
+  - amd64
+
 .freebsd-32: &freebsd-32_env
   tags:
   - freebsd
@@ -103,6 +110,17 @@ build-fedora-v6:
   <<: *fedora_env
   <<: *build_job
 
+build-centos:
+  variables:
+    IPV6: "no"
+  <<: *centos_env
+  <<: *build_job
+
+build-centos-v6:
+  variables:
+    IPV6: "yes"
+  <<: *centos_env
+  <<: *build_job
 
 build-debian-32:
   variables:
