@@ -75,19 +75,19 @@ docker_centos:
   tags:
   - freebsd
   - i386
-  only:
-  - master
-  - triggers
-  - tags
+  #only:
+  #- master
+  #- triggers
+  #- tags
 
 .freebsd: &freebsd_env
   tags:
   - freebsd
   - amd64
-  only:
-  - master
-  - triggers
-  - tags
+  #only:
+  #- master
+  #- triggers
+  #- tags
 
 .build: &build_job
   stage: build
