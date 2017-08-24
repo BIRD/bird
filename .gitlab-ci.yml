@@ -20,13 +20,28 @@ stages:
   after_script:
   - rm -f "$HOME/.docker/$CI_JOB_ID/" # cleanup the credentials
   tags:
-  - shell
-  - linux
+  # That's Docker in Docker
+  - dind
 
-# docker_debian:
-#   variables:
-#     IMG_NAME: "debian"
-#   <<: *docker_build
+docker_debian:
+  variables:
+    IMG_NAME: "debian"
+  <<: *docker_build
+
+docker_debian-32:
+  variables:
+    IMG_NAME: "debian-32"
+  <<: *docker_build
+
+docker_fedora:
+  variables:
+    IMG_NAME: "fedora"
+  <<: *docker_build
+
+docker_centos:
+  variables:
+    IMG_NAME: "centos"
+  <<: *docker_build
 
 .debian-32: &debian-32_env
   image: registry.labs.nic.cz/mvaner/bird:debian-32
