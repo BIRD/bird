@@ -93,7 +93,7 @@ docker_centos:
   stage: build
   script:
   - autoreconf
-  - ./configure --enable-ipv6=$IPV6
+  - CFLAGS="-I/usr/local/include -L/usr/local/lib" ./configure --enable-ipv6=$IPV6
   # Detect which make is available
   - MAKE=make
   - which gmake 2>/dev/null >/dev/null && MAKE=gmake
