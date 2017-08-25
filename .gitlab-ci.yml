@@ -72,6 +72,8 @@ docker_centos:
   - amd64
 
 .freebsd-32: &freebsd-32_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
   tags:
   - freebsd
   - i386
@@ -81,6 +83,8 @@ docker_centos:
   #- tags
 
 .freebsd: &freebsd_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
   tags:
   - freebsd
   - amd64
@@ -93,7 +97,7 @@ docker_centos:
   stage: build
   script:
   - autoreconf
-  - CFLAGS="-I/usr/local/include -L/usr/local/lib" ./configure --enable-ipv6=$IPV6
+  - ./configure --enable-ipv6=$IPV6
   # Detect which make is available
   - MAKE=make
   - which gmake 2>/dev/null >/dev/null && MAKE=gmake
