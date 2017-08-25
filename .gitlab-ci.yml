@@ -3,7 +3,7 @@ variables:
   LC_ALL: C
   GIT_STRATEGY: fetch
   DOCKER_CMD: docker --config="$HOME/.docker/$CI_JOB_ID/"
-  IMG_BASE: registry.labs.nic.cz/mvaner/bird
+  IMG_BASE: registry.labs.nic.cz/labs/bird
 
 stages:
   - image
@@ -23,55 +23,57 @@ stages:
   # That's Docker in Docker
   - dind
 
-docker_debian:
+docker_debian-amd64:
   variables:
-    IMG_NAME: "debian"
+    IMG_NAME: "debian-amd64"
   <<: *docker_build
 
-docker_debian-32:
+docker_debian-i386:
   variables:
-    IMG_NAME: "debian-32"
+    IMG_NAME: "debian-i386"
   <<: *docker_build
 
-docker_fedora:
+docker_fedora-amd64:
   variables:
-    IMG_NAME: "fedora"
+    IMG_NAME: "fedora-amd64"
   <<: *docker_build
 
-docker_centos:
+docker_centos-amd64:
   variables:
-    IMG_NAME: "centos"
+    IMG_NAME: "centos-amd64"
   <<: *docker_build
 
-.debian-32: &debian-32_env
-  image: registry.labs.nic.cz/mvaner/bird:debian-32
+.debian-i386: &debian-i386_env
+  image: registry.labs.nic.cz/labs/bird:debian-i386
   tags:
   - docker
   - linux
   - amd64
 
-.debian: &debian_env
-  image: registry.labs.nic.cz/mvaner/bird:debian
+.debian-amd64: &debian-amd64_env
+  image: registry.labs.nic.cz/labs/bird:debian-amd64
   tags:
   - docker
   - linux
   - amd64
 
-.fedora: &fedora_env
-  image: registry.labs.nic.cz/mvaner/bird:fedora
+.fedora-amd64: &fedora-amd64_env
+  image: registry.labs.nic.cz/labs/bird:fedora-amd64
   tags:
   - docker
   - linux
   - amd64
 
-.centos: &centos_env
-  image: registry.labs.nic.cz/mvaner/bird:centos
+.centos-amd64: &centos-amd64_env
+  image: registry.labs.nic.cz/labs/bird:centos-amd64
   tags:
   - docker
   - linux
   - amd64
 
-.freebsd-32: &freebsd-32_env
+.freebsd-i386: &freebsd-i386_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
   tags:
   - freebsd
   - i386
@@ -80,7 +82,9 @@ docker_centos:
   #- triggers
   #- tags
 
-.freebsd: &freebsd_env
+.freebsd-amd64: &freebsd-amd64_env
+  variables:
+    CFLAGS: "-I/usr/local/include -L/usr/local/lib"
   tags:
   - freebsd
   - amd64
@@ -93,7 +97,7 @@ docker_centos:
   stage: build
   script:
   - autoreconf
-  - CFLAGS="-I/usr/local/include -L/usr/local/lib" ./configure --enable-ipv6=$IPV6
+  - ./configure --enable-ipv6=$IPV6
   # Detect which make is available
   - MAKE=make
   - which gmake 2>/dev/null >/dev/null && MAKE=gmake
@@ -101,74 +105,74 @@ docker_centos:
   # Run tests if they are available (eg. don't fail if "check" isn't a valid make target)
   - $MAKE check || [ "$?" = 2 ]
 
-build-debian:
+build-debian-amd64:
   variables:
     IPV6: "no"
-  <<: *debian_env
+  <<: *debian-amd64_env
   <<: *build_job
 
-build-debian-v6:
+build-debian-v6-amd64:
   variables:
     IPV6: "yes"
-  <<: *debian_env
+  <<: *debian-amd64_env
   <<: *build_job
 
-build-fedora:
+build-fedora-amd64:
   variables:
     IPV6: "no"
-  <<: *fedora_env
+  <<: *fedora-amd64_env
   <<: *build_job
 
-build-fedora-v6:
+build-fedora-v6-amd64:
   variables:
     IPV6: "yes"
-  <<: *fedora_env
+  <<: *fedora-amd64_env
   <<: *build_job
 
-build-centos:
+build-centos-amd64:
   variables:
     IPV6: "no"
-  <<: *centos_env
+  <<: *centos-amd64_env
   <<: *build_job
 
-build-centos-v6:
+build-centos-v6-amd64:
   variables:
     IPV6: "yes"
-  <<: *centos_env
+  <<: *centos-amd64_env
   <<: *build_job
 
-build-debian-32:
+build-debian-i386:
   variables:
     IPV6: "no"
-  <<: *debian-32_env
+  <<: *debian-i386_env
   <<: *build_job
 
-build-debian-32-v6:
+build-debian-v6-i386:
   variables:
     IPV6: "yes"
-  <<: *debian-32_env
+  <<: *debian-i386_env
   <<: *build_job
 
-build-freebsd:
+build-freebsd-amd64:
   variables:
     IPV6: "no"
-  <<: *freebsd_env
+  <<: *freebsd-amd64_env
   <<: *build_job
 
-build-freebsd-v6:
+build-freebsd-v6-amd64:
   variables:
     IPV6: "yes"
-  <<: *freebsd_env
+  <<: *freebsd-amd64_env
   <<: *build_job
 
-build-freebsd-32:
+build-freebsd-i386:
   variables:
     IPV6: "no"
-  <<: *freebsd-32_env
+  <<: *freebsd-i386_env
   <<: *build_job
 
-build-freebsd-32-v6:
+build-freebsd-v6-i386:
   variables:
     IPV6: "yes"
-  <<: *freebsd-32_env
+  <<: *freebsd-i386_env
   <<: *build_job
