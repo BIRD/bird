@@ -101,7 +101,7 @@ docker_centos-amd64:
   # Detect which make is available
   - MAKE=make
   - which gmake 2>/dev/null >/dev/null && MAKE=gmake
-  - $MAKE
+  - $MAKE CFLAGS="$CLAFS"
   # Run tests if they are available (eg. don't fail if "check" isn't a valid make target)
   - $MAKE check || [ "$?" = 2 ]
 
