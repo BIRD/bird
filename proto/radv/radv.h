@@ -54,6 +54,8 @@ struct radv_config
   ip_addr trigger_prefix;	/* Prefix of a trigger route, if defined */
   u8 trigger_pxlen;		/* Pxlen of a trigger route, if defined */
   u8 trigger_valid;		/* Whether a trigger route is defined */
+  u8 propagate_specific;	/* Do we propagate more specific routes, according to
+				   RFC 4191? */
 };
 
 struct radv_iface_config
@@ -117,12 +119,41 @@ struct radv_dnssl_config
   char *domain;			/* Domain for DNS search list, in processed form */
 };
 
+/*
+ * One more specific route as per RFC 4191.
+ *
+ * Note that it does *not* contain the next hop field. The next hop
+ * is always the router sending the advertisment and the more specific route
+ * only allows overriding the preference of the route.
+ *
+ * We could also include the lifetime for the route, but wasting another route
+ * attribute for that feels useless, so we just use the same one as in the main
+* packet.
+ */
+struct radv_cache_node
+{
+  struct fib_node header;
+  u8 preference;		/* Preference of the route, RA_PREF_* */
+};
 
 struct radv_proto
 {
   struct proto p;
   list iface_list;		/* List of active ifaces */
   u8 active;			/* Whether radv is active w.r.t. triggers */
+  event *refeed_request;	/* Sometimes we need to asynchronously request
+				   refeeding of routes. */
+  /*
+   * We want to be able to iterate through our routes whenever we construct a
+   * packet. Doing that over the real table is impractical, because:
+   * * There are no documented functions for that kind of thing.
+   * * The table can be large and we want only few routes for ourselves.
+   *
+   * Therefore, we keep them here.
+   *
+   * (struct radv_cache_node)
+   */
+  struct fib route_cache;
 };
 
 struct radv_prefix		/* One prefix we advertise */

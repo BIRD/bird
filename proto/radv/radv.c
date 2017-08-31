@@ -410,7 +410,10 @@ radv_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct l
   if (radv_net_match_trigger(cf, (*new)->net))
     return RIC_PROCESS;
 
-  return RIC_DROP;
+  if (cf->propagate_specific)
+    return RIC_PROCESS;
+  else
+    return RIC_DROP;
 }
 
 static void
@@ -432,6 +435,39 @@ radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old U
     else
       RADV_TRACE(D_EVENTS, "Suppressed");
 
+    radv_iface_notify_all(p, RA_EV_CHANGE);
+  }
+  else if (cf->propagate_specific)
+  {
+    /*
+     * Some other route we want to send (or stop sending). Update the cache -
+     * remove old if there was one first, and then insert a new one, if we got
+     * it.
+     *
+     * And yes, we exclude the trigger route on purpose from the cache.
+     */
+
+    void *existing = fib_find(&p->route_cache, &n->n.prefix, n->n.pxlen);
+    if (existing)
+      fib_delete(&p->route_cache, existing);
+
+    if (new) {
+      struct radv_cache_node *added = fib_get(&p->route_cache, &n->n.prefix,
+					      n->n.pxlen);
+      // TODO: Search through the entry and look for the attribute specifying
+      // preference. If found, stuff it into the added.
+    }
+
+    /* Schedule sending of the changes out. */
+    /*
+     * FIXME This is a bit drastic approach. For one, we should check that
+     * something meaningful actually changed, compare the new and old.
+     *
+     * For another, there might be a better way to send out the update than just
+     * invalidating all our state around interfaces.
+     *
+     * But this is the first shot.
+     */
     radv_iface_notify_all(p, RA_EV_CHANGE);
   }
 }
@@ -462,6 +498,48 @@ radv_init(struct proto_config *c)
   return P;
 }
 
+static void
+radv_cache_node_init(struct fib_node *node) {
+  struct radv_cache_node *n = (struct radv_cache_node *) node;
+  /*
+   * Medium is the default, it might get overwritten by a route attribute later
+   * on, if one is found.
+   */
+  n->preference = RA_PREF_MEDIUM;
+}
+
+static void
+radv_set_propagate(struct radv_proto *p, u8 old, u8 new)
+{
+  if (old == new)
+    return;
+
+  if (new) {
+    RADV_TRACE(D_EVENTS, "Creating a route cache");
+    fib_init(&p->route_cache, p->p.pool, sizeof(struct radv_cache_node), 0,
+	     radv_cache_node_init);
+  } else {
+    RADV_TRACE(D_EVENTS, "Getting rid of a route cache");
+    fib_free(&p->route_cache);
+  }
+
+  /*
+   * The propagate_specific option has an influence on what routes we allow to
+   * reach the filters. Therefore, we need to re-request them and decide based
+   * on the new configuration. But preferably *after* we switch the
+   * configuration, so we use the new one O:-).
+   */
+  ev_schedule(p->refeed_request);
+}
+
+static void
+radv_request_refeed(void *data)
+{
+  struct radv_proto *p = data;
+  RADV_TRACE(D_EVENTS, "Asking for re-feeding of routes");
+  proto_request_feeding(&p->p);
+}
+
 static int
 radv_start(struct proto *P)
 {
@@ -470,6 +548,11 @@ radv_start(struct proto *P)
 
   init_list(&(p->iface_list));
   p->active = !cf->trigger_valid;
+  p->refeed_request = ev_new(P->pool);
+  p->refeed_request->hook = radv_request_refeed;
+  p->refeed_request->data = p;
+
+  radv_set_propagate(p, 0, cf->propagate_specific);
 
   return PS_UP;
 }
@@ -485,6 +568,9 @@ static int
 radv_shutdown(struct proto *P)
 {
   struct radv_proto *p = (struct radv_proto *) P;
+  struct radv_config *cf = (struct radv_config *) (P->cf);
+
+  radv_set_propagate(p, cf->propagate_specific, 0);
 
   struct radv_iface *ifa;
   WALK_LIST(ifa, p->iface_list)
@@ -497,7 +583,7 @@ static int
 radv_reconfigure(struct proto *P, struct proto_config *c)
 {
   struct radv_proto *p = (struct radv_proto *) P;
-  // struct radv_config *old = (struct radv_config *) (p->cf);
+  struct radv_config *old = (struct radv_config *) (P->cf);
   struct radv_config *new = (struct radv_config *) c;
 
   /*
@@ -510,6 +596,8 @@ radv_reconfigure(struct proto *P, struct proto_config *c)
 
   P->cf = c; /* radv_check_active() requires proper P->cf */
   p->active = radv_check_active(p);
+
+  radv_set_propagate(p, old->propagate_specific, new->propagate_specific);
 
   struct iface *iface;
   WALK_LIST(iface, iface_list)
