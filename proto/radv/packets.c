@@ -70,6 +70,46 @@ struct radv_opt_dnssl
   char domain[];
 };
 
+#define OPT_ROUTE 24
+
+struct radv_opt_route {
+  u8 type;
+  u8 length;
+  u8 pxlen;
+  u8 flags;
+  u32 lifetime;
+  u8 prefix[];
+};
+
+static int
+radv_prepare_route(struct radv_iface *ifa, struct radv_cache_node *prefix,
+		   char **buf, char *bufend)
+{
+  u8 px_bytes = (prefix->header.pxlen + 7) / 8;
+  u8 px_len_multiples = (px_bytes + 7) / 8;
+  u8 opt_len = 8 * (1 + px_len_multiples);
+  if (*buf + opt_len > bufend) {
+    log(L_WARN, "%s: Too many routes on interface %s",
+	ifa->ra->p.name, ifa->iface->name);
+    return -1;
+  }
+
+  struct radv_opt_route *opt = (void *) *buf;
+  *buf += opt_len;
+  opt->type = OPT_ROUTE;
+  opt->length = px_len_multiples + 1;
+  opt->pxlen = prefix->header.pxlen;
+  opt->flags = prefix->preference;
+  // XXX Get a lifetime somewhere
+  opt->lifetime = htonl(3600);
+  // Copy only the relevant part of the prefix
+  ip_addr pfx_addr = prefix->header.prefix;
+  ipa_hton(pfx_addr);
+  memcpy(opt->prefix, &pfx_addr, 8 * px_len_multiples);
+
+  return 0;
+}
+
 static int
 radv_prepare_rdnss(struct radv_iface *ifa, list *rdnss_list, char **buf, char *bufend)
 {
@@ -291,6 +331,16 @@ radv_prepare_ra(struct radv_iface *ifa)
 
   if (radv_prepare_dnssl(ifa, &ic->dnssl_list, &buf, bufend) < 0)
     goto done;
+
+  if (cf->propagate_specific)
+  {
+    FIB_WALK(&p->route_cache, route)
+    {
+      if (radv_prepare_route(ifa, (void *) route, &buf, bufend) < 0)
+	goto done;
+    }
+    FIB_WALK_END;
+  }
 
  done:
   ifa->plen = buf - bufstart;
