@@ -1088,7 +1088,8 @@ interpret(struct f_inst *what)
 
       switch (what->aux & EAF_TYPE_MASK) {
       case EAF_TYPE_INT:
-	if (v1.type != T_INT)
+	// Enums are also ints, so allow them in.
+	if (v1.type != T_INT && (v1.type < T_ENUM_LO || v1.type > T_ENUM_HI))
 	  runtime( "Setting int attribute to non-int value" );
 	l->attrs[0].u.data = v1.val.i;
 	break;
