@@ -168,6 +168,7 @@ void val_format(struct f_val v, buffer *buf);
 #define T_ENUM_RTC 0x33
 #define T_ENUM_RTD 0x34
 #define T_ENUM_ROA 0x35
+#define T_ENUM_RADV_PREFERENCE 0x36
 /* new enums go here */
 #define T_ENUM_EMPTY 0x3f	/* Special hack for atomic_aggr */
 

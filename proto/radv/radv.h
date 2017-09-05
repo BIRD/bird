@@ -56,6 +56,8 @@ struct radv_config
   u8 trigger_valid;		/* Whether a trigger route is defined */
   u8 propagate_specific;	/* Do we propagate more specific routes, according to
 				   RFC 4191? */
+  u32 specific_lifetime;	/* Lifetime for the above more specific routes */
+  u32 specific_lifetime_sensitive; /* Should the lifetime be sensitive to the trigger? */
 };
 
 struct radv_iface_config
@@ -134,6 +136,8 @@ struct radv_cache_node
 {
   struct fib_node header;
   u8 preference;		/* Preference of the route, RA_PREF_* */
+  u8 lifetime_set;		/* Is the lifetime set by an attribute? */
+  u32 lifetime;			/* Lifetime from an attribute */
 };
 
 struct radv_proto
@@ -200,6 +204,14 @@ struct radv_iface
 #define RA_PREF_HIGH	0x08
 #define RA_PREF_MASK	0x18
 
+/* Allow RA_* in configuration file */
+#define PREF_LOW	RA_PREF_LOW
+#define PREF_MEDIUM	RA_PREF_MEDIUM
+#define PREF_HIGH	RA_PREF_HIGH
+
+/* Attributes */
+#define RA_PREF		0x01
+#define RA_LIFE		0x02
 
 #ifdef LOCAL_DEBUG
 #define RADV_FORCE_DEBUG 1

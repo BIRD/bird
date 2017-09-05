@@ -31,7 +31,7 @@ CF_KEYWORDS(RADV, PREFIX, INTERFACE, MIN, MAX, RA, DELAY, INTERVAL,
 	TIMER, CURRENT, HOP, LIMIT, DEFAULT, VALID, PREFERRED, MULT,
 	LIFETIME, SKIP, ONLINK, AUTONOMOUS, RDNSS, DNSSL, NS, DOMAIN,
 	LOCAL, TRIGGER, SENSITIVE, PREFERENCE, LOW, MEDIUM, HIGH, PROPAGATE,
-	SPECIFIC)
+	SPECIFIC, RA_PREFERENCE, RA_LIFETIME)
 
 %type<i> radv_mult radv_sensitive radv_preference
 
@@ -46,6 +46,7 @@ radv_proto_start: proto_start RADV
   init_list(&RADV_CFG->pref_list);
   init_list(&RADV_CFG->rdnss_list);
   init_list(&RADV_CFG->dnssl_list);
+  RADV_CFG->specific_lifetime = DEFAULT_VALID_LIFETIME;
 };
 
 radv_proto_item:
@@ -60,6 +61,11 @@ radv_proto_item:
      RADV_CFG->trigger_valid = 1;
    }
  | PROPAGATE SPECIFIC bool { RADV_CFG->propagate_specific = $3; }
+ | SPECIFIC LIFETIME expr radv_sensitive {
+     if ($3 < 0)  cf_error("Specific lifetime must be 0 or positive");
+     RADV_CFG->specific_lifetime = $3;
+     if ($4 != -1) RADV_CFG->specific_lifetime_sensitive = $4;
+   }
  ;
 
 radv_proto_opts:
@@ -304,6 +310,11 @@ radv_sensitive:
    /* empty */ { $$ = -1; }
  | SENSITIVE bool { $$ = $2; }
  ;
+
+CF_ADDTO(dynamic_attr, RA_PREFERENCE { $$ = f_new_dynamic_attr(EAF_TYPE_INT, T_ENUM_RADV_PREFERENCE, EA_CODE(EAP_RADV, RA_PREF)); })
+CF_ADDTO(dynamic_attr, RA_LIFETIME { $$ = f_new_dynamic_attr(EAF_TYPE_INT, T_INT, EA_CODE(EAP_RADV, RA_LIFE)); })
+
+CF_ENUM(T_ENUM_RADV_PREFERENCE, PREF_, LOW, MEDIUM, HIGH)
 
 CF_CODE
 

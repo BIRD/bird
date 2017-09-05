@@ -506,6 +506,7 @@ radv_cache_node_init(struct fib_node *node) {
    * on, if one is found.
    */
   n->preference = RA_PREF_MEDIUM;
+  n->lifetime_set = 0;
 }
 
 static void

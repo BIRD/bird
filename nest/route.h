@@ -429,7 +429,8 @@ typedef struct eattr {
 #define EAP_OSPF 3			/* OSPF */
 #define EAP_KRT 4			/* Kernel route attributes */
 #define EAP_BABEL 5			/* Babel attributes */
-#define EAP_MAX 6
+#define EAP_RADV 6			/* Router advertisment attributes */
+#define EAP_MAX 7
 
 #define EA_CODE(proto,id) (((proto) << 8) | (id))
 #define EA_PROTO(ea) ((ea) >> 8)
