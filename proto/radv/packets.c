@@ -85,6 +85,7 @@ static int
 radv_prepare_route(struct radv_iface *ifa, struct radv_cache_node *prefix,
 		   char **buf, char *bufend)
 {
+  struct radv_config *cf = (struct radv_config *) ifa->ra->p.cf;
   u8 px_bytes = (prefix->header.pxlen + 7) / 8;
   u8 px_len_multiples = (px_bytes + 7) / 8;
   u8 opt_len = 8 * (1 + px_len_multiples);
@@ -100,8 +101,14 @@ radv_prepare_route(struct radv_iface *ifa, struct radv_cache_node *prefix,
   opt->length = px_len_multiples + 1;
   opt->pxlen = prefix->header.pxlen;
   opt->flags = prefix->preference;
-  // XXX Get a lifetime somewhere
-  opt->lifetime = htonl(3600);
+  u32 lifetime;
+  if (prefix->lifetime_set)
+    lifetime = prefix->lifetime;
+  else
+    lifetime = cf->specific_lifetime;
+  if (cf->specific_lifetime_sensitive && !ifa->ra->active)
+    lifetime = 0;
+  opt->lifetime = htonl(lifetime);
   // Copy only the relevant part of the prefix
   ip_addr pfx_addr = prefix->header.prefix;
   ipa_hton(pfx_addr);
