@@ -108,6 +108,8 @@ radv_prepare_route(struct radv_iface *ifa, struct radv_cache_node *prefix,
     lifetime = cf->specific_lifetime;
   if (cf->specific_lifetime_sensitive && !ifa->ra->active)
     lifetime = 0;
+  if (!prefix->alive)
+    lifetime = 0;
   opt->lifetime = htonl(lifetime);
   // Copy only the relevant part of the prefix
   ip_addr pfx_addr = prefix->header.prefix;
