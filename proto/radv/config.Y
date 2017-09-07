@@ -47,6 +47,7 @@ radv_proto_start: proto_start RADV
   init_list(&RADV_CFG->rdnss_list);
   init_list(&RADV_CFG->dnssl_list);
   RADV_CFG->specific_lifetime = DEFAULT_VALID_LIFETIME;
+  RADV_CFG->specific_linger_time = DEFAULT_LINGER_TIME;
 };
 
 radv_proto_item:
@@ -65,6 +66,11 @@ radv_proto_item:
      if ($3 < 0)  cf_error("Specific lifetime must be 0 or positive");
      RADV_CFG->specific_lifetime = $3;
      if ($4 != -1) RADV_CFG->specific_lifetime_sensitive = $4;
+   }
+ | SPECIFIC LINGER TIME expr {
+     RADV_CFG->specific_linger_time = $4;
+     if (($4 < 0) || ($4 > 3600))
+       cf_error("Linger time must be in range 0-3600");
    }
  ;
 

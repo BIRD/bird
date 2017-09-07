@@ -58,6 +58,7 @@ struct radv_config
 				   RFC 4191? */
   u32 specific_lifetime;	/* Lifetime for the above more specific routes */
   u32 specific_lifetime_sensitive; /* Should the lifetime be sensitive to the trigger? */
+  u32 specific_linger_time;	/* For how long we advertise dead routes with lifetime = 0 */
 };
 
 struct radv_iface_config
@@ -135,9 +136,11 @@ struct radv_dnssl_config
 struct radv_cache_node
 {
   struct fib_node header;
-  u8 preference;		/* Preference of the route, RA_PREF_* */
-  u8 lifetime_set;		/* Is the lifetime set by an attribute? */
   u32 lifetime;			/* Lifetime from an attribute */
+  u8 lifetime_set;		/* Is the lifetime set by an attribute? */
+  u8 preference;		/* Preference of the route, RA_PREF_* */
+  u8 alive;
+  bird_clock_t expires;		/* Absolute time to remove when !alive */
 };
 
 struct radv_proto
@@ -158,6 +161,7 @@ struct radv_proto
    * (struct radv_cache_node)
    */
   struct fib route_cache;
+  timer *gc_timer;
 };
 
 struct radv_prefix		/* One prefix we advertise */

@@ -416,6 +416,56 @@ radv_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct l
     return RIC_DROP;
 }
 
+/*
+ * Cleans up all the dead routes that expired and schedules itself to be run
+ * again if there are more routes waiting for expiration.
+ *
+ * Invoked as a timer callback (radv_proto::gc_timer).
+ */
+static void
+radv_routes_gc(timer *tm)
+{
+  struct radv_proto *p = (void *) tm->data;
+  struct radv_config *cf = (void *) p->p.cf;
+  /* In case of race conditions after turning it off */
+  if (!cf->propagate_specific)
+    return;
+  RADV_TRACE(D_EVENTS, "Route GC running");
+  /* 0 -> no expiration scheduled */
+  bird_clock_t nearest_expire = 0;
+  uint count = p->route_cache.hash_size;
+  /*
+   * Allocate dynamically. We expect to have very few routes, but we can't be
+   * *sure* of that. So we don't risk overflowing the stack with huge array.
+   */
+  struct radv_cache_node **condemned = mb_alloc(p->p.pool,
+						count * sizeof *condemned);
+  uint condemned_count = 0;
+  FIB_WALK(&p->route_cache, node)
+  {
+    struct radv_cache_node *cnode = (void *) node;
+    if (cnode->alive)
+      continue;
+    if (cnode->expires <= now)
+      /* Can't delete right away when iterating */
+      condemned[condemned_count ++] = cnode;
+    else if (!nearest_expire || cnode->expires < nearest_expire)
+      nearest_expire = cnode->expires;
+  }
+  FIB_WALK_END;
+
+  uint i;
+  for (i = 0; i < condemned_count; i ++)
+    fib_delete(&p->route_cache, condemned[i]);
+
+  mb_free(condemned);
+
+  if (nearest_expire)
+    tm_start(p->gc_timer, nearest_expire - now);
+
+  radv_iface_notify_all(p, RA_EV_CHANGE);
+}
+
 static void
 radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old UNUSED, ea_list *attrs UNUSED)
 {
@@ -447,23 +497,30 @@ radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old U
      * And yes, we exclude the trigger route on purpose from the cache.
      */
 
-    void *existing = fib_find(&p->route_cache, &n->n.prefix, n->n.pxlen);
-    if (existing)
-      fib_delete(&p->route_cache, existing);
+    struct radv_cache_node *node = fib_find(&p->route_cache, &n->n.prefix,
+					    n->n.pxlen);
+    if (node && !new && node->alive) {
+      node->alive = 0;
+      node->expires = now + cf->specific_linger_time;
+      if (!tm_active(p->gc_timer) ||
+	  cf->specific_linger_time < tm_remains(p->gc_timer))
+	tm_start(p->gc_timer, cf->specific_linger_time);
+    }
 
     if (new) {
-      struct radv_cache_node *added = fib_get(&p->route_cache, &n->n.prefix,
-					      n->n.pxlen);
+      if (!node)
+	node = fib_get(&p->route_cache, &n->n.prefix, n->n.pxlen);
+      node->alive = 1;
       ea_list *ea = new->attrs->eattrs;
-      added->preference =
+      node->preference =
 	ea_get_int(ea, EA_CODE(EAP_RADV, RA_PREF), PREF_MEDIUM);
       int lifetime =
 	ea_get_int(ea, EA_CODE(EAP_RADV, RA_LIFE), -1);
       if (lifetime == -1) {
-	added->lifetime_set = 0;
+	node->lifetime_set = 0;
       } else {
-	added->lifetime_set = 1;
-	added->lifetime = lifetime;
+	node->lifetime_set = 1;
+	node->lifetime = lifetime;
       }
     }
 
@@ -520,6 +577,7 @@ radv_set_propagate(struct radv_proto *p, u8 old, u8 new)
   } else {
     RADV_TRACE(D_EVENTS, "Getting rid of a route cache");
     fib_free(&p->route_cache);
+    tm_stop(p->gc_timer);
   }
 
   /*
@@ -550,6 +608,13 @@ radv_start(struct proto *P)
   p->refeed_request = ev_new(P->pool);
   p->refeed_request->hook = radv_request_refeed;
   p->refeed_request->data = p;
+
+  timer *tm = tm_new(P->pool);
+  tm->hook = radv_routes_gc;
+  tm->data = p;
+  tm->randomize = 0;
+  tm->recurrent = 0;
+  p->gc_timer = tm;
 
   radv_set_propagate(p, 0, cf->propagate_specific);
 
