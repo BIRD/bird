@@ -343,12 +343,20 @@ radv_prepare_ra(struct radv_iface *ifa)
 
   if (cf->propagate_specific)
   {
+    uint rcount = 0;
     FIB_WALK(&p->route_cache, route)
     {
       if (radv_prepare_route(ifa, (void *) route, &buf, bufend) < 0)
 	goto done;
+      rcount ++;
     }
     FIB_WALK_END;
+    if (rcount > 17)
+    {
+      // TODO: Should we count the 0-lifetime retracted as well?
+      log(L_WARN, "%s: Sending %u routes, RFC 4191 says it SHOULD be max. 17",
+	  p->p.name, rcount);
+    }
   }
 
  done:
