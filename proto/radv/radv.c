@@ -512,10 +512,19 @@ radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old U
 	node = fib_get(&p->route_cache, &n->n.prefix, n->n.pxlen);
       node->alive = 1;
       ea_list *ea = new->attrs->eattrs;
-      node->preference =
+      int preference =
 	ea_get_int(ea, EA_CODE(EAP_RADV, RA_PREF), PREF_MEDIUM);
       int lifetime =
 	ea_get_int(ea, EA_CODE(EAP_RADV, RA_LIFE), -1);
+      if (preference != PREF_LOW && preference != PREF_MEDIUM &&
+	  preference != PREF_HIGH)
+      {
+	log(L_ERR "%s: Invalid preference %d on route %I/%d, disabling",
+	    p->p.name, preference, n->n.prefix, n->n.pxlen);
+	preference = PREF_MEDIUM;
+	lifetime = 0;
+      }
+      node->preference = preference;
       if (lifetime == -1) {
 	node->lifetime_set = 0;
       } else {
@@ -527,7 +536,8 @@ radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old U
     /* Schedule sending of the changes out. */
     /*
      * FIXME This is a bit drastic approach. For one, we should check that
-     * something meaningful actually changed, compare the new and old.
+     * something meaningful actually changed (but is there a simple way to do it
+     * in a reliable way?), compare the new and old.
      *
      * For another, there might be a better way to send out the update than just
      * invalidating all our state around interfaces.
