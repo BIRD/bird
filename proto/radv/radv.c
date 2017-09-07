@@ -454,8 +454,17 @@ radv_rt_notify(struct proto *P, rtable *tbl UNUSED, net *n, rte *new, rte *old U
     if (new) {
       struct radv_cache_node *added = fib_get(&p->route_cache, &n->n.prefix,
 					      n->n.pxlen);
-      // TODO: Search through the entry and look for the attribute specifying
-      // preference. If found, stuff it into the added.
+      ea_list *ea = new->attrs->eattrs;
+      added->preference =
+	ea_get_int(ea, EA_CODE(EAP_RADV, RA_PREF), PREF_MEDIUM);
+      int lifetime =
+	ea_get_int(ea, EA_CODE(EAP_RADV, RA_LIFE), -1);
+      if (lifetime == -1) {
+	added->lifetime_set = 0;
+      } else {
+	added->lifetime_set = 1;
+	added->lifetime = lifetime;
+      }
     }
 
     /* Schedule sending of the changes out. */
@@ -499,17 +508,6 @@ radv_init(struct proto_config *c)
 }
 
 static void
-radv_cache_node_init(struct fib_node *node) {
-  struct radv_cache_node *n = (struct radv_cache_node *) node;
-  /*
-   * Medium is the default, it might get overwritten by a route attribute later
-   * on, if one is found.
-   */
-  n->preference = RA_PREF_MEDIUM;
-  n->lifetime_set = 0;
-}
-
-static void
 radv_set_propagate(struct radv_proto *p, u8 old, u8 new)
 {
   if (old == new)
@@ -518,7 +516,7 @@ radv_set_propagate(struct radv_proto *p, u8 old, u8 new)
   if (new) {
     RADV_TRACE(D_EVENTS, "Creating a route cache");
     fib_init(&p->route_cache, p->p.pool, sizeof(struct radv_cache_node), 0,
-	     radv_cache_node_init);
+	     NULL);
   } else {
     RADV_TRACE(D_EVENTS, "Getting rid of a route cache");
     fib_free(&p->route_cache);
@@ -651,14 +649,49 @@ radv_get_status(struct proto *P, byte *buf)
     strcpy(buf, "Suppressed");
 }
 
+static const char *
+radv_pref_str(u32 pref)
+{
+  switch (pref)
+  {
+    case RA_PREF_LOW:
+      return "low";
+    case RA_PREF_MEDIUM:
+      return "medium";
+    case RA_PREF_HIGH:
+      return "high";
+    default:
+      return "??";
+  }
+}
+
+/* The buffer has some minimal size */
+static int
+radv_get_attr(eattr *a, byte *buf, int buflen UNUSED)
+{
+  switch (EA_ID(a->id))
+  {
+  case RA_PREF:
+    bsprintf(buf, "preference: %s", radv_pref_str(a->u.data));
+    return GA_FULL;
+  case RA_LIFE:
+    bsprintf(buf, "lifetime");
+    return GA_NAME;
+  default:
+    return GA_UNKNOWN;
+  }
+}
+
 struct protocol proto_radv = {
   .name =		"RAdv",
   .template =		"radv%d",
+  .attr_class =		EAP_RADV,
   .config_size =	sizeof(struct radv_config),
   .init =		radv_init,
   .start =		radv_start,
   .shutdown =		radv_shutdown,
   .reconfigure =	radv_reconfigure,
   .copy_config =	radv_copy_config,
-  .get_status =		radv_get_status
+  .get_status =		radv_get_status,
+  .get_attr =		radv_get_attr
 };
