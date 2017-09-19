@@ -3323,7 +3323,8 @@ time intervals or as an answer to a request) advertisement packets to connected
 networks. These packets contain basic information about a local network (e.g. a
 list of network prefixes), which allows network hosts to autoconfigure network
 addresses and choose a default route. BIRD implements router behavior as defined
-in <rfc id="4861"> and also the DNS extensions from <rfc id="6106">.
+in <rfc id="4861">, the DNS extensions from <rfc id="6106"> and more specific
+routes from <rfc id="4191">.
 
 <sect1>Configuration
 <label id="radv-config">
@@ -3385,6 +3386,36 @@ dsc-iface
 	default router. <cf/preferred lifetime/ and <cf/valid lifetime/ could
 	also be configured as <cf/sensitive/ for a prefix, which would cause
 	autoconfigured IPs to be deprecated or even removed.
+
+	<tag><label id="radv-propagate-routes">propagate routes <m/switch/</tag>
+	This option turns on propagation of more specific routes defined in the
+	<rfc id="4191">. All the routes exported to the RAdv protocol, with the
+	exception of the trigger prefix, are added to the advertisment as
+	additional options. The preference and lifetime of each separate route
+	can be set with the <it/ra_preference/ and <it/ra_lifetime/ attributes.
+
+	Note that the RFC discourages from sending more than 17 routes and
+	recommends the routes to be configured manually.
+
+	<tag><label id="radv-route-lifetime">route lifetime <m/expr/ [sensitive <m/switch/]</tag>
+	If a route being advertised doesn't have the <it/ra_lifetime/ attribute,
+	value of this option is used instead. It is the lifetime of the route in
+	seconds. A special value 0xffffffff means infinity. Default: 86400.
+
+	For the <cf/sensitive/ option, see
+	<ref id="radv-trigger" name="trigger">. If <cf/sensitive/ is turned on,
+	even the routes with the <it/ra_lifetime/ attribute become sensitive
+	to the trigger.
+
+	If the <cf/propagate routes/
+	<ref id="radv-propagate-routes" name="option"> is turned off, this
+	option has no effect.
+
+	<tag><label id="radv-linger-time">linger time <m/expr/</tag>
+	When a prefix or route disappears, it is advertised for some time with 0
+	lifetime, to inform clients it is no longer usable. This option sets the
+	time for how long it is advertised (in seconds). Maximum is 3600, 0
+	means disabled. Default: 300.
 </descrip>
 
 <p>Interface specific options:
@@ -3436,12 +3467,6 @@ dsc-iface
 	as a default router. For <cf/sensitive/ option, see <ref id="radv-trigger" name="trigger">.
 	Default: 3 * <cf/max ra	interval/, <cf/sensitive/ yes.
 
-	<tag><label id="radv-iface-linger-time">linger time <m/expr/</tag>
-	When a prefix disappears, it is advertised for some time with 0
-	lifetime, to inform clients the prefix is no longer usable. This option
-	sets the time for how long it is advertised (in seconds). Maximum is
-	3600, 0 means disabled. Default: 300.
-
 	<tag><label id="radv-iface-default-preference-low">default preference low|medium|high</tag>
 	This option specifies the Default Router Preference value to advertise
 	to hosts. Default: medium.
@@ -3490,6 +3515,23 @@ dsc-iface
 	autoconfiguration remain preferred. For <cf/sensitive/ option,
 	see <ref id="radv-trigger" name="trigger">. Default: 14400 (4 hours),
 	<cf/sensitive/ no.
+</descrip>
+
+<sect1>Attributes
+<label id="radv-attr">
+
+<p>RAdv defines two route attributes:
+
+<descrip>
+	<tag><label id="rta-ra-preference">enum ra_preference/</tag>
+	The preference of a route. The value can be <it/PREF_LOW/,
+	<it/PREF_MEDIUM/ or <it/PREF_HIGH/. If the attribute is not set, it
+	defaults to <it/PREF_MEDIUM/.
+
+	<tag><label id="rta-ra-lifetime">int ra_lifetime/</tag>
+	The advertised lifetime of the route, in seconds. The special value of
+	0xffffffff means infinity. If not set, the <cf/route lifetime/
+	<ref id="radv-route-lifetime" name="option"> is used.
 </descrip>
 
 
