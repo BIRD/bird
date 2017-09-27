@@ -32,9 +32,6 @@ struct config {
   struct iface_patt *router_id_from;	/* Configured list of router ID iface patterns */
 
   u32 router_id;			/* Our Router ID */
-  ip_addr listen_bgp_addr;		/* Listening BGP socket should use this address */
-  unsigned listen_bgp_port;		/* Listening BGP socket should use this port (0 is default) */
-  u32 listen_bgp_flags;			/* Listening BGP socket should use these flags */
   unsigned proto_default_debug;		/* Default protocol debug mask */
   unsigned proto_default_mrtdump;	/* Default protocol mrtdump mask */
   struct timeformat tf_route;		/* Time format for 'show route' */

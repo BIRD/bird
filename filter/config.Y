@@ -421,7 +421,7 @@ CF_KEYWORDS(FUNCTION, PRINT, PRINTN, UNSET, RETURN,
 %type <v> set_atom switch_atom fipa
 %type <px> fprefix
 %type <s> decls declsn one_decl function_params
-%type <h> bgp_path bgp_path_tail1 bgp_path_tail2
+%type <h> bgp_path bgp_path_tail
 %type <t> get_cf_position
 
 CF_GRAMMAR
@@ -763,23 +763,16 @@ bgp_path_expr:
  ;
 
 bgp_path:
-   PO  bgp_path_tail1 PC  { $$ = $2; }
- | '/' bgp_path_tail2 '/' { $$ = $2; }
+   PO  bgp_path_tail PC  { $$ = $2; }
  ;
 
-bgp_path_tail1:
-   NUM bgp_path_tail1		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASN; $$->val = $1; }
- | NUM DDOT NUM bgp_path_tail1	{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $4; $$->kind = PM_ASN_RANGE; $$->val = $1; $$->val2 = $3; }
- | '*' bgp_path_tail1		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASTERISK; }
- | '?' bgp_path_tail1		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_QUESTION; }
- | bgp_path_expr bgp_path_tail1	{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASN_EXPR; $$->val = (uintptr_t) $1; }
+bgp_path_tail:
+   NUM bgp_path_tail		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASN; $$->val = $1; }
+ | NUM DDOT NUM bgp_path_tail	{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $4; $$->kind = PM_ASN_RANGE; $$->val = $1; $$->val2 = $3; }
+ | '*' bgp_path_tail		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASTERISK; }
+ | '?' bgp_path_tail		{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_QUESTION; }
+ | bgp_path_expr bgp_path_tail	{ $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASN_EXPR; $$->val = (uintptr_t) $1; }
  | 				{ $$ = NULL; }
- ;
-
-bgp_path_tail2:
-   NUM bgp_path_tail2 { $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASN; $$->val = $1; }
- | '?' bgp_path_tail2 { $$ = cfg_allocz(sizeof(struct f_path_mask)); $$->next = $2; $$->kind = PM_ASTERISK; }
- | 		      { $$ = NULL; }
  ;
 
 constant:
