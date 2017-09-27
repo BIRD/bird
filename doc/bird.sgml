@@ -1,7 +1,7 @@
 <!doctype birddoc system>
 
 <!--
-	BIRD documentation
+	BIRD 2.0 documentation
 
 This documentation can have 4 forms: sgml (this is master copy), html, ASCII
 text and dvi/postscript (generated from sgml using sgmltools). You should always
@@ -20,11 +20,12 @@ configuration - something in config which is not keyword.
 
 <book>
 
-<title>BIRD User's Guide
+<title>BIRD 2.0 User's Guide
 <author>
 Ondrej Filip <it/&lt;feela@network.cz&gt;/,
 Pavel Machek <it/&lt;pavel@ucw.cz&gt;/,
 Martin Mares <it/&lt;mj@ucw.cz&gt;/,
+Jan Matejka <it/&lt;mq@jmq.cz&gt;/,
 Ondrej Zajicek <it/&lt;santiago@crfreenet.org&gt;/
 </author>
 
@@ -88,7 +89,7 @@ supports:
 	<item>both IPv4 and IPv6 protocols
 	<item>multiple routing tables
 	<item>the Border Gateway Protocol (BGPv4)
-	<item>the Routing Information Protocol (RIPv2)
+	<item>the Routing Information Protocol (RIPv2, RIPng)
 	<item>the Open Shortest Path First protocol (OSPFv2, OSPFv3)
 	<item>the Router Advertisements for IPv6 hosts
 	<item>a virtual protocol for exchange of routes between different
@@ -112,11 +113,10 @@ developed and tested under Linux 2.0 to 2.6, and then ported to FreeBSD, NetBSD
 and OpenBSD, porting to other systems (even non-UNIX ones) should be relatively
 easy due to its highly modular architecture.
 
-<p>BIRD supports either IPv4 or IPv6 protocol, but have to be compiled separately
-for each one. Therefore, a dualstack router would run two instances of BIRD (one
-for IPv4 and one for IPv6), with completely separate setups (configuration
-files, tools ...).
-
+<p>BIRD 1.x supported either IPv4 or IPv6 protocol, but had to be compiled separately
+for each one. BIRD~2 supports both of them with a possibility of further extension.
+BIRD~2 supports Linux at least 3.16, FreeBSD 10, NetBSD 7.0, and OpenBSD 5.8.
+Anyway, it will probably work well also on older systems.
 
 <sect>Installing BIRD
 <label id="install">
@@ -133,8 +133,7 @@ and Perl, installing BIRD should be as easy as:
 </code>
 
 <p>You can use <tt>./configure --help</tt> to get a list of configure
-options. The most important ones are: <tt/--enable-ipv6/ which enables building
-of an IPv6 version of BIRD, <tt/--with-protocols=/ to produce a slightly smaller
+options. The most important ones are: <tt/--with-protocols=/ to produce a slightly smaller
 BIRD executable by configuring out routing protocols you don't use, and
 <tt/--prefix=/ to install BIRD to a place different from <file>/usr/local</file>.
 
@@ -217,44 +216,39 @@ is generally easy -- BIRD needs just the standard library, privileges to read
 the config file and create the control socket and the CAP_NET_* capabilities.
 
 
-<chapt>About routing tables
+<chapt>Architecture
+<label id="architecture">
+
+<sect>Routing tables
 <label id="routing-tables">
 
-<p>BIRD has one or more routing tables which may or may not be synchronized with
-OS kernel and which may or may not be synchronized with each other (see the Pipe
-protocol). Each routing table contains a list of known routes. Each route
-consists of:
+<p>The heart of BIRD is a routing table. BIRD has several independent routing tables;
+each of them contains routes of exactly one <m/nettype/ (see below). There are two
+default tables -- <cf/master4/ for IPv4 routes and <cf/master6/ for IPv6 routes.
+Other tables must be explicitly configured.
+
+<p>
+These routing tables are not kernel forwarding tables. No forwarding is done in BIRD.
+If you want to forward packets using the routes in BIRD's tables, you may
+use the Kernel protocol (see below) to synchronize them with kernel's FIBs.
+
+<p>
+Every nettype defines a (kind of) primary key on routes. Every route source
+can supply one route for every possible primary key; new route announcement
+replaces the old route from the same source, keeping other routes intact.
+BIRD always chooses the best route for every primary key among the known
+routes and keeps the others as suboptimal. When the best route is retracted,
+BIRD re-runs the best route selection algorithm to find the current best route.
+
+<p>
+The global best route selection algorithm is (roughly) as follows:
 
 <itemize>
-	<item>network prefix this route is for (network address and prefix
-		length -- the number of bits forming the network part of the
-		address; also known as a netmask)
-	<item>preference of this route
-	<item>IP address of router which told us about this route
-	<item>IP address of router we should forward the packets to using this
-		route
-	<item>other attributes common to all routes
-	<item>dynamic attributes defined by protocols which may or may not be
-		present (typically protocol metrics)
+	<item>Preferences of the routes are compared.
+	<item>Source protocol instance preferences are compared.
+	<item>If source protocols are different (e.g. BGP vs. OSPF), result of the algorithm is undefined.
+	<item>If source protocols are the same (e.g. BGP vs. BGP), the protocol's route selection algorithm is invoked.
 </itemize>
-
-Routing table maintains multiple entries for a network, but at most one entry
-for one network and one protocol. The entry with the highest preference is used
-for routing (we will call such an entry the <it/selected route/). If there are
-more entries with the same preference and they are from the same protocol, the
-protocol decides (typically according to metrics). If they aren't, an internal
-ordering is used to break the tie. You can get the list of route attributes in
-the Route attributes section.
-
-<p>Each protocol is connected to a routing table through two filters which can
-accept, reject and modify the routes. An <it/export/ filter checks routes passed
-from the routing table to the protocol, an <it/import/ filter checks routes in
-the opposite direction. When the routing table gets a route from a protocol, it
-recalculates the selected route and broadcasts it to all protocols connected to
-the table. The protocols typically send the update to other routers in the
-network. Note that although most protocols are interested in receiving just
-selected routes, some protocols (e.g. the <cf/Pipe/ protocol) receive and
-process all entries in routing tables (accepted by filters).
 
 <p><label id="dsc-table-sorted">Usually, a routing table just chooses a selected route
 from a list of entries for one network. But if the <cf/sorted/ option is
@@ -268,6 +262,114 @@ selected route that cannot be described using comparison and ordering). Minor
 advantage is that routes are shown sorted in <cf/show route/, minor disadvantage
 is that it is slightly more computationally expensive.
 
+<sect>Routes and network types
+<label id="routes">
+
+<p>BIRD works with several types of routes. Some of them are typical IP routes,
+others are better described as forwarding rules. We call them all routes,
+regardless on this difference.
+
+<p>Every route consists of several attributes (read more about them in the <ref id="route-attributes" name="Route attributes"> section); the common for all routes are:
+
+<itemize>
+	<item>IP address of router which told us about this route
+	<item>Source protocol instance
+	<item>Route preference
+	<item>Optional attributes defined by protocols
+</itemize>
+
+<p>Other attributes depend on nettypes. Some of them are part of the primary key, these are marked (PK).
+
+<sect1>IPv4 and IPv6 routes
+<label id="ipv4-ipv6-routes">
+
+<p>The traditional routes. Configuration keywords are <cf/ipv4/ and <cf/ipv6/.
+
+<itemize>
+	<item>(PK) Route destination (IP prefix together with its length)
+	<item>Route next hops (see below)
+</itemize>
+
+<sect1>VPN IPv4 and IPv6 routes
+<label id="vpn4-vpn6-routes">
+
+<p>Routes for IPv4 and IPv6 with VPN Route Distinguisher (<rfc id="4364">).
+Configuration keywords are <cf/vpn4/ and <cf/vpn6/.
+
+<itemize>
+	<item>(PK) Route destination (IP prefix together with its length)
+	<item>(PK) Route distinguisher (according to <rfc id="4364">)
+	<item>Route next hops
+</itemize>
+
+<sect1>Route Origin Authorization for IPv4 and IPv6
+<label id="roa4-roa6-routes">
+
+<p>These entries can be used to validate route origination of BGP routes.
+An ROA entry specifies prefixes which could be originated by an AS number.
+Their keywords are <cf/roa4/ and <cf/roa6/.
+
+<itemize>
+	<item>(PK) IP prefix together with its length
+	<item>(PK) Matching prefix maximal length
+	<item>(PK) AS number
+</itemize>
+
+<sect1>Flowspec for IPv4 and IPv6
+<label id="flow4-flow6-routes">
+
+<p>Flowspec rules are a form of firewall and traffic flow control rules
+distributed mostly via BGP. These rules may help the operators stop various
+network attacks in the beginning before eating up the whole bandwidth.
+Configuration keywords are <cf/flow4/ and <cf/flow6/.
+
+<itemize>
+	<item>(PK) IP prefix together with its length
+	<item>(PK) Flow definition data
+	<item>Flow action (encoded internally as BGP communities according to <rfc id="5575">)
+</itemize>
+
+<sect1>MPLS switching rules
+<label id="mpls-routes">
+
+<p>This nettype is currently a stub before implementing more support of <rfc id="3031">.
+BIRD currently does not support any label distribution protocol nor any label assignment method.
+Only the Kernel, Pipe and Static protocols can use MPLS tables.
+Configuration keyword is <cf/mpls/.
+
+<itemize>
+	<item>(PK) MPLS label
+	<item>Route next hops
+</itemize>
+
+<sect1>Route next hops
+<label id="route-next-hop">
+
+<p>This is not a nettype. The route next hop is a complex attribute common for many
+nettypes as you can see before. Every next hop has its assigned device
+(either assumed from its IP address or set explicitly). It may have also
+an IP address and an MPLS stack (one or both independently).
+Maximal MPLS stack depth is set (in compile time) to 8 labels.
+
+<p>Every route (when eligible to have a next hop) can have more than one next hop.
+In that case, every next hop has also its weight.
+
+<sect>Protocols and channels
+<label id="protocols-concept">
+
+<p>BIRD's protocol is an abstract class of producers and consumers of the routes.
+Each protocol may run in multiple instances and bind on one side to route
+tables via channels, on the other side to specified listen sockets (BGP),
+interfaces (Babel, OSPF, RIP), APIs (Kernel, Direct), or nothing (Static, Pipe).
+
+<p>There are also two protocols which do not have any channels -- BFD and Device.
+Both of them are kind of service for other protocols.
+
+<p>Each protocol is connected to a routing table through a channel. Some protocols
+support only one channel (OSPF, RIP), some protocols support more channels (BGP, Direct).
+Each channel has two filters which can accept, reject and modify the routes.
+An <it/export/ filter is applied to routes passed from the routing table to the protocol,
+an <it/import/ filter is applied to routes in the opposite direction.
 
 <sect>Graceful restart
 <label id="graceful-restart">
@@ -304,10 +406,10 @@ variable number of options, they are grouped using the <cf/{ }/ brackets. Each
 option is terminated by a <cf/;/. Configuration is case sensitive. There are two
 ways how to name symbols (like protocol names, filter names, constants etc.). You
 can either use a simple string starting with a letter followed by any
-combination of letters and numbers (e.g. "R123", "myfilter", "bgp5") or you can
+combination of letters and numbers (e.g. <cf/R123/, <cf/myfilter/, <cf/bgp5/) or you can
 enclose the name into apostrophes (<cf/'/) and than you can use any combination
-of numbers, letters. hyphens, dots and colons (e.g. "'1:strange-name'",
-"'-NAME-'", "'cool::name'").
+of numbers, letters. hyphens, dots and colons (e.g. <cf/'1:strange-name'/,
+<cf/'-NAME-'/, <cf/'cool::name'/).
 
 <p>Here is an example of a simple config file. It enables synchronization of
 routing tables with OS kernel, scans for new network interfaces every 10 seconds
@@ -336,11 +438,17 @@ protocol rip {
 <label id="global-opts">
 
 <p><descrip>
-	<tag><label id="opt-include">include "<m/filename/"</tag>
-	This statement causes inclusion of a new file. <m/Filename/ could also
+	<tag><label id="opt-include">include "<m/filename/";</tag>
+	This statement causes inclusion of a new file. The <m/filename/ could also
 	be a wildcard, in that case matching files are included in alphabetic
-	order. The maximal depth is 8. Note that this statement could be used
-	anywhere in the config file, not just as a top-level option.
+	order. The maximal depth is 8. Note that this statement can be used
+	anywhere in the config file, even inside other options, but always on the beginning of line.
+	In the following example, the first semicolon belongs to the <cf/include/, the second to <cf/ipv6 table/.
+	If the <file/tablename.conf/ contains exactly one token (the name of the table), this construction is correct:
+<code>
+ipv6 table
+include "tablename.conf";;
+</code>
 
 	<tag><label id="opt-log">log "<m/filename/"|syslog [name <m/name/]|stderr all|{ <m/list of classes/ }</tag>
 	Set logging of messages having the given class (either <cf/all/ or
@@ -397,7 +505,7 @@ protocol rip {
 	<tag><label id="opt-function">function <m/name/ (<m/parameters/) <m/local variables/ { <m/commands/ }</tag>
 	Define a function. You can learn more about functions in the following chapter.
 
-	<tag><label id="opt-protocol">protocol rip|ospf|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
+	<tag><label id="opt-protocol">protocol rip [|ng]|ospf [v2|v3]|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
 	Define a protocol instance called <cf><m/name/</cf> (or with a name like
 	"rip5" generated automatically if you don't specify any
 	<cf><m/name/</cf>). You can learn more about configuring protocols in
@@ -406,7 +514,7 @@ protocol rip {
 	<cf><m/name2/</cf> You can run more than one instance of most protocols
 	(like RIP or BGP). By default, no instances are configured.
 
-	<tag><label id="opt-template">template rip|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
+	<tag><label id="opt-template">template rip [|ng]|ospf [v2|v3]|bgp|<m/.../ [<m/name/ [from <m/name2/]] { <m>protocol options</m> }</tag>
 	Define a protocol template instance called <m/name/ (or with a name like
 	"bgp1" generated automatically if you don't specify any	<m/name/).
 	Protocol templates can be used to group common options when many
@@ -423,24 +531,14 @@ protocol rip {
 
 	<tag><label id="opt-router-id">router id <m/IPv4 address/</tag>
 	Set BIRD's router ID. It's a world-wide unique identification of your
-	router, usually one of router's IPv4 addresses. Default: in IPv4
-	version, the lowest IP address of a non-loopback interface. In IPv6
-	version, this option is mandatory.
+	router, usually one of router's IPv4 addresses. Default: the lowest
+	IPv4 address of a non-loopback interface.
 
 	<tag><label id="opt-router-id-from">router id from [-] [ "<m/mask/" ] [ <m/prefix/ ] [, <m/.../]</tag>
-	Set BIRD's router ID based on an IP address of an interface specified by
-	an interface pattern. The option is applicable for IPv4 version only.
+	Set BIRD's router ID based on an IPv4 address of an interface specified by
+	an interface pattern.
 	See <ref id="proto-iface" name="interface"> section for detailed
 	description of interface patterns with extended clauses.
-
-	<tag><label id="opt-listen-bgp">listen bgp [address <m/address/] [port <m/port/] [dual]</tag>
-	This option allows to specify address and port where BGP protocol should
-	listen. It is global option as listening socket is common to all BGP
-	instances. Default is to listen on all addresses (0.0.0.0) and port 179.
-	In IPv6 mode, option <cf/dual/ can be used to specify that BGP socket
-	should accept both IPv4 and IPv6 connections (but even in that case,
-	BIRD would accept IPv6 routes only). Such behavior was default in older
-	versions of BIRD.
 
 	<tag><label id="opt-graceful-restart">graceful restart wait <m/number/</tag>
 	During graceful restart recovery, BIRD waits for convergence of routing
@@ -476,12 +574,13 @@ protocol rip {
 	<cf/protocol/ times, and the <cf/iso long ms/ format for <cf/base/ and
 	<cf/log/ times.
 
-	<tag><label id="opt-table">table <m/name/ [sorted]</tag>
-	Create a new routing table. The default routing table is created
+	<tag><label id="opt-table"><m/nettype/ table <m/name/ [sorted]</tag>
+	Create a new routing table. The default routing tables <cf/master4/ and <cf/master6/ are created
 	implicitly, other routing tables have to be added by this command.
 	Option <cf/sorted/ can be used to enable sorting of routes, see
 	<ref id="dsc-table-sorted" name="sorted table"> description for details.
 
+<!--
 	<tag><label id="opt-roa-table">roa table <m/name/ [ { <m/roa table options .../ } ]</tag>
 	Create a new ROA (Route Origin Authorization) table. ROA tables can be
 	used to validate route origination of BGP routes. A ROA table contains
@@ -495,11 +594,11 @@ protocol rip {
 	<m/num/</cf>, which can be used to populate the ROA table with static
 	ROA entries. The option may be used multiple times. Other entries can be
 	added dynamically by <cf/add roa/ command.
+-->
 
 	<tag><label id="opt-eval">eval <m/expr/</tag>
-	Evaluates given filter expression. It is used by us for	testing of filters.
+	Evaluates given filter expression. It is used by the developers for testing of filters.
 </descrip>
-
 
 <sect>Protocol options
 <label id="protocol-opts">
@@ -549,57 +648,9 @@ agreement").
 	This option can be used to override global router id for a given
 	protocol. Default: uses global router id.
 
-	<tag><label id="proto-import">import all | none | filter <m/name/ | filter { <m/filter commands/ } | where <m/filter expression/</tag>
-	Specify a filter to be used for filtering routes coming from the
-	protocol to the routing table. <cf/all/ is shorthand for <cf/where true/
-	and <cf/none/ is shorthand for <cf/where false/. Default: <cf/all/.
-
-	<tag><label id="proto-export">export <m/filter/</tag>
-	This is similar to the <cf>import</cf> keyword, except that it works in
-	the direction from the routing table to the protocol. Default: <cf/none/.
-
-	<tag><label id="proto-import-keep-filtered">import keep filtered <m/switch/</tag>
-	Usually, if an import filter rejects a route, the route is forgotten.
-	When this option is active, these routes are kept in the routing table,
-	but they are hidden and not propagated to other protocols. But it is
-	possible to show them using <cf/show route filtered/. Note that this
-	option does not work for the pipe protocol. Default: off.
-
-	<tag><label id="proto-import-limit">import limit [<m/number/ | off ] [action warn | block | restart | disable]</tag>
-	Specify an import route limit (a maximum number of routes imported from
-	the protocol) and optionally the action to be taken when the limit is
-	hit. Warn action just prints warning log message. Block action discards
-	new routes coming from the protocol. Restart and disable actions shut
-	the protocol down like appropriate commands. Disable is the default
-	action if an action is not explicitly specified. Note that limits are
-	reset during protocol reconfigure, reload or restart. Default: <cf/off/.
-
-	<tag><label id="proto-receive-limit">receive limit [<m/number/ | off ] [action warn | block | restart | disable]</tag>
-	Specify an receive route limit (a maximum number of routes received from
-	the protocol and remembered). It works almost identically to <cf>import
-	limit</cf> option, the only difference is that if <cf/import keep
-	filtered/ option is active, filtered routes are counted towards the
-	limit and blocked routes are forgotten, as the main purpose of the
-	receive limit is to protect routing tables from overflow. Import limit,
-	on the contrary, counts accepted routes only and routes blocked by the
-	limit are handled like filtered routes. Default: <cf/off/.
-
-	<tag><label id="proto-export-limit">export limit [ <m/number/ | off ] [action warn | block | restart | disable]</tag>
-	Specify an export route limit, works similarly to the <cf>import
-	limit</cf> option, but for the routes exported to the protocol. This
-	option is experimental, there are some problems in details of its
-	behavior -- the number of exported routes can temporarily exceed the
-	limit without triggering it during protocol reload, exported routes
-	counter ignores route blocking and block action also blocks route
-	updates of already accepted routes -- and these details will probably
-	change in the future. Default: <cf/off/.
-
 	<tag><label id="proto-description">description "<m/text/"</tag>
 	This is an optional description of the protocol. It is displayed as a
 	part of the output of 'show route all' command.
-
-	<tag><label id="proto-table">table <m/name/</tag>
-	Connect this protocol to a non-default routing table.
 
 	<tag><label id="proto-vrf">vrf "<m/text/"</tag>
 	Associate the protocol with specific VRF. The protocol will be
@@ -609,6 +660,11 @@ agreement").
 	<cf/table/ option. Note that the VRF support in BIRD and Linux kernel
 	(4.11) is still in development and is currently problematic outside of
 	multihop BGP.
+
+	<tag><label id="proto-channel"><m/channel name/ [{<m/channel config/}]</tag>
+	Every channel must be explicitly stated. See the protocol-specific configuration
+	for the list of supported channel names.
+	See the <ref id="channel-opts" name="channel configuration section"> for channel definition.
 </descrip>
 
 <p>There are several options that give sense only with certain protocols:
@@ -638,7 +694,7 @@ agreement").
 	option is used.
 
 	This option is allowed in Babel, BFD, Direct, OSPF, RAdv and RIP
-	protocols, but in OSPF protocol it is used in the <cf/area/ subsection.
+	protocols. In OSPF protocol it is used in the <cf/area/ subsection.
 
 	Default: none.
 
@@ -726,135 +782,81 @@ agreement").
 
 </descrip>
 
+<sect>Channel options
+<label id="channel-opts">
 
-<sect>Flowspec network type
-<label id="flowspec-network-type">
+<p>Every channel belongs to a protocol and is configured inside its block. The
+minimal channel config is empty, then it uses the default values.
+The channel's name implies its nettype.
 
-<p>The flow specification are rules for routers and firewalls for filtering
-purpose. It is described by <rfc id="5575">. There are 3 types of arguments:
-<m/inet4/ or <m/inet6/ prefixes, bitmasks matching expressions and numbers
-matching expressions.
+<descrip>
+	<tag><label id="proto-table">table <m/name/</tag>
+	Connect this channel to a non-default routing table. Default 
 
-Bitmasks matching is written using <m/value/<cf>/</cf><m/mask/ or
-<cf/!/<m/value/<cf>/</cf><m/mask/ pairs. It means that <cf/(/<m/data/ <cf/&/
-<m/mask/<cf/)/ is or is not equal to <m/value/.
+	<tag><label id="proto-import">import all | none | filter <m/name/ | filter { <m/filter commands/ } | where <m/boolean filter expression/</tag>
+	Specify a filter to be used for filtering routes coming from the
+	protocol to the routing table. <cf/all/ is for keeping all routes,
+	<cf/none/ is for dropping all routes. Default: <cf/all/.
 
-Numbers matching is a matching sequence of numbers and ranges separeted by a
-commas (<cf/,/) (e.g. <cf/10,20,30/). Ranges can be written using double dots
-<cf/../ notation (e.g. <cf/80..90,120..124/). An alternative notation are
-sequence of one or more pairs of relational operators and values separated by
-logical operators <cf/&&/ or <cf/||/. Allowed relational operators are <cf/=/,
-<cf/!=/, <cf/</, <cf/<=/, <cf/>/, <cf/>=/, <cf/true/ and <cf/false/.
+	<tag><label id="proto-export">export <m/filter/</tag>
+	This is similar to the <cf>import</cf> keyword, except that it works in
+	the direction from the routing table to the protocol. Default: <cf/none/.
 
-<sect1>IPv4 Flowspec
+	<tag><label id="proto-import-keep-filtered">import keep filtered <m/switch/</tag>
+	Usually, if an import filter rejects a route, the route is forgotten.
+	When this option is active, these routes are kept in the routing table,
+	but they are hidden and not propagated to other protocols. But it is
+	possible to show them using <cf/show route filtered/. Note that this
+	option does not work for the pipe protocol. Default: off.
 
-<p><descrip>
-	<tag><label id="flow-dst">dst <m/inet4/</tag>
-	Set a matching destination prefix (e.g. <cf>dst 192.168.0.0/16</cf>).
-	Only this option is mandatory in IPv4 Flowspec.
+	<tag><label id="proto-import-limit">import limit [<m/number/ | off ] [action warn | block | restart | disable]</tag>
+	Specify an import route limit (a maximum number of routes imported from
+	the protocol) and optionally the action to be taken when the limit is
+	hit. Warn action just prints warning log message. Block action discards
+	new routes coming from the protocol. Restart and disable actions shut
+	the protocol down like appropriate commands. Disable is the default
+	action if an action is not explicitly specified. Note that limits are
+	reset during protocol reconfigure, reload or restart. Default: <cf/off/.
 
-	<tag><label id="flow-src">src <m/inet4/</tag>
-	Set a matching source prefix (e.g. <cf>src 10.0.0.0/8</cf>).
+	<tag><label id="proto-receive-limit">receive limit [<m/number/ | off ] [action warn | block | restart | disable]</tag>
+	Specify an receive route limit (a maximum number of routes received from
+	the protocol and remembered). It works almost identically to <cf>import
+	limit</cf> option, the only difference is that if <cf/import keep
+	filtered/ option is active, filtered routes are counted towards the
+	limit and blocked routes are forgotten, as the main purpose of the
+	receive limit is to protect routing tables from overflow. Import limit,
+	on the contrary, counts accepted routes only and routes blocked by the
+	limit are handled like filtered routes. Default: <cf/off/.
 
-	<tag><label id="flow-proto">proto <m/numbers-match/</tag>
-	Set a matching IP protocol numbers (e.g.  <cf/proto 6/).
-
-	<tag><label id="flow-port">port <m/numbers-match/</tag>
-	Set a matching source or destination TCP/UDP port numbers (e.g.
-	<cf>port 1..1023,1194,3306</cf>).
-
-	<tag><label id="flow-dport">dport <m/numbers-match/</tag>
-	Set a mating destination port numbers (e.g. <cf>dport 49151</cf>).
-
-	<tag><label id="flow-sport">sport <m/numbers-match/</tag>
-	Set a matching source port numbers (e.g. <cf>sport = 0</cf>).
-
-	<tag><label id="flow-icmp-type">icmp type <m/numbers-match/</tag>
-	Set a matching type field number of an ICMP packet (e.g. <cf>icmp type
-	3</cf>)
-
-	<tag><label id="flow-icmp-code">icmp code <m/numbers-match/</tag>
-	Set a matching code field number of an ICMP packet (e.g. <cf>icmp code
-	1</cf>)
-
-	<tag><label id="flow-tcp-flags">tcp flags <m/bitmask-match/</tag>
-	Set a matching bitmask for TCP header flags (aka control bits) (e.g.
-	<cf>tcp flags 0x03/0x0f;</cf>). The maximum length of mask is 12 bits
-	(0xfff).
-
-	<tag><label id="flow-length">length <m/numbers-match/</tag>
-	Set a matching packet length (e.g. <cf>length > 1500;</cf>)
-
-	<tag><label id="flow-dscp">dscp <m/numbers-match/</tag>
-	Set a matching DiffServ Code Point number (e.g. <cf>length > 1500;</cf>).
-
-	<tag><label id="flow-fragment">fragment <m/fragmentation-type/</tag>
-	Set a matching type of packet fragmentation. Allowed fragmentation
-	types are <cf/dont_fragment/, <cf/is_fragment/, <cf/first_fragment/,
-	<cf/last_fragment/ (e.g. <cf>fragment is_fragment &&
-	!dont_fragment</cf>).
+	<tag><label id="proto-export-limit">export limit [ <m/number/ | off ] [action warn | block | restart | disable]</tag>
+	Specify an export route limit, works similarly to the <cf>import
+	limit</cf> option, but for the routes exported to the protocol. This
+	option is experimental, there are some problems in details of its
+	behavior -- the number of exported routes can temporarily exceed the
+	limit without triggering it during protocol reload, exported routes
+	counter ignores route blocking and block action also blocks route
+	updates of already accepted routes -- and these details will probably
+	change in the future. Default: <cf/off/.
 </descrip>
 
-<p><code>
-protocol static {
-	flow4;
-
-	route flow4 {
-		dst 10.0.0.0/8;
-		port > 24 && < 30 || 40..50,60..70,80 && >= 90;
-		tcp flags 0x03/0x0f;
-		length > 1024;
-		dscp = 63;
-		fragment dont_fragment, is_fragment || !first_fragment;
-	} drop;
+<p>This is a trivial example of RIP configured for IPv6 on all interfaces:
+<code>
+protocol rip ng {
+	ipv6;
+	interface "*";
 }
 </code>
 
-<sect1>Differences for IPv6 Flowspec
-
-<p>Flowspec IPv6 are same as Flowspec IPv4 with a few exceptions.
-<itemize>
-	<item>Prefixes <m/inet6/ can be specified not only with prefix length,
-	but with prefix <cf/offset/ <m/num/ too (e.g.
-	<cf>::1234:5678:9800:0000/101 offset 64</cf>). Offset means to don't
-	care of <m/num/ first bits.
-	<item>IPv6 Flowspec hasn't mandatory any flowspec component.
-	<item>In IPv6 packets, there is a matching the last next header value
-	for a matching IP protocol number (e.g. <cf>next header 6</cf>).
-	<item>It is not possible to set <cf>dont_fragment</cf> as a type of
-	packet fragmentation.
-</itemize>
-
-<p><descrip>
-	<tag><label id="flow6-dst">dst <m/inet6/ [offset <m/num/]</tag>
-	Set a matching destination IPv6 prefix (e.g. <cf>dst
-	::1c77:3769:27ad:a11a/128 offset 64</cf>).
-
-	<tag><label id="flow6-src">src <m/inet6/ [offset <m/num/]</tag>
-	Set a matching source IPv6 prefix (e.g. <cf>src fe80::/64</cf>).
-
-	<tag><label id="flow6-next-header">next header <m/numbers-match/</tag>
-	Set a matching IP protocol numbers (e.g. <cf>next header != 6</cf>).
-
-	<tag><label id="flow6-label">label <m/bitmask-match/</tag>
-	Set a 20-bit bitmask for matching Flow Label field in IPv6 packets
-	(e.g. <cf>label 0x8e5/0x8e5</cf>).
-</descrip>
-
-<p><code>
-protocol static {
-	flow6;
-
-	route flow6 {
-		dst fec0:1122:3344:5566:7788:99aa:bbcc:ddee/128;
-		src 0000:0000:0000:0001:1234:5678:9800:0000/101 offset 63;
-		next header = 23;
-		sport > 24 && < 30 || = 40 || 50,60,70..80;
-		dport = 50;
-		tcp flags 0x03/0x0f, !0/0xff || 0x33/0x33;
-		fragment !is_fragment || !first_fragment;
-		label 0xaaaa/0xaaaa && 0x33/0x33;
-	} drop;
+<p>And this is a non-trivial example.
+<code>
+protocol rip ng {
+	ipv6 {
+		table mytable6;
+		import filter { ... };
+		export filter { ... };
+		import limit 50;
+	};
+	interface "*";
 }
 </code>
 
@@ -898,6 +900,7 @@ This argument can be omitted if there exists only a single instance.
 	and protocol status, possibly giving verbose information, if <cf/all/ is
 	specified.
 
+	<!-- TODO: Move these protocol-specific remote control commands to the protocol sections -->
 	<tag><label id="cli-show-ospf-iface">show ospf interface [<m/name/] ["<m/interface/"]</tag>
 	Show detailed information about OSPF interfaces.
 
@@ -1054,7 +1057,6 @@ This argument can be omitted if there exists only a single instance.
 	Evaluate given expression.
 </descrip>
 
-
 <chapt>Filters
 <label id="filters">
 
@@ -1185,9 +1187,10 @@ foot).
 	a shell pattern (represented also as a string).
 
 	<tag><label id="type-ip">ip</tag>
-	This type can hold a single IP address. Depending on the compile-time
-	configuration of BIRD you are using, it is either an IPv4 or IPv6
-	address; this may be checked by <cf>.is_ip4</cf> which returns <cf/bool/.
+	This type can hold a single IP address. The IPv4 addresses are stored
+	as IPv4-Mapped IPv6 addresses so one data type for both of them is used.
+	Whether the address is IPv4 or not may be checked by 
+	<cf>.is_ip4</cf> which returns <cf/bool/.
         IP addresses are written in the standard notation
 	(<cf/10.20.30.40/ or <cf/fec0:3:4::1/). You can apply special operator
 	<cf>.mask(<M>num</M>)</cf> on values of type ip. It masks out all but
@@ -1204,7 +1207,7 @@ foot).
 	<cf/NET_IP4/ and <cf/NET_IP6/ prefixes hold an IP prefix. The literals
 	are written as <cf><m/ipaddress//<m/pxlen/</cf>,
 	or <cf><m>ipaddress</m>/<m>netmask</m></cf>. There are two special
-	operators on IP prefixes: <cf/.ip/ which extracts the IP address from
+	operators on these: <cf/.ip/ which extracts the IP address from
 	the pair, and <cf/.len/, which separates prefix length from the pair.
 	So <cf>1.2.0.0/16.len = 16</cf> is true.
 
@@ -1221,6 +1224,13 @@ foot).
 
 	<cf/NET_FLOW4/ and <cf/NET_FLOW6/ hold an IP prefix together with a
 	flowspec rule. Filters currently don't support flowspec parsing.
+
+	<cf/NET_MPLS/ holds a single MPLS label and its handling is currently not implemented.
+
+	<tag><label id="type-vpnrd">vpnrd</tag>
+	This is a route distinguisher according to <rfc id="4364">. There are
+	three kinds of RD's: <cf><m/asn/:<m/32bit int/</cf>, <cf><m/asn4/:<m/16bit int/</cf>
+	and <cf><m/IPv4 address/:<m/32bit int/</cf>
 
 	<tag><label id="type-ec">ec</tag>
 	This is a specialized type used to represent BGP extended community
@@ -1318,6 +1328,10 @@ foot).
 	<cf>192.168.0.0/16{16,24}</cf> and <cf>192.168.0.0/16 ge 24</cf> as
 	<cf>192.168.0.0/16{24,32}</cf>.
 
+	It's possible to mix IPv4 and IPv6 prefixes/addresses in a prefix/ip set
+	but its behavior may change between versions without any warning; don't do
+	it unless you are more than sure what you are doing. (Really, don't do it.)
+
 	<tag><label id="type-enum">enum</tag>
 	Enumeration types are fixed sets of possibilities. You can't define your
 	own variables of such type, but some route attributes are of enumeration
@@ -1340,7 +1354,7 @@ foot).
 
 	<cf><m/P/.len</cf> returns the length of path <m/P/.
 
-	<cf><m/P/.empty</cf> resets path <m/P/ to empty path.
+	<cf><m/P/.empty()</cf> makes the path <m/P/ empty.
 
 	<cf>prepend(<m/P/,<m/A/)</cf> prepends ASN <m/A/ to path <m/P/ and
 	returns the result.
@@ -1369,8 +1383,6 @@ foot).
 	expressions can also contain integer expressions enclosed in parenthesis
 	and integer variables, for example <tt>[= * 4 (1+2) a =]</tt>. You can
         also use ranges, for example <tt>[= * 3..5 2 100..200 * =]</tt>.
-        There is also old (deprecated) syntax that uses / .. / instead of [= .. =]
-        and ? instead of *.
 
 	<tag><label id="type-clist">clist</tag>
 	Clist is similar to a set, except that unlike other sets, it can be
@@ -1380,7 +1392,7 @@ foot).
 
 	<cf><m/C/.len</cf> returns the length of clist <m/C/.
 
-	<cf><m/C/.empty</cf> resets clist <m/C/ to empty clist.
+	<cf><m/C/.empty</cf> makes the list <m/C/ empty.
 
 	<cf>add(<m/C/,<m/P/)</cf> adds pair (or quad) <m/P/ to clist <m/C/ and
 	returns the result. If item <m/P/ is already in clist <m/C/, it does
@@ -1418,13 +1430,12 @@ foot).
 	lclists, with LCs instead of pairs as arguments.
 </descrip>
 
-
 <sect>Operators
 <label id="operators">
 
 <p>The filter language supports common integer operators <cf>(+,-,*,/)</cf>,
 parentheses <cf/(a*(b+c))/, comparison <cf/(a=b, a!=b, a&lt;b, a&gt;=b)/.
-Logical operations include unary not (<cf/!/), and (<cf/&amp;&amp;/) and or
+Logical operations include unary not (<cf/!/), and (<cf/&amp;&amp;/), and or
 (<cf/&verbar;&verbar;/). Special operators include (<cf/&tilde;/,
 <cf/!&tilde;/) for "is (not) element of a set" operation - it can be used on
 element and set of elements of the same type (returning true if element is
@@ -1455,11 +1466,11 @@ prefix and an ASN as arguments.
 
 <p>Filters support two control structures: conditions and case switches.
 
-<p>Syntax of a condition is: <cf>if <M>boolean expression</M> then <m/command1/;
-else <m/command2/;</cf> and you can use <cf>{ <m/command_1/; <m/command_2/;
+<p>Syntax of a condition is: <cf>if <M>boolean expression</M> then <m/commandT/;
+else <m/commandF/;</cf> and you can use <cf>{ <m/command1/; <m/command2/;
 <M>...</M> }</cf> instead of either command. The <cf>else</cf> clause may be
-omitted. If the <cf><m>boolean expression</m></cf> is true, <m/command1/ is
-executed, otherwise <m/command2/ is executed.
+omitted. If the <cf><m>boolean expression</m></cf> is true, <m/commandT/ is
+executed, otherwise <m/commandF/ is executed.
 
 <p>The <cf>case</cf> is similar to case from Pascal. Syntax is <cf>case
 <m/expr/ { else: | <m/num_or_prefix [ .. num_or_prefix]/: <m/statement/ ; [
@@ -1498,8 +1509,8 @@ clist for most purposes.
 
 <descrip>
 	<tag><label id="rta-net"><m/prefix/ net</tag>
-	Network the route is talking about. Read-only. (See the chapter about
-	routing tables.)
+	The network prefix or anything else the route is talking about.
+	The primary key of the table. Read-only. (See the <ref id="routes" name="chapter about routes">.)
 
 	<tag><label id="rta-scope"><m/enum/ scope</tag>
 	The scope of the route. Possible values: <cf/SCOPE_HOST/ for routes
@@ -1529,11 +1540,6 @@ clist for most purposes.
 	<cf/RTS_STATIC_DEVICE/, <cf/RTS_REDIRECT/, <cf/RTS_RIP/, <cf/RTS_OSPF/,
 	<cf/RTS_OSPF_IA/, <cf/RTS_OSPF_EXT1/, <cf/RTS_OSPF_EXT2/, <cf/RTS_BGP/,
 	<cf/RTS_PIPE/, <cf/RTS_BABEL/.
-
-	<tag><label id="rta-cast"><m/enum/ cast</tag>
-	Route type (Currently <cf/RTC_UNICAST/ for normal routes,
-	<cf/RTC_BROADCAST/, <cf/RTC_MULTICAST/, <cf/RTC_ANYCAST/ will be used in
-	the future for broadcast, multicast and anycast routes). Read-only.
 
 	<tag><label id="rta-dest"><m/enum/ dest</tag>
 	Type of destination the packets should be sent to
@@ -1566,7 +1572,7 @@ clist for most purposes.
 	1 metric.
 </descrip>
 
-<p>There also exist some protocol-specific attributes which are described in the
+<p>There also exist protocol-specific attributes which are described in the
 corresponding protocol sections.
 
 
@@ -1626,6 +1632,8 @@ other protocols, but supports the following per-interface configuration options:
 
 <code>
 protocol babel [<name>] {
+	ipv4 { <channel config> };
+	ipv6 { <channel config> };
 	interface <interface pattern> {
 		type <wired|wireless>;
 		rxcost <number>;
@@ -1645,6 +1653,9 @@ protocol babel [<name>] {
 </code>
 
 <descrip>
+      <tag><label id="babel-channel">ipv4|ipv6 <m/channel config/</tag>
+      The supported channels are IPv4 and IPv6. 
+
       <tag><label id="babel-type">type wired|wireless </tag>
       This option specifies the interface type: Wired or wireless. On wired
       interfaces a neighbor is considered unreachable after a small number of
@@ -1757,6 +1768,11 @@ protocol babel {
 }
 </code>
 
+<sect1>Known issues
+<label id="babel-issues">
+
+<p>When retracting a route, Babel sends instead an unreachable route for a little while (according to RFC). The
+interaction of this behavior with other protocols is not well tested and strange things may happen.
 
 <sect>BFD
 <label id="bfd">
@@ -1785,10 +1801,7 @@ the BFD session went down).
 advanced features like the echo mode or authentication are not implemented), IP
 transport for BFD as defined in <rfc id="5881"> and <rfc id="5883"> and
 interaction with client protocols as defined in <rfc id="5882">.
-
-<p>Note that BFD implementation in BIRD is currently a new feature in
-development, expect some rough edges and possible UI and configuration changes
-in the future. Also note that we currently support at most one protocol instance.
+We currently support at most one protocol instance.
 
 <p>BFD packets are sent with a dynamic source port number. Linux systems use by
 default a bit different dynamic port range than the IANA approved one
@@ -2064,8 +2077,8 @@ determine immediate next hops for routes and to know their internal distances to
 boundary routers for the purpose of BGP route selection. In BIRD, there is
 usually one routing table used for both IGP routes and BGP routes.
 
-<sect1>Configuration
-<label id="bgp-config">
+<sect1>Protocol configuration
+<label id="bgp-proto-config">
 
 <p>Each instance of the BGP corresponds to one neighboring router. This allows
 to set routing policy and all the other parameters differently for each neighbor
@@ -2129,52 +2142,6 @@ using the following configuration parameters:
 	to all addresses collide, therefore either all BGP protocols (of the
 	same address family and using the same local port) should have set
 	<cf/strict bind/, or none of them. Default: disabled.
-
-	<tag><label id="bgp-next-hop-self">next hop self</tag>
-	Avoid calculation of the Next Hop attribute and always advertise our own
-	source address as a next hop. This needs to be used only occasionally to
-	circumvent misconfigurations of other routers. Default: disabled.
-
-	<tag><label id="bgp-next-hop-keep">next hop keep</tag>
-	Forward the received Next Hop attribute even in situations where the
-	local address should be used instead, like when the route is sent to an
-	interface with a different subnet. Default: disabled.
-
-	<tag><label id="bgp-missing-lladdr">missing lladdr self|drop|ignore</tag>
-	Next Hop attribute in BGP-IPv6 sometimes contains just the global IPv6
-	address, but sometimes it has to contain both global and link-local IPv6
-	addresses. This option specifies what to do if BIRD have to send both
-	addresses but does not know link-local address. This situation might
-	happen when routes from other protocols are exported to BGP, or when
-	improper updates are received from BGP peers. <cf/self/ means that BIRD
-	advertises its own local address instead. <cf/drop/ means that BIRD
-	skips that prefixes and logs error. <cf/ignore/ means that BIRD ignores
-	the problem and sends just the global address (and therefore forms
-	improper BGP update). Default: <cf/self/, unless BIRD is configured as a
-	route server (option <cf/rs client/), in that case default is <cf/ignore/,
-	because route servers usually do not forward packets themselves.
-
-	<tag><label id="bgp-gateway">gateway direct|recursive</tag>
-	For received routes, their <cf/gw/ (immediate next hop) attribute is
-	computed from received <cf/bgp_next_hop/ attribute. This option
-	specifies how it is computed. Direct mode means that the IP address from
-	<cf/bgp_next_hop/ is used if it is directly reachable, otherwise the
-	neighbor IP address is used. Recursive mode means that the gateway is
-	computed by an IGP routing table lookup for the IP address from
-	<cf/bgp_next_hop/. Note that there is just one level of indirection in
-	recursive mode - the route obtained by the lookup must not be recursive
-	itself, to prevent mutually recursive routes.
-
-	Recursive mode is the behavior specified by the BGP
-	standard. Direct mode is simpler, does not require any routes in a
-	routing table, and was used in older versions of BIRD, but does not
-	handle well nontrivial iBGP setups and multihop. Recursive mode is
-	incompatible with <ref id="dsc-table-sorted" name="sorted tables">. Default:
-	<cf/direct/ for direct sessions, <cf/recursive/ for multihop sessions.
-
-	<tag><label id="bgp-igp-table">igp table <m/name/</tag>
-	Specifies a table that is used as an IGP routing table. Default: the
-	same as the table BGP is connected to.
 
 	<tag><label id="bgp-check-link">check link <M>switch</M></tag>
 	BGP could use hardware link state into consideration.  If enabled,
@@ -2260,24 +2227,6 @@ using the following configuration parameters:
 	example does not prepend its AS number to AS PATH attribute and
 	keeps MED attribute). Default: disabled.
 
-	<tag><label id="bgp-secondary">secondary <m/switch/</tag>
-	Usually, if an export filter rejects a selected route, no other route is
-	propagated for that network. This option allows to try the next route in
-	order until one that is accepted is found or all routes for that network
-	are rejected. This can be used for route servers that need to propagate
-	different tables to each client but do not want to have these tables
-	explicitly (to conserve memory). This option requires that the connected
-	routing table is <ref id="dsc-table-sorted" name="sorted">. Default: off.
-
-	<tag><label id="bgp-add-paths">add paths <m/switch/|rx|tx</tag>
-	Standard BGP can propagate only one path (route) per destination network
-	(usually the selected one). This option controls the add-path protocol
-	extension, which allows to advertise any number of paths to a
-	destination. Note that to be active, add-path has to be enabled on both
-	sides of the BGP session, but it could be enabled separately for RX and
-	TX direction. When active, all available routes accepted by the export
-	filter are advertised to the neighbor. Default: off.
-
 	<tag><label id="bgp-allow-local-pref">allow bgp_local_pref <m/switch/</tag>
 	A standard BGP implementation do not send the Local Preference attribute
 	to eBGP neighbors and ignore this attribute if received from eBGP
@@ -2308,20 +2257,6 @@ using the following configuration parameters:
 	specifies whether BIRD advertises these capabilities and supports
 	related procedures. Note that even when disabled, BIRD can send route
 	refresh requests.  Default: on.
-
-	<tag><label id="bgp-graceful-restart">graceful restart <m/switch/|aware</tag>
-	When a BGP speaker restarts or crashes, neighbors will discard all
-	received paths from the speaker, which disrupts packet forwarding even
-	when the forwarding plane of the speaker remains intact. <rfc
-	id="4724"> specifies an optional graceful restart mechanism to
-	alleviate this issue. This option controls the mechanism. It has three
-	states: Disabled, when no support is provided. Aware, when the graceful
-	restart support is announced and the support for restarting neighbors
-	is provided, but no local graceful restart is allowed (i.e.
-	receiving-only role). Enabled, when the full graceful restart
-	support is provided (i.e. both restarting and receiving role). Note
-	that proper support for local graceful restart requires also
-	configuration of other protocols.  Default: aware.
 
 	<tag><label id="bgp-graceful-restart-time">graceful restart time <m/number/</tag>
 	The restart time is announced in the BGP graceful restart capability
@@ -2455,6 +2390,118 @@ using the following configuration parameters:
 	versions of BIRD).
 </descrip>
 
+<sect1>Channel configuration
+<label id="bgp-channel-config">
+
+<p>BGP supports several AFIs and SAFIs over one connection. Every AFI/SAFI
+announced to the peer corresponds to one channel. The table of supported AFI/SAFIs
+together with their appropriate channels follows.
+
+<tabular ca="l|l|l|r|r">
+  <bf/Channel name/   | <bf/Table nettype/ | <bf/IGP table allowed/  | <bf/AFI/ | <bf/SAFI/
+@ <hline>
+  <cf/ipv4/	      | <cf/ipv4/          | <cf/ipv4/ and <cf/ipv6/ | 1        | 1
+@ <cf/ipv6/           | <cf/ipv6/          | <cf/ipv4/ and <cf/ipv6/ | 2        | 1
+@ <cf/ipv4 multicast/ | <cf/ipv4/          | <cf/ipv4/ and <cf/ipv6/ | 1        | 2
+@ <cf/ipv6 multicast/ | <cf/ipv6/          | <cf/ipv4/ and <cf/ipv6/ | 2        | 2
+@ <cf/ipv4 mpls/      | <cf/ipv4/          | <cf/ipv4/ and <cf/ipv6/ | 1        | 4
+@ <cf/ipv6 mpls/      | <cf/ipv6/          | <cf/ipv4/ and <cf/ipv6/ | 2        | 4
+@ <cf/vpn4 mpls/      | <cf/vpn4/          | <cf/ipv4/ and <cf/ipv6/ | 1        | 128
+@ <cf/vpn6 mpls/      | <cf/vpn6/          | <cf/ipv4/ and <cf/ipv6/ | 2        | 128
+@ <cf/vpn4 multicast/ | <cf/vpn4/          | <cf/ipv4/ and <cf/ipv6/ | 1        | 129
+@ <cf/vpn6 multicast/ | <cf/vpn6/          | <cf/ipv4/ and <cf/ipv6/ | 2        | 129
+@ <cf/flow4/	      | <cf/flow4/         | ---                     | 1        | 133
+@ <cf/flow6/          | <cf/flow6/         | ---                     | 2        | 133
+</tabular>
+
+<p>BGP's channels have additional config options (together with the common ones):
+
+<descrip>
+	<tag><label id="bgp-next-hop-keep">next hop keep</tag>
+	Forward the received Next Hop attribute even in situations where the
+	local address should be used instead, like when the route is sent to an
+	interface with a different subnet. Default: disabled.
+
+	<tag><label id="bgp-next-hop-self">next hop self</tag>
+	Avoid calculation of the Next Hop attribute and always advertise our own
+	source address as a next hop. This needs to be used only occasionally to
+	circumvent misconfigurations of other routers. Default: disabled.
+
+	<tag><label id="bgp-next-hop-address">next hop address <m/ip/</tag>
+	Avoid calculation of the Next Hop attribute and always advertise this address
+	as a next hop.
+
+	<tag><label id="bgp-missing-lladdr">missing lladdr self|drop|ignore</tag>
+	Next Hop attribute in BGP-IPv6 sometimes contains just the global IPv6
+	address, but sometimes it has to contain both global and link-local IPv6
+	addresses. This option specifies what to do if BIRD have to send both
+	addresses but does not know link-local address. This situation might
+	happen when routes from other protocols are exported to BGP, or when
+	improper updates are received from BGP peers. <cf/self/ means that BIRD
+	advertises its own local address instead. <cf/drop/ means that BIRD
+	skips that prefixes and logs error. <cf/ignore/ means that BIRD ignores
+	the problem and sends just the global address (and therefore forms
+	improper BGP update). Default: <cf/self/, unless BIRD is configured as a
+	route server (option <cf/rs client/), in that case default is <cf/ignore/,
+	because route servers usually do not forward packets themselves.
+
+	<tag><label id="bgp-gateway">gateway direct|recursive</tag>
+	For received routes, their <cf/gw/ (immediate next hop) attribute is
+	computed from received <cf/bgp_next_hop/ attribute. This option
+	specifies how it is computed. Direct mode means that the IP address from
+	<cf/bgp_next_hop/ is used if it is directly reachable, otherwise the
+	neighbor IP address is used. Recursive mode means that the gateway is
+	computed by an IGP routing table lookup for the IP address from
+	<cf/bgp_next_hop/. Note that there is just one level of indirection in
+	recursive mode - the route obtained by the lookup must not be recursive
+	itself, to prevent mutually recursive routes.
+
+	Recursive mode is the behavior specified by the BGP
+	standard. Direct mode is simpler, does not require any routes in a
+	routing table, and was used in older versions of BIRD, but does not
+	handle well nontrivial iBGP setups and multihop. Recursive mode is
+	incompatible with <ref id="dsc-table-sorted" name="sorted tables">. Default:
+	<cf/direct/ for direct sessions, <cf/recursive/ for multihop sessions.
+
+	<tag><label id="bgp-igp-table">igp table <m/name/</tag>
+	Specifies a table that is used as an IGP routing table. The type of this
+	table must be as allowed in the table above. This option is allowed once
+	for every allowed table type. Default: the same as the main table
+	the channel is connected to (if eligible).
+
+	<tag><label id="bgp-secondary">secondary <m/switch/</tag>
+	Usually, if an export filter rejects a selected route, no other route is
+	propagated for that network. This option allows to try the next route in
+	order until one that is accepted is found or all routes for that network
+	are rejected. This can be used for route servers that need to propagate
+	different tables to each client but do not want to have these tables
+	explicitly (to conserve memory). This option requires that the connected
+	routing table is <ref id="dsc-table-sorted" name="sorted">. Default: off.
+
+	<tag><label id="bgp-add-paths">add paths <m/switch/|rx|tx</tag>
+	Standard BGP can propagate only one path (route) per destination network
+	(usually the selected one). This option controls the add-path protocol
+	extension, which allows to advertise any number of paths to a
+	destination. Note that to be active, add-path has to be enabled on both
+	sides of the BGP session, but it could be enabled separately for RX and
+	TX direction. When active, all available routes accepted by the export
+	filter are advertised to the neighbor. Default: off.
+
+	<tag><label id="bgp-graceful-restart">graceful restart <m/switch/|aware</tag>
+	When a BGP speaker restarts or crashes, neighbors will discard all
+	received paths from the speaker, which disrupts packet forwarding even
+	when the forwarding plane of the speaker remains intact. <rfc
+	id="4724"> specifies an optional graceful restart mechanism to
+	alleviate this issue. This option controls the mechanism. It has three
+	states: Disabled, when no support is provided. Aware, when the graceful
+	restart support is announced and the support for restarting neighbors
+	is provided, but no local graceful restart is allowed (i.e.
+	receiving-only role). Enabled, when the full graceful restart
+	support is provided (i.e. both restarting and receiving role). Note
+	that proper support for local graceful restart requires also
+	configuration of other protocols.  Default: aware.
+</descrip>
+
 <sect1>Attributes
 <label id="bgp-attr">
 
@@ -2549,20 +2596,38 @@ protocol bgp {
 	local as 65000;			     # Use a private AS number
 	neighbor 198.51.100.130 as 64496;    # Our neighbor ...
 	multihop;			     # ... which is connected indirectly
-	export filter {			     # We use non-trivial export rules
-		if source = RTS_STATIC then { # Export only static routes
-			# Assign our community
-			bgp_community.add((65000,64501));
-			# Artificially increase path length
-			# by advertising local AS number twice
-			if bgp_path ~ [= 65000 =] then
-				bgp_path.prepend(65000);
-			accept;
-		}
-		reject;
-	};
-	import all;
 	source address 198.51.100.14;	# Use a non-standard source address
+	ipv4 {
+		export filter {			     # We use non-trivial export rules
+			if source = RTS_STATIC then { # Export only static routes
+				# Assign our community
+				bgp_community.add((65000,64501));
+				# Artificially increase path length
+				# by advertising local AS number twice
+				if bgp_path ~ [= 65000 =] then
+					bgp_path.prepend(65000);
+				accept;
+			}
+			reject;
+		};
+		import all;
+		next hop self; # advertise this router as next hop
+		igp table myigptable4; # IGP table for routes with IPv4 nexthops
+		igp table myigptable6; # IGP table for routes with IPv6 nexthops
+	};
+	ipv6 {
+		export filter mylargefilter; # We use a named filter
+		import all;
+		missing lladdr self;
+		igp table myigptable4; # IGP table for routes with IPv4 nexthops
+		igp table myigptable6; # IGP table for routes with IPv6 nexthops
+	};
+	ipv4 multicast {
+		import all;
+		export filter someotherfilter;
+		table mymulticasttable4; # Another IPv4 table, dedicated for multicast
+		igp table myigptable4;
+	};
 }
 </code>
 
@@ -2572,7 +2637,7 @@ protocol bgp {
 
 <p>The Device protocol is not a real routing protocol. It doesn't generate any
 routes and it only serves as a module for getting information about network
-interfaces from the kernel.
+interfaces from the kernel. This protocol supports no channel.
 
 <p>Except for very unusual circumstances, you probably should include this
 protocol in the configuration since almost all other protocols require network
@@ -2616,13 +2681,13 @@ protocol device {
 }
 </code>
 
-
 <sect>Direct
 <label id="direct">
 
 <p>The Direct protocol is a simple generator of device routes for all the
 directly connected networks according to the list of interfaces provided by the
-kernel via the Device protocol.
+kernel via the Device protocol. The Direct protocol supports IPv4 and IPv6 channels
+in any count.
 
 <p>The question is whether it is a good idea to have such device routes in BIRD
 routing table. OS kernel usually handles device routes for directly connected
@@ -2667,9 +2732,11 @@ on Linux systems BIRD cannot change non-BIRD route in the kernel routing table.
 <p><code>
 protocol direct {
 	interface "-arc*", "*";		# Exclude the ARCnets
+	ipv4;
+	ipv4 { table myothertable; };
+	ipv6;
 }
 </code>
-
 
 <sect>Kernel
 <label id="krt">
@@ -2703,6 +2770,8 @@ routing table, there are two limitations - it is not possible to connect more
 kernel protocols to the same routing table and changing route destination
 (gateway) in an export filter of a kernel protocol does not work. Both
 limitations can be overcome using another routing table and the pipe protocol.
+The Kernel protocol obviously supports only two channels -- IPv4 and IPv6; only
+one of them can be configured in each protocol instance.
 
 <sect1>Configuration
 <label id="krt-config">
@@ -2832,14 +2901,18 @@ protocol kernel {		# Primary routing table
 	learn;			# Learn alien routes from the kernel
 	persist;		# Don't remove routes on bird shutdown
 	scan time 10;		# Scan kernel routing table every 10 seconds
-	import all;
-	export all;
+	ipv4 {
+		import all;
+		export all;
+	};
 }
 
 protocol kernel {		# Secondary routing table
-	table auxtable;
 	kernel table 100;
-	export all;
+	ipv4 {
+		table auxtable;
+		export all;
+	};
 }
 </code>
 
@@ -2889,6 +2962,8 @@ configuration, there can be multiple definitions of OSPF areas, each with a
 different id. These definitions includes many other switches and multiple
 definitions of interfaces. Definition of interface may contain many switches and
 constant definitions and list of neighbors on nonbroadcast networks.
+
+<p>OSPF v2 needs one IPv4 channel, OSPF v3 needs one IPv6 channel.
 
 <code>
 protocol ospf [v2|v3] &lt;name&gt; {
@@ -3360,12 +3435,14 @@ network. This attribute is read-only. Default is <cf/ospf_metric2 = 10000/ and
 protocol ospf MyOSPF {
 	rfc1583compat yes;
 	tick 2;
-	export filter {
-		if source = RTS_BGP then {
-			ospf_metric1 = 100;
-			accept;
-		}
-		reject;
+	ipv4 {
+		export filter {
+			if source = RTS_BGP then {
+				ospf_metric1 = 100;
+				accept;
+			}
+			reject;
+		};
 	};
 	area 0.0.0.0 {
 		interface "eth*" {
@@ -3433,7 +3510,8 @@ routes to be passed from a table declared as primary (i.e., the one the pipe is
 connected to using the <cf/table/ configuration keyword) to the secondary one
 (declared using <cf/peer table/) and vice versa, depending on what's allowed by
 the filters. Export filters control export of routes from the primary table to
-the secondary one, import filters control the opposite direction.
+the secondary one, import filters control the opposite direction. Both tables
+must be of the same nettype.
 
 <p>The Pipe protocol may work in the transparent mode mode or in the opaque
 mode. In the transparent mode, the Pipe protocol retransmits all routes from
@@ -3462,6 +3540,10 @@ exporting a selected subset of one table to another one.
 
 <sect1>Configuration
 <label id="pipe-config">
+
+<p>Technically, the Pipe protocol is just a channel connected to a table on both sides.
+Therefore, the configuration block for <cf/protocol pipe/ shall directly include
+standard channel config options; see the example below.
 
 <p><descrip>
 	<tag><label id="pipe-peer-table">peer table <m/table/</tag>
@@ -3500,29 +3582,33 @@ table as1;				# Define the tables
 table as2;
 
 protocol kernel kern1 {			# Synchronize them with the kernel
-	table as1;
+	ipv4 { table as1; };
 	kernel table 1;
 }
 
 protocol kernel kern2 {
-	table as2;
+	ipv4 { table as2; };
 	kernel table 2;
 }
 
 protocol bgp bgp1 {			# The outside connections
-	table as1;
+	ipv4 {
+		table as1;
+		export all;
+		import all;
+	};
 	local as 1;
 	neighbor 192.168.0.1 as 1001;
-	export all;
-	import all;
 }
 
 protocol bgp bgp2 {
-	table as2;
+	ipv4 {
+		table as2;
+		export all;
+		import all;
+	};
 	local as 2;
 	neighbor 10.0.0.1 as 1002;
-	export all;
-	import all;
 }
 
 protocol pipe {				# The Pipe
@@ -3562,6 +3648,8 @@ list of network prefixes), which allows network hosts to autoconfigure network
 addresses and choose a default route. BIRD implements router behavior as defined
 in <rfc id="4861">, router preferences and specific routes (<rfc id="4191">),
 and DNS extensions (<rfc id="6106">).
+
+<p>The RAdv protocols supports only IPv6 channels.
 
 <sect1>Configuration
 <label id="radv-config">
@@ -3873,7 +3961,6 @@ protocol radv {
 	};
 }
 </code>
-
 
 <sect>RIP
 <label id="rip">
@@ -4199,11 +4286,10 @@ protocol rpki [&lt;name&gt;] {
 }
 </code>
 
-<p>Alse note that you have to specify ROA table into which will be imported
-routes from a cache server. If you want to import only IPv4 prefixes you have
-to specify only roa4 table. Similarly with IPv6 prefixes only. If you want to
-fetch both IPv4 and even IPv6 ROAs you have to specify both types of ROA
-tables.
+<p>Alse note that you have to specify the ROA channel.
+If you want to import only IPv4 prefixes you have
+to specify only roa4 channel. Similarly with IPv6 prefixes only. If you want to
+fetch both IPv4 and even IPv6 ROAs you have to specify both channels.
 
 <sect2>RPKI protocol options
 
@@ -4336,21 +4422,10 @@ return packets as undeliverable if they are in your IP block, you don't have any
 specific destination for them and you don't want to send them out through the
 default route to prevent routing loops).
 
-<p>There are four types of static routes: `classical' routes telling to forward
-packets to a neighboring router (single path or multipath, possibly weighted),
-device routes specifying forwarding to hosts on a directly connected network,
-recursive routes computing their nexthops by doing route table lookups for a
-given IP, and special routes (sink, blackhole etc.)  which specify a special
-action to be done instead of forwarding the packet.
-
-<p>When the particular destination is not available (the interface is down or
-the next hop of the route is not a neighbor at the moment), Static just
-uninstalls the route from the table it is connected to and adds it again as soon
-as the destination becomes adjacent again.
-
 <p>There are three classes of definitions in Static protocol configuration --
 global options, static route definitions, and per-route options. Usually, the
 definition of the protocol contains mainly a list of static routes.
+Static routes have no specific attributes.
 
 <p>Global options:
 
@@ -4369,32 +4444,166 @@ definition of the protocol contains mainly a list of static routes.
 
 <p>Route definitions (each may also contain a block of per-route options):
 
+<sect1>Regular routes; MPLS switching rules</sect1>
+
+There exist several types of routes; keep in mind that <m/prefix/ syntax is
+<ref id="type-prefix" name="dependent on network type">.
+
 <descrip>
-	<tag><label id="static-route-via-ip">route <m/prefix/ via <m/ip/ [mpls <m/num/[/<m/num/[/<m/num/[...]]]]</tag>
-	Static single path route through a neighboring router. For link-local next hops,
-	interface can be specified as a part of the address (e.g.,
-	<cf/via fe80::1234%eth0/). MPLS labels should be specified in outer-first order.
-
-	<tag><label id="static-route-via-mpath">route <m/prefix/ via <m/ip/ [mpls <m/num/[/<m/num/[/<m/num/[...]]]] [weight <m/num/] [bfd <m/switch/] [via ...]</tag>
-	Static multipath route. Contains several nexthops (gateways), possibly
-	with their weights and MPLS labels.
-
-	<tag><label id="static-route-via-iface">route <m/prefix/ via <m/"interface"/</tag>
-	Static device route through an interface to hosts on a directly
-	connected network.
-
-	<tag><label id="static-route-recursive">route <m/prefix/ recursive <m/ip/</tag>
-	Static recursive route, its nexthop depends on a route table lookup for
-	given IP address.
-
-	<tag><label id="static-route-drop">route <m/prefix/ blackhole|unreachable|prohibit</tag>
+	<tag>route <m/prefix/ via <m/ip/|<m/"interface"/ [mpls <m/num/[/<m/num/[/<m/num/[...]]]]</tag>
+	Next hop routes may bear one or more <ref id="route-next-hop" name="next hops">.
+	Every next hop is preceded by <cf/via/ and configured as shown.
+	<tag>route <m/prefix/ recursive <m/ip/ [mpls <m/num/[/<m/num/[/<m/num/[...]]]]</tag>
+	Recursive nexthop resolves the given IP in the configured IGP table and
+	uses that route's next hop. The MPLS stacks are concatenated; on top is
+	the IGP's nexthop stack and on bottom is this route's stack.
+	<tag>route <m/prefix/ blackhole|unreachable|prohibit</tag>
 	Special routes specifying to silently drop the packet, return it as
 	unreachable or return it as administratively prohibited. First two
 	targets are also known as <cf/drop/ and <cf/reject/.
 </descrip>
 
-<p>Per-route options:
+<p>When the particular destination is not available (the interface is down or
+the next hop of the route is not a neighbor at the moment), Static just
+uninstalls the route from the table it is connected to and adds it again as soon
+as the destination becomes adjacent again.
 
+<sect1>Route Origin Authorization
+
+<p>The ROA config is just <cf>route <m/prefix/ max <m/int/ as <m/int/</cf> with no nexthop.
+
+<sect1>Flowspec
+<label id="flowspec-network-type">
+
+<p>The flow specification are rules for routers and firewalls for filtering
+purpose. It is described by <rfc id="5575">. There are 3 types of arguments:
+<m/inet4/ or <m/inet6/ prefixes, bitmasks matching expressions and numbers
+matching expressions.
+
+Bitmasks matching is written using <m/value/<cf>/</cf><m/mask/ or
+<cf/!/<m/value/<cf>/</cf><m/mask/ pairs. It means that <cf/(/<m/data/ <cf/&/
+<m/mask/<cf/)/ is or is not equal to <m/value/.
+
+Numbers matching is a matching sequence of numbers and ranges separeted by a
+commas (<cf/,/) (e.g. <cf/10,20,30/). Ranges can be written using double dots
+<cf/../ notation (e.g. <cf/80..90,120..124/). An alternative notation are
+sequence of one or more pairs of relational operators and values separated by
+logical operators <cf/&&/ or <cf/||/. Allowed relational operators are <cf/=/,
+<cf/!=/, <cf/</, <cf/<=/, <cf/>/, <cf/>=/, <cf/true/ and <cf/false/.
+
+<sect2>IPv4 Flowspec
+
+<p><descrip>
+	<tag><label id="flow-dst">dst <m/inet4/</tag>
+	Set a matching destination prefix (e.g. <cf>dst 192.168.0.0/16</cf>).
+	Only this option is mandatory in IPv4 Flowspec.
+
+	<tag><label id="flow-src">src <m/inet4/</tag>
+	Set a matching source prefix (e.g. <cf>src 10.0.0.0/8</cf>).
+
+	<tag><label id="flow-proto">proto <m/numbers-match/</tag>
+	Set a matching IP protocol numbers (e.g.  <cf/proto 6/).
+
+	<tag><label id="flow-port">port <m/numbers-match/</tag>
+	Set a matching source or destination TCP/UDP port numbers (e.g.
+	<cf>port 1..1023,1194,3306</cf>).
+
+	<tag><label id="flow-dport">dport <m/numbers-match/</tag>
+	Set a mating destination port numbers (e.g. <cf>dport 49151</cf>).
+
+	<tag><label id="flow-sport">sport <m/numbers-match/</tag>
+	Set a matching source port numbers (e.g. <cf>sport = 0</cf>).
+
+	<tag><label id="flow-icmp-type">icmp type <m/numbers-match/</tag>
+	Set a matching type field number of an ICMP packet (e.g. <cf>icmp type
+	3</cf>)
+
+	<tag><label id="flow-icmp-code">icmp code <m/numbers-match/</tag>
+	Set a matching code field number of an ICMP packet (e.g. <cf>icmp code
+	1</cf>)
+
+	<tag><label id="flow-tcp-flags">tcp flags <m/bitmask-match/</tag>
+	Set a matching bitmask for TCP header flags (aka control bits) (e.g.
+	<cf>tcp flags 0x03/0x0f;</cf>). The maximum length of mask is 12 bits
+	(0xfff).
+
+	<tag><label id="flow-length">length <m/numbers-match/</tag>
+	Set a matching packet length (e.g. <cf>length > 1500;</cf>)
+
+	<tag><label id="flow-dscp">dscp <m/numbers-match/</tag>
+	Set a matching DiffServ Code Point number (e.g. <cf>length > 1500;</cf>).
+
+	<tag><label id="flow-fragment">fragment <m/fragmentation-type/</tag>
+	Set a matching type of packet fragmentation. Allowed fragmentation
+	types are <cf/dont_fragment/, <cf/is_fragment/, <cf/first_fragment/,
+	<cf/last_fragment/ (e.g. <cf>fragment is_fragment &&
+	!dont_fragment</cf>).
+</descrip>
+
+<p><code>
+protocol static {
+	flow4;
+
+	route flow4 {
+		dst 10.0.0.0/8;
+		port > 24 && < 30 || 40..50,60..70,80 && >= 90;
+		tcp flags 0x03/0x0f;
+		length > 1024;
+		dscp = 63;
+		fragment dont_fragment, is_fragment || !first_fragment;
+	} drop;
+}
+</code>
+
+<sect2>Differences for IPv6 Flowspec
+
+<p>Flowspec IPv6 are same as Flowspec IPv4 with a few exceptions.
+<itemize>
+	<item>Prefixes <m/inet6/ can be specified not only with prefix length,
+	but with prefix <cf/offset/ <m/num/ too (e.g.
+	<cf>::1234:5678:9800:0000/101 offset 64</cf>). Offset means to don't
+	care of <m/num/ first bits.
+	<item>IPv6 Flowspec hasn't mandatory any flowspec component.
+	<item>In IPv6 packets, there is a matching the last next header value
+	for a matching IP protocol number (e.g. <cf>next header 6</cf>).
+	<item>It is not possible to set <cf>dont_fragment</cf> as a type of
+	packet fragmentation.
+</itemize>
+
+<p><descrip>
+	<tag><label id="flow6-dst">dst <m/inet6/ [offset <m/num/]</tag>
+	Set a matching destination IPv6 prefix (e.g. <cf>dst
+	::1c77:3769:27ad:a11a/128 offset 64</cf>).
+
+	<tag><label id="flow6-src">src <m/inet6/ [offset <m/num/]</tag>
+	Set a matching source IPv6 prefix (e.g. <cf>src fe80::/64</cf>).
+
+	<tag><label id="flow6-next-header">next header <m/numbers-match/</tag>
+	Set a matching IP protocol numbers (e.g. <cf>next header != 6</cf>).
+
+	<tag><label id="flow6-label">label <m/bitmask-match/</tag>
+	Set a 20-bit bitmask for matching Flow Label field in IPv6 packets
+	(e.g. <cf>label 0x8e5/0x8e5</cf>).
+</descrip>
+
+<p><code>
+protocol static {
+	flow6 { table myflow6; };
+
+	route flow6 {
+		dst fec0:1122:3344:5566:7788:99aa:bbcc:ddee/128;
+		src 0000:0000:0000:0001:1234:5678:9800:0000/101 offset 63;
+		next header = 23;
+		sport > 24 && < 30 || = 40 || 50,60,70..80;
+		dport = 50;
+		tcp flags 0x03/0x0f, !0/0xff || 0x33/0x33;
+		fragment !is_fragment || !first_fragment;
+		label 0xaaaa/0xaaaa && 0x33/0x33;
+	} drop;
+}
+</code>
+
+<sect1>Per-route options
 <descrip>
 	<tag><label id="static-route-bfd">bfd <m/switch/</tag>
 	The Static protocol could use BFD protocol for next hop liveness
@@ -4420,16 +4629,14 @@ definition of the protocol contains mainly a list of static routes.
 	exported to the OSPF protocol.
 </descrip>
 
-<p>Static routes have no specific attributes.
-
-<p>Example static config might look like this:
+<sect1>Example static config
 
 <p><code>
 protocol static {
-	table testable;			# Connect to a non-default routing table
+	ipv4 { table testable; };	# Connect to a non-default routing table
 	check link;			# Advertise routes only if link is up
 	route 0.0.0.0/0 via 198.51.100.130; # Default route
-	route 10.0.0.0/8 multipath	# Multipath route
+	route 10.0.0.0/8		# Multipath route
 		via 198.51.100.10 weight 2
 		via 198.51.100.20 bfd	# BFD-controlled next hop
 		via 192.0.2.1;
@@ -4446,7 +4653,6 @@ protocol static {
 }
 </code>
 
-
 <chapt>Conclusions
 <label id="conclusion">
 
@@ -4460,7 +4666,6 @@ versions of BIRD:
 <itemize>
 <item>Opaque LSA's
 <item>Route aggregation and flap dampening
-<item>Multipath routes
 <item>Multicast routing protocols
 <item>Ports to other systems
 </itemize>

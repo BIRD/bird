@@ -71,7 +71,7 @@ CF_KEYWORDS(RECEIVE, LIMIT, ACTION, WARN, BLOCK, RESTART, DISABLE, KEEP, FILTERE
 CF_KEYWORDS(PASSWORD, FROM, PASSIVE, TO, ID, EVENTS, PACKETS, PROTOCOLS, INTERFACES)
 CF_KEYWORDS(ALGORITHM, KEYED, HMAC, MD5, SHA1, SHA256, SHA384, SHA512)
 CF_KEYWORDS(PRIMARY, STATS, COUNT, BY, FOR, COMMANDS, PREEXPORT, NOEXPORT, GENERATE)
-CF_KEYWORDS(LISTEN, BGP, V6ONLY, DUAL, ADDRESS, PORT, PASSWORDS, DESCRIPTION, SORTED)
+CF_KEYWORDS(BGP, PASSWORDS, DESCRIPTION, SORTED)
 CF_KEYWORDS(RELOAD, IN, OUT, MRTDUMP, MESSAGES, RESTRICT, MEMORY, IGP_METRIC, CLASS, DSCP)
 CF_KEYWORDS(TIMEFORMAT, ISO, SHORT, LONG, ROUTE, PROTOCOL, BASE, LOG, S, MS, US)
 CF_KEYWORDS(GRACEFUL, RESTART, WAIT, MAX, FLUSH, AS)
@@ -123,24 +123,6 @@ idval:
        cf_error("Number or IPv4 address constant expected");
    }
  ;
-
-
-CF_ADDTO(conf, listen)
-
-listen: LISTEN BGP listen_opts ';' ;
-
-listen_opts:
-   /* Nothing */
- | listen_opts listen_opt
- ;
-
-listen_opt:
-   ADDRESS ipa { new_config->listen_bgp_addr = $2; }
- | PORT expr { new_config->listen_bgp_port = $2; }
- | V6ONLY { new_config->listen_bgp_flags = 0; }
- | DUAL { new_config->listen_bgp_flags = 1; }
- ;
-
 
 CF_ADDTO(conf, gr_opts)
 
