@@ -14,9 +14,67 @@
 #include "nest/route.h"
 #include "nest/attrs.h"
 
+/* Filter instruction types */
+
+#define FI_TWOCHAR(a,b)	((a<<8) | b)
+#define FI_LIST \
+  F(comma,		  0, ',') \
+  F(add,		  0, '+') \
+  F(subtract,		  0, '-') \
+  F(multiply,		  0, '*') \
+  F(divide,		  0, '/') \
+  F(and,		  0, '&') \
+  F(or,			  0, '|') \
+  F(pair_construct,	'm', 'p') \
+  F(ec_construct,	'm', 'c') \
+  F(lc_construct,	'm', 'l') \
+  F(neq,		'!', '=') \
+  F(eq,			'=', '=') \
+  F(lt,			  0, '<') \
+  F(lte,		'<', '=') \
+  F(not,		  0, '!') \
+  F(match,		  0, '~') \
+  F(not_match,		'!', '~') \
+  F(defined,		'd', 'e') \
+  F(set,		  0, 's') \
+  F(constant,		  0, 'c') \
+  F(variable,		  0, 'V') \
+  F(constant_indirect,	  0, 'C') \
+  F(print,		  0, 'p') \
+  F(condition,		  0, '?') \
+  F(nop,		  0, '0') \
+  F(print_and_die,	'p', ',') \
+  F(rta_get,		  0, 'a') \
+  F(rta_set,		'a', 'S') \
+  F(ea_get,		'e', 'a') \
+  F(ea_set,		'e', 'S') \
+  F(pref_get,		  0, 'P') \
+  F(pref_set,		'P', 'S') \
+  F(length,		  0, 'L') \
+  F(ip,			'c', 'p') \
+  F(as_path_first,	'a', 'f') \
+  F(as_path_last,	'a', 'l') \
+  F(as_path_last_nag,	'a', 'L') \
+  F(return,		  0, 'r') \
+  F(call,		'c', 'a') \
+  F(clear_local_vars,	'c', 'V') \
+  F(switch,		'S', 'W') \
+  F(ip_mask,		'i', 'M') \
+  F(empty,		  0, 'E') \
+  F(path_prepend,	'A', 'p') \
+  F(clist_add_del,	'C', 'a') \
+  F(roa_check,		'R', 'C')
+
+enum filter_instruction_code {
+#define F(c,a,b) \
+  fi_##c = FI_TWOCHAR(a,b),
+FI_LIST
+#undef F
+};
+
 struct f_inst {		/* Instruction */
   struct f_inst *next;	/* Structure is 16 bytes, anyway */
-  u16 code;
+  enum filter_instruction_code fi_code;
   u16 aux;
   union {
     int i;
@@ -75,15 +133,32 @@ struct f_val {
   } val;
 };
 
+struct f_dynamic_attr {
+  int type;
+  int f_type;
+  int ea_code;
+};
+
+struct f_static_attr {
+  int f_type;
+  int sa_code;
+  int readonly;
+};
+
 struct filter {
   char *name;
   struct f_inst *root;
 };
 
-struct f_inst *f_new_inst(void);
-struct f_inst *f_new_dynamic_attr(int type, int f_type, int code);	/* Type as core knows it, type as filters know it, and code of dynamic attribute */
+struct f_inst *f_new_inst(enum filter_instruction_code fi_code);
+struct f_inst *f_new_inst_da(enum filter_instruction_code fi_code, struct f_dynamic_attr da);
+struct f_inst *f_new_inst_sa(enum filter_instruction_code fi_code, struct f_static_attr sa);
+static inline struct f_dynamic_attr f_new_dynamic_attr(int type, int f_type, int code) /* Type as core knows it, type as filters know it, and code of dynamic attribute */
+{ return (struct f_dynamic_attr) { .type = type, .f_type = f_type, .ea_code = code }; }   /* f_type currently unused; will be handy for static type checking */
+static inline struct f_static_attr f_new_static_attr(int f_type, int code, int readonly)
+{ return (struct f_static_attr) { .f_type = f_type, .sa_code = code, .readonly = readonly }; }
 struct f_tree *f_new_tree(void);
-struct f_inst *f_generate_complex(int operation, int operation_aux, struct f_inst *dyn, struct f_inst *argument);
+struct f_inst *f_generate_complex(int operation, int operation_aux, struct f_dynamic_attr da, struct f_inst *argument);
 struct f_inst *f_generate_roa_check(struct symbol *sym, struct f_inst *prefix, struct f_inst *asn);
 
 
