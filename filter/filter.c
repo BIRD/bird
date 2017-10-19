@@ -46,8 +46,6 @@
 #include "conf/conf.h"
 #include "filter/filter.h"
 
-#define P(a,b) ((a<<8) | b)
-
 #define CMP_ERROR 999
 
 static struct adata *
@@ -643,13 +641,13 @@ interpret(struct f_inst *what)
   if (!what)
     return res;
 
-  switch(what->code) {
-  case ',':
+  switch(what->fi_code) {
+  case fi_comma:
     TWOARGS;
     break;
 
 /* Binary operators */
-  case '+':
+  case fi_add:
     TWOARGS_C;
     switch (res.type = v1.type) {
     case T_VOID: runtime( "Can't operate with values of type void" );
@@ -657,7 +655,7 @@ interpret(struct f_inst *what)
     default: runtime( "Usage of unknown type" );
     }
     break;
-  case '-':
+  case fi_subtract:
     TWOARGS_C;
     switch (res.type = v1.type) {
     case T_VOID: runtime( "Can't operate with values of type void" );
@@ -665,7 +663,7 @@ interpret(struct f_inst *what)
     default: runtime( "Usage of unknown type" );
     }
     break;
-  case '*':
+  case fi_multiply:
     TWOARGS_C;
     switch (res.type = v1.type) {
     case T_VOID: runtime( "Can't operate with values of type void" );
@@ -673,7 +671,7 @@ interpret(struct f_inst *what)
     default: runtime( "Usage of unknown type" );
     }
     break;
-  case '/':
+  case fi_divide:
     TWOARGS_C;
     switch (res.type = v1.type) {
     case T_VOID: runtime( "Can't operate with values of type void" );
@@ -683,12 +681,12 @@ interpret(struct f_inst *what)
     }
     break;
 
-  case '&':
-  case '|':
+  case fi_and:
+  case fi_or:
     ARG(v1, a1.p);
     if (v1.type != T_BOOL)
       runtime( "Can't do boolean operation on non-booleans" );
-    if (v1.val.i == (what->code == '|')) {
+    if (v1.val.i == (what->fi_code == fi_or)) {
       res.type = T_BOOL;
       res.val.i = v1.val.i;
       break;
@@ -701,7 +699,7 @@ interpret(struct f_inst *what)
     res.val.i = v2.val.i;
     break;
 
-  case P('m','p'):
+  case fi_pair_construct:
     TWOARGS;
     if ((v1.type != T_INT) || (v2.type != T_INT))
       runtime( "Can't operate with value of non-integer type in pair constructor" );
@@ -713,7 +711,7 @@ interpret(struct f_inst *what)
     res.type = T_PAIR;
     break;
 
-  case P('m','c'):
+  case fi_ec_construct:
     {
       TWOARGS;
 
@@ -761,7 +759,7 @@ interpret(struct f_inst *what)
       break;
     }
 
-  case P('m','l'):
+  case fi_lc_construct:
     {
       TWOARGS;
 
@@ -797,12 +795,12 @@ interpret(struct f_inst *what)
     res.val.i = (x); \
     break;
 
-  case P('!','='): SAME(!i);
-  case P('=','='): SAME(i);
-  case '<': COMPARE(i==-1);
-  case P('<','='): COMPARE(i!=1);
+  case fi_neq: SAME(!i);
+  case fi_eq: SAME(i);
+  case fi_lt: COMPARE(i==-1);
+  case fi_lte: COMPARE(i!=1);
 
-  case '!':
+  case fi_not:
     ONEARG;
     if (v1.type != T_BOOL)
       runtime( "Not applied to non-boolean" );
@@ -810,7 +808,7 @@ interpret(struct f_inst *what)
     res.val.i = !res.val.i;
     break;
 
-  case '~':
+  case fi_match:
     TWOARGS;
     res.type = T_BOOL;
     res.val.i = val_in_range(v1, v2);
@@ -819,7 +817,7 @@ interpret(struct f_inst *what)
     res.val.i = !!res.val.i;
     break;
 
-  case P('!','~'):
+  case fi_not_match:
     TWOARGS;
     res.type = T_BOOL;
     res.val.i = val_in_range(v1, v2);
@@ -828,14 +826,14 @@ interpret(struct f_inst *what)
     res.val.i = !res.val.i;
     break;
 
-  case P('d','e'):
+  case fi_defined:
     ONEARG;
     res.type = T_BOOL;
     res.val.i = (v1.type != T_VOID);
     break;
 
   /* Set to indirect value, a1 = variable, a2 = value */
-  case 's':
+  case fi_set:
     ARG(v2, a2.p);
     sym = what->a1.p;
     vp = sym->def;
@@ -854,7 +852,7 @@ interpret(struct f_inst *what)
     break;
 
     /* some constants have value in a2, some in *a1.p, strange. */
-  case 'c':	/* integer (or simple type) constant, string, set, or prefix_set */
+  case fi_constant:	/* integer (or simple type) constant, string, set, or prefix_set */
     res.type = what->aux;
 
     if (res.type == T_PREFIX_SET)
@@ -866,15 +864,15 @@ interpret(struct f_inst *what)
     else
       res.val.i = what->a2.i;
     break;
-  case 'V':
-  case 'C':
+  case fi_variable:
+  case fi_constant_indirect:
     res = * ((struct f_val *) what->a1.p);
     break;
-  case 'p':
+  case fi_print:
     ONEARG;
     val_format(v1, &f_buf);
     break;
-  case '?':	/* ? has really strange error value, so we can implement if ... else nicely :-) */
+  case fi_condition:	/* ? has really strange error value, so we can implement if ... else nicely :-) */
     ONEARG;
     if (v1.type != T_BOOL)
       runtime( "If requires boolean expression" );
@@ -884,10 +882,10 @@ interpret(struct f_inst *what)
     } else res.val.i = 1;
     res.type = T_BOOL;
     break;
-  case '0':
+  case fi_nop:
     debug( "No operation\n" );
     break;
-  case P('p',','):
+  case fi_print_and_die:
     ONEARG;
     if (what->a2.i == F_NOP || (what->a2.i != F_NONL && what->a1.p))
       log_commit(*L_INFO, &f_buf);
@@ -909,7 +907,7 @@ interpret(struct f_inst *what)
       bug( "unknown return type: Can't happen");
     }
     break;
-  case 'a':	/* rta access */
+  case fi_rta_get:	/* rta access */
     {
       ACCESS_RTE;
       struct rta *rta = (*f_rte)->attrs;
@@ -934,7 +932,7 @@ interpret(struct f_inst *what)
       }
     }
     break;
-  case P('a','S'):
+  case fi_rta_set:
     ACCESS_RTE;
     ONEARG;
     if (what->aux != v1.type)
@@ -986,7 +984,7 @@ interpret(struct f_inst *what)
       }
     }
     break;
-  case P('e','a'):	/* Access to extended attributes */
+  case fi_ea_get:	/* Access to extended attributes */
     ACCESS_RTE;
     {
       eattr *e = NULL;
@@ -1072,7 +1070,7 @@ interpret(struct f_inst *what)
       }
     }
     break;
-  case P('e','S'):
+  case fi_ea_set:
     ACCESS_RTE;
     ONEARG;
     {
@@ -1178,12 +1176,12 @@ interpret(struct f_inst *what)
       }
     }
     break;
-  case 'P':
+  case fi_pref_get:
     ACCESS_RTE;
     res.type = T_INT;
     res.val.i = (*f_rte)->pref;
     break;
-  case P('P','S'):
+  case fi_pref_set:
     ACCESS_RTE;
     ONEARG;
     if (v1.type != T_INT)
@@ -1193,7 +1191,7 @@ interpret(struct f_inst *what)
     f_rte_cow();
     (*f_rte)->pref = v1.val.i;
     break;
-  case 'L':	/* Get length of */
+  case fi_length:	/* Get length of */
     ONEARG;
     res.type = T_INT;
     switch(v1.type) {
@@ -1205,7 +1203,7 @@ interpret(struct f_inst *what)
     default: runtime( "Prefix, path, clist or eclist expected" );
     }
     break;
-  case P('c','p'):	/* Convert prefix to ... */
+  case fi_ip:	/* Convert prefix to ... */
     ONEARG;
     if (v1.type != T_PREFIX)
       runtime( "Prefix expected" );
@@ -1216,7 +1214,7 @@ interpret(struct f_inst *what)
     default: bug( "Unknown prefix to conversion" );
     }
     break;
-  case P('a','f'):	/* Get first ASN from AS PATH */
+  case fi_as_path_first:	/* Get first ASN from AS PATH */
     ONEARG;
     if (v1.type != T_PATH)
       runtime( "AS path expected" );
@@ -1226,7 +1224,7 @@ interpret(struct f_inst *what)
     res.type = T_INT;
     res.val.i = as;
     break;
-  case P('a','l'):	/* Get last ASN from AS PATH */
+  case fi_as_path_last:	/* Get last ASN from AS PATH */
     ONEARG;
     if (v1.type != T_PATH)
       runtime( "AS path expected" );
@@ -1236,7 +1234,7 @@ interpret(struct f_inst *what)
     res.type = T_INT;
     res.val.i = as;
     break;
-  case P('a','L'):	/* Get last ASN from non-aggregated part of AS PATH */
+  case fi_as_path_last_nag:	/* Get last ASN from non-aggregated part of AS PATH */
     ONEARG;
     if (v1.type != T_PATH)
       runtime( "AS path expected" );
@@ -1244,23 +1242,23 @@ interpret(struct f_inst *what)
     res.type = T_INT;
     res.val.i = as_path_get_last_nonaggregated(v1.val.ad);
     break;
-  case 'r':
+  case fi_return:
     ONEARG;
     res = v1;
     res.type |= T_RETURN;
     return res;
-  case P('c','a'): /* CALL: this is special: if T_RETURN and returning some value, mask it out  */
+  case fi_call: /* CALL: this is special: if T_RETURN and returning some value, mask it out  */
     ONEARG;
     res = interpret(what->a2.p);
     if (res.type == T_RETURN)
       return res;
     res.type &= ~T_RETURN;
     break;
-  case P('c','v'):	/* Clear local variables */
+  case fi_clear_local_vars:	/* Clear local variables */
     for (sym = what->a1.p; sym != NULL; sym = sym->aux2)
       ((struct f_val *) sym->def)->type = T_VOID;
     break;
-  case P('S','W'):
+  case fi_switch:
     ONEARG;
     {
       struct f_tree *t = find_tree(what->a2.p, v1);
@@ -1279,7 +1277,7 @@ interpret(struct f_inst *what)
 	return res;
     }
     break;
-  case P('i','M'): /* IP.MASK(val) */
+  case fi_ip_mask: /* IP.MASK(val) */
     TWOARGS;
     if (v2.type != T_INT)
       runtime( "Integer expected");
@@ -1292,11 +1290,11 @@ interpret(struct f_inst *what)
     }
     break;
 
-  case 'E':	/* Create empty attribute */
+  case fi_empty:	/* Create empty attribute */
     res.type = what->aux;
     res.val.ad = adata_empty(f_pool, 0);
     break;
-  case P('A','p'):	/* Path prepend */
+  case fi_path_prepend:	/* Path prepend */
     TWOARGS;
     if (v1.type != T_PATH)
       runtime("Can't prepend to non-path");
@@ -1307,7 +1305,7 @@ interpret(struct f_inst *what)
     res.val.ad = as_path_prepend(f_pool, v1.val.ad, v2.val.i);
     break;
 
-  case P('C','a'):	/* (Extended) Community list add or delete */
+  case fi_clist_add_del:	/* (Extended) Community list add or delete */
     TWOARGS;
     if (v1.type == T_PATH)
     {
@@ -1475,7 +1473,7 @@ interpret(struct f_inst *what)
 
     break;
 
-  case P('R','C'):	/* ROA Check */
+  case fi_roa_check:	/* ROA Check */
     if (what->arg1)
     {
       TWOARGS;
@@ -1509,7 +1507,7 @@ interpret(struct f_inst *what)
     break;
 
   default:
-    bug( "Unknown instruction %d (%c)", what->code, what->code & 0xff);
+    bug( "Unknown instruction %d (%c)", what->fi_code, what->fi_code & 0xff);
   }
   if (what->next)
     return interpret(what->next);
@@ -1539,38 +1537,38 @@ i_same(struct f_inst *f1, struct f_inst *f2)
     return 1;
   if (f1->aux != f2->aux)
     return 0;
-  if (f1->code != f2->code)
+  if (f1->fi_code != f2->fi_code)
     return 0;
   if (f1 == f2)		/* It looks strange, but it is possible with call rewriting trickery */
     return 1;
 
-  switch(f1->code) {
-  case ',': /* fall through */
-  case '+':
-  case '-':
-  case '*':
-  case '/':
-  case '|':
-  case '&':
-  case P('m','p'):
-  case P('m','c'):
-  case P('!','='):
-  case P('=','='):
-  case '<':
-  case P('<','='): TWOARGS; break;
+  switch(f1->fi_code) {
+  case fi_comma: /* fall through */
+  case fi_add:
+  case fi_subtract:
+  case fi_multiply:
+  case fi_divide:
+  case fi_or:
+  case fi_and:
+  case fi_pair_construct:
+  case fi_ec_construct:
+  case fi_neq:
+  case fi_eq:
+  case fi_lt:
+  case fi_lte: TWOARGS; break;
 
-  case '!': ONEARG; break;
-  case P('!', '~'):
-  case '~': TWOARGS; break;
-  case P('d','e'): ONEARG; break;
+  case fi_not: ONEARG; break;
+  case fi_not_match:
+  case fi_match: TWOARGS; break;
+  case fi_defined: ONEARG; break;
 
-  case P('m','l'):
+  case fi_lc_construct:
     TWOARGS;
     if (!i_same(INST3(f1).p, INST3(f2).p))
       return 0;
     break;
 
-  case 's':
+  case fi_set:
     ARG(v2, a2.p);
     {
       struct symbol *s1, *s2;
@@ -1583,7 +1581,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
     }
     break;
 
-  case 'c':
+  case fi_constant:
     switch (f1->aux) {
 
     case T_PREFIX_SET:
@@ -1606,43 +1604,43 @@ i_same(struct f_inst *f1, struct f_inst *f2)
     }
     break;
 
-  case 'C':
+  case fi_constant_indirect:
     if (!val_same(* (struct f_val *) f1->a1.p, * (struct f_val *) f2->a1.p))
       return 0;
     break;
 
-  case 'V':
+  case fi_variable:
     if (strcmp((char *) f1->a2.p, (char *) f2->a2.p))
       return 0;
     break;
-  case 'p': case 'L': ONEARG; break;
-  case '?': TWOARGS; break;
-  case '0': case 'E': break;
-  case P('p',','): ONEARG; A2_SAME; break;
-  case 'P':
-  case 'a': A2_SAME; break;
-  case P('e','a'): A2_SAME; break;
-  case P('P','S'):
-  case P('a','S'):
-  case P('e','S'): ONEARG; A2_SAME; break;
+  case fi_print: case fi_length: ONEARG; break;
+  case fi_condition: TWOARGS; break;
+  case fi_nop: case fi_empty: break;
+  case fi_print_and_die: ONEARG; A2_SAME; break;
+  case fi_pref_get:
+  case fi_rta_get: A2_SAME; break;
+  case fi_ea_get: A2_SAME; break;
+  case fi_pref_set:
+  case fi_rta_set:
+  case fi_ea_set: ONEARG; A2_SAME; break;
 
-  case 'r': ONEARG; break;
-  case P('c','p'): ONEARG; break;
-  case P('c','a'): /* Call rewriting trickery to avoid exponential behaviour */
+  case fi_return: ONEARG; break;
+  case fi_ip: ONEARG; break;
+  case fi_call: /* Call rewriting trickery to avoid exponential behaviour */
              ONEARG;
 	     if (!i_same(f1->a2.p, f2->a2.p))
 	       return 0;
 	     f2->a2.p = f1->a2.p;
 	     break;
-  case P('c','v'): break; /* internal instruction */
-  case P('S','W'): ONEARG; if (!same_tree(f1->a2.p, f2->a2.p)) return 0; break;
-  case P('i','M'): TWOARGS; break;
-  case P('A','p'): TWOARGS; break;
-  case P('C','a'): TWOARGS; break;
-  case P('a','f'):
-  case P('a','l'):
-  case P('a','L'): ONEARG; break;
-  case P('R','C'):
+  case fi_clear_local_vars: break; /* internal instruction */
+  case fi_switch: ONEARG; if (!same_tree(f1->a2.p, f2->a2.p)) return 0; break;
+  case fi_ip_mask: TWOARGS; break;
+  case fi_path_prepend: TWOARGS; break;
+  case fi_clist_add_del: TWOARGS; break;
+  case fi_as_path_first:
+  case fi_as_path_last:
+  case fi_as_path_last_nag: ONEARG; break;
+  case fi_roa_check:
     TWOARGS;
     /* Does not really make sense - ROA check resuls may change anyway */
     if (strcmp(((struct f_inst_roa_check *) f1)->rtc->name,
@@ -1650,7 +1648,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
       return 0;
     break;
   default:
-    bug( "Unknown instruction %d in same (%c)", f1->code, f1->code & 0xff);
+    bug( "Unknown instruction %d in same (%c)", f1->fi_code, f1->fi_code & 0xff);
   }
   return i_same(f1->next, f2->next);
 }

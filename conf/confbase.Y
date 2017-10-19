@@ -43,6 +43,8 @@ CF_DECLS
   char *t;
   struct rtable_config *r;
   struct f_inst *x;
+  struct f_dynamic_attr fda;
+  struct f_static_attr fsa;
   struct filter *f;
   struct f_tree *e;
   struct f_trie *trie;
