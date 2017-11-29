@@ -632,15 +632,13 @@ static struct f_val
 interpret(struct f_inst *what)
 {
   struct symbol *sym;
-  struct f_val v1, v2, res, *vp;
+  struct f_val v1, v2, res = { .type = T_VOID }, *vp;
   unsigned u1, u2;
   int i;
   u32 as;
 
+  for ( ; what; what = what->next) {
   res.type = T_VOID;
-  if (!what)
-    return res;
-
   switch(what->fi_code) {
   case fi_comma:
     TWOARGS;
@@ -1508,9 +1506,7 @@ interpret(struct f_inst *what)
 
   default:
     bug( "Unknown instruction %d (%c)", what->fi_code, what->fi_code & 0xff);
-  }
-  if (what->next)
-    return interpret(what->next);
+  }}
   return res;
 }
 
