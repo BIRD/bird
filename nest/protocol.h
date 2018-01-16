@@ -474,6 +474,7 @@ struct channel_config {
   u16 preference;			/* Default route preference */
   u8 merge_limit;			/* Maximal number of nexthops for RA_MERGED */
   u8 in_keep_filtered;			/* Routes rejected in import filter are kept */
+  u8 templated;				/* Using channel config from template */
 };
 
 struct channel {

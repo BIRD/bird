@@ -504,6 +504,7 @@ channel_config_get(const struct channel_class *cc, const char *name, uint net_ty
 	cf_error("Multiple %s channels", name);
 
       cf->parent = proto;
+      cf->templated = 1;
       return cf;
     }
 
