@@ -25,13 +25,16 @@ CF_ADDTO(proto, pipe_proto '}' { this_channel = NULL; } )
 pipe_proto_start: proto_start PIPE
 {
   this_proto = proto_config_new(&proto_pipe, $1);
-  this_channel = channel_config_new(NULL, NULL, 0, this_proto);
+}
+proto_name
+{
+  this_channel = channel_config_get(NULL, NULL, 0, this_proto);
   this_channel->in_filter = FILTER_ACCEPT;
   this_channel->out_filter = FILTER_ACCEPT;
 };
 
 pipe_proto:
-   pipe_proto_start proto_name '{'
+   pipe_proto_start '{'
  | pipe_proto proto_item ';'
  | pipe_proto channel_item ';'
  | pipe_proto PEER TABLE rtable ';' { PIPE_CFG->peer = $4; }
