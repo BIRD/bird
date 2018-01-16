@@ -197,16 +197,12 @@ pipe_copy_config(struct proto_config *dest UNUSED, struct proto_config *src UNUS
   /* Just a shallow copy, not many items here */
 }
 
-static const char *pipe_channel_left_state[] = { [ES_DOWN] = "--", [ES_FEEDING] = "<<", [ES_READY] = "==" };
-static const char *pipe_channel_right_state[] = { [ES_DOWN] = "--", [ES_FEEDING] = ">>", [ES_READY] = "==" };
-
 static void
 pipe_get_status(struct proto *P, byte *buf)
 {
   struct pipe_proto *p = (void *) P;
-  bsprintf(buf, "%s  %s%s  %s",
-      p->pri->table->name, pipe_channel_left_state[p->sec->export_state],
-      pipe_channel_right_state[p->pri->export_state], p->sec->table->name);
+
+  bsprintf(buf, "%s <=> %s", p->pri->table->name, p->sec->table->name);
 }
 
 static void
@@ -253,6 +249,8 @@ pipe_show_stats(struct pipe_proto *p)
 	  s2->imp_withdraws_ignored, s2->imp_withdraws_accepted);
 }
 
+static const char *pipe_feed_state[] = { [ES_DOWN] = "down", [ES_FEEDING] = "feed", [ES_READY] = "up" };
+
 static void
 pipe_show_proto_info(struct proto *P)
 {
@@ -261,6 +259,8 @@ pipe_show_proto_info(struct proto *P)
   cli_msg(-1006, "  Channel %s", "main");
   cli_msg(-1006, "    Table:          %s", p->pri->table->name);
   cli_msg(-1006, "    Peer table:     %s", p->sec->table->name);
+  cli_msg(-1006, "    Import state:   %s", pipe_feed_state[p->sec->export_state]);
+  cli_msg(-1006, "    Export state:   %s", pipe_feed_state[p->pri->export_state]);
   cli_msg(-1006, "    Import filter:  %s", filter_name(p->sec->out_filter));
   cli_msg(-1006, "    Export filter:  %s", filter_name(p->pri->out_filter));
 
