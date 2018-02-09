@@ -285,7 +285,7 @@ krt_same_key(rte *a, rte *b)
 static inline int
 krt_uptodate(rte *a, rte *b)
 {
-  if (a->attrs != b->attrs)
+  if (!rta_same(a->attrs, b->attrs))
     return 0;
 
   if (a->u.krt.proto != b->u.krt.proto)
@@ -297,12 +297,7 @@ krt_uptodate(rte *a, rte *b)
 static void
 krt_learn_announce_update(struct krt_proto *p, rte *e)
 {
-  net *n = e->net;
-  rta *aa = rta_clone(e->attrs);
-  rte *ee = rte_get_temp(aa);
-  ee->pflags = 0;
-  ee->u.krt = e->u.krt;
-  rte_update(&p->p, n->n.addr, ee);
+  rte_update(&p->p, e->net->n.addr, e);
 }
 
 static void
@@ -311,7 +306,8 @@ krt_learn_announce_delete(struct krt_proto *p, net *n)
   rte_update(&p->p, n->n.addr, NULL);
 }
 
-/* Called when alien route is discovered during scan */
+/* Called when alien route is discovered during scan.
+ * The route is a temporary rte. */
 static void
 krt_learn_scan(struct krt_proto *p, rte *e)
 {
@@ -319,17 +315,15 @@ krt_learn_scan(struct krt_proto *p, rte *e)
   net *n = net_get(&p->krt_table, n0->n.addr);
   rte *m, **mm;
 
-  e->attrs = rta_lookup(e->attrs);
-
   for(mm=&n->routes; m = *mm; mm=&m->next)
     if (krt_same_key(m, e))
       break;
-  if (m)
+
+  if (m) /* Route found */
     {
       if (krt_uptodate(m, e))
 	{
 	  krt_trace_in_rl(&rl_alien, p, e, "[alien] seen");
-	  rte_free(e);
 	  m->u.krt.seen = 1;
 	}
       else
@@ -342,11 +336,13 @@ krt_learn_scan(struct krt_proto *p, rte *e)
     }
   else
     krt_trace_in(p, e, "[alien] created");
-  if (!m)
+
+  if (!m) /* Route created or updated -> inserting the new route. */
     {
-      e->next = n->routes;
-      n->routes = e;
-      e->u.krt.seen = 1;
+      rte *ee = rte_clone(e);
+      ee->next = n->routes;
+      n->routes = ee;
+      ee->u.krt.seen = 1;
     }
 }
 
@@ -425,6 +421,11 @@ again:
   p->reload = 0;
 }
 
+/*
+ * This is called when the low-level code learns a route asynchronously.
+ * The given route is considered temporary.
+ */
+
 static void
 krt_learn_async(struct krt_proto *p, rte *e, int new)
 {
@@ -432,7 +433,7 @@ krt_learn_async(struct krt_proto *p, rte *e, int new)
   net *n = net_get(&p->krt_table, n0->n.addr);
   rte *g, **gg, *best, **bestp, *old_best;
 
-  e->attrs = rta_lookup(e->attrs);
+//  e->attrs = rta_lookup(e->attrs);
 
   old_best = n->routes;
   for(gg=&n->routes; g = *gg; gg = &g->next)
@@ -445,7 +446,6 @@ krt_learn_async(struct krt_proto *p, rte *e, int new)
 	  if (krt_uptodate(g, e))
 	    {
 	      krt_trace_in(p, e, "[alien async] same");
-	      rte_free(e);
 	      return;
 	    }
 	  krt_trace_in(p, e, "[alien async] updated");
@@ -455,20 +455,19 @@ krt_learn_async(struct krt_proto *p, rte *e, int new)
       else
 	krt_trace_in(p, e, "[alien async] created");
 
+      e = rte_clone(e);
       e->next = n->routes;
       n->routes = e;
     }
   else if (!g)
     {
       krt_trace_in(p, e, "[alien async] delete failed");
-      rte_free(e);
       return;
     }
   else
     {
       krt_trace_in(p, e, "[alien async] removed");
       *gg = g->next;
-      rte_free(e);
       rte_free(g);
     }
   best = n->routes;
@@ -633,10 +632,7 @@ krt_got_route(struct krt_proto *p, rte *e)
       if (KRT_CF->learn)
 	krt_learn_scan(p, e);
       else
-	{
-	  krt_trace_in_rl(&rl_alien, p, e, "[alien] ignored");
-	  rte_free(e);
-	}
+	krt_trace_in_rl(&rl_alien, p, e, "[alien] ignored");
       return;
     }
 #endif
@@ -646,7 +642,6 @@ krt_got_route(struct krt_proto *p, rte *e)
     {
       /* Route to this destination was already seen. Strange, but it happens... */
       krt_trace_in(p, e, "already seen");
-      rte_free(e);
       return;
     }
 
@@ -686,15 +681,12 @@ krt_got_route(struct krt_proto *p, rte *e)
   net->n.flags = (net->n.flags & ~KRF_VERDICT_MASK) | verdict;
   if (verdict == KRF_UPDATE || verdict == KRF_DELETE)
     {
-      /* Get a cached copy of attributes and temporarily link the route */
-      rta *a = e->attrs;
-      a->source = RTS_DUMMY;
-      e->attrs = rta_lookup(a);
-      e->next = net->routes;
-      net->routes = e;
+      /* Get a cached copy of route and temporarily link it */
+      e->attrs->source = RTS_DUMMY;
+      rte *ee = rte_clone(e);
+      ee->next = net->routes;
+      net->routes = ee;
     }
-  else
-    rte_free(e);
 }
 
 static void
@@ -774,6 +766,11 @@ krt_prune(struct krt_proto *p)
     p->initialized = 1;
 }
 
+/*
+ * This is called when the low-level code gets a route asynchronously.
+ * The given route is considered temporary.
+ */
+
 void
 krt_got_route_async(struct krt_proto *p, rte *e, int new)
 {
@@ -783,6 +780,7 @@ krt_got_route_async(struct krt_proto *p, rte *e, int new)
     {
     case KRT_SRC_BIRD:
       ASSERT(0);			/* Should be filtered by the back end */
+      return;
 
     case KRT_SRC_REDIRECT:
       if (new)
@@ -802,7 +800,6 @@ krt_got_route_async(struct krt_proto *p, rte *e, int new)
 	}
 #endif
     }
-  rte_free(e);
 }
 
 /*

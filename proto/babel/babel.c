@@ -640,15 +640,18 @@ babel_announce_rte(struct babel_proto *p, struct babel_entry *e)
       .nh.iface = r->neigh->ifa->iface,
     };
 
-    rta *a = rta_lookup(&a0);
-    rte *rte = rte_get_temp(a);
-    rte->u.babel.seqno = r->seqno;
-    rte->u.babel.metric = r->metric;
-    rte->u.babel.router_id = r->router_id;
-    rte->pflags = 0;
+    rte rte = {
+      .attrs = &a0,
+      .u.babel = {
+	  .seqno = r->seqno,
+	  .metric = r->metric,
+	  .router_id = r->router_id,
+      },
+      .pflags = 0,
+    };
 
     e->unreachable = 0;
-    rte_update2(c, e->n.addr, rte, p->p.main_source);
+    rte_update2(c, e->n.addr, &rte, p->p.main_source);
   }
   else if (e->valid && (e->router_id != p->router_id))
   {
@@ -660,14 +663,15 @@ babel_announce_rte(struct babel_proto *p, struct babel_entry *e)
       .dest = RTD_UNREACHABLE,
     };
 
-    rta *a = rta_lookup(&a0);
-    rte *rte = rte_get_temp(a);
-    memset(&rte->u.babel, 0, sizeof(rte->u.babel));
-    rte->pflags = 0;
-    rte->pref = 1;
+    rte rte = {
+      .attrs = &a0,
+      .u.babel = {},
+      .pflags = 0,
+      .pref = 1,
+    };
 
     e->unreachable = 1;
-    rte_update2(c, e->n.addr, rte, p->p.main_source);
+    rte_update2(c, e->n.addr, &rte, p->p.main_source);
   }
   else
   {

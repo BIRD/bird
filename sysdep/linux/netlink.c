@@ -1401,18 +1401,22 @@ nl_mergable_route(struct nl_parse_state *s, net *net, struct krt_proto *p, uint 
 static void
 nl_announce_route(struct nl_parse_state *s)
 {
-  rte *e = rte_get_temp(s->attrs);
-  e->net = s->net;
-  e->u.krt.src = s->krt_src;
-  e->u.krt.proto = s->krt_proto;
-  e->u.krt.seen = 0;
-  e->u.krt.best = 0;
-  e->u.krt.metric = s->krt_metric;
+  rte e = {
+    .attrs = s->attrs,
+    .net = s->net,
+    .u.krt = {
+      .src = s->krt_src,
+      .proto = s->krt_proto,
+      .seen = 0,
+      .best = 0,
+      .metric = s->krt_metric,
+    },
+  };
 
   if (s->scan)
-    krt_got_route(s->proto, e);
+    krt_got_route(s->proto, &e);
   else
-    krt_got_route_async(s->proto, e, s->new);
+    krt_got_route_async(s->proto, &e, s->new);
 
   s->net = NULL;
   s->attrs = NULL;

@@ -2013,19 +2013,25 @@ again1:
       if (reload || ort_changed(nf, &a0))
       {
 	rta *a = rta_lookup(&a0);
-	rte *e = rte_get_temp(a);
 
 	rta_free(nf->old_rta);
 	nf->old_rta = rta_clone(a);
-	e->u.ospf.metric1 = nf->old_metric1 = nf->n.metric1;
-	e->u.ospf.metric2 = nf->old_metric2 = nf->n.metric2;
-	e->u.ospf.tag = nf->old_tag = nf->n.tag;
-	e->u.ospf.router_id = nf->old_rid = nf->n.rid;
-	e->pflags = 0;
+
+	rte e = {
+	  .attrs = a,
+	  .u.ospf = {
+	    .metric1 = nf->old_metric1 = nf->n.metric1,
+	    .metric2 = nf->old_metric2 = nf->n.metric2,
+	    .tag = nf->old_tag = nf->n.tag,
+	    .router_id = nf->old_rid = nf->n.rid,
+	  },
+	  .pflags = 0,
+	};
 
 	DBG("Mod rte type %d - %N via %I on iface %s, met %d\n",
 	    a0.source, nf->fn.addr, a0.gw, a0.iface ? a0.iface->name : "(none)", nf->n.metric1);
-	rte_update(&p->p, nf->fn.addr, e);
+	rte_update(&p->p, nf->fn.addr, &e);
+	rta_free(a);
       }
     }
     else if (nf->old_rta)

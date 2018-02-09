@@ -187,16 +187,17 @@ rip_announce_rte(struct rip_proto *p, struct rip_entry *en)
       a0.nh.iface = rt->from->nbr->iface;
     }
 
-    rta *a = rta_lookup(&a0);
-    rte *e = rte_get_temp(a);
+    rte e = {
+      .attrs = &a0,
+      .u.rip = {
+	.from = a0.nh.iface,
+	.metric = rt_metric,
+	.tag = rt_tag,
+      },
+      .pflags = 0,
+    };
 
-    e->u.rip.from = a0.nh.iface;
-    e->u.rip.metric = rt_metric;
-    e->u.rip.tag = rt_tag;
-
-    e->pflags = 0;
-
-    rte_update(&p->p, en->n.addr, e);
+    rte_update(&p->p, en->n.addr, &e);
   }
   else
   {
