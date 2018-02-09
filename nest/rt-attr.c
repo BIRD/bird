@@ -1047,7 +1047,7 @@ rta_hash(rta *a)
   return mem_hash_value(&h) ^ nexthop_hash(&(a->nh)) ^ ea_hash(a->eattrs);
 }
 
-static inline int
+int
 rta_same(rta *x, rta *y)
 {
   return (x->src == y->src &&

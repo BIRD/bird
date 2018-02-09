@@ -1119,16 +1119,19 @@ bgp_rte_update(struct bgp_parse_state *s, net_addr *n, u32 path_id, rta *a0)
 
     /* Workaround for rta_lookup() breaking eattrs */
     ea_list *ea = a0->eattrs;
-    s->cached_rta = rta_lookup(a0);
+    s->cached_rta = rta_lookup(a0); /* This rta use is finally freed in bgp_decode_nlri() */
     a0->eattrs = ea;
   }
 
-  rta *a = rta_clone(s->cached_rta);
-  rte *e = rte_get_temp(a);
+  rte e = {
+    .attrs = rta_clone(s->cached_rta), /* Here we own one use on the rta */
+    .pflags = 0,
+    .u.bgp.suppressed = 0,
+  };
 
-  e->pflags = 0;
-  e->u.bgp.suppressed = 0;
-  rte_update2(&s->channel->c, n, e, s->last_src);
+  rte_update2(&s->channel->c, n, &e, s->last_src);
+
+  rta_free(e.attrs); /* Here we free the previously obtained use of the rta */
 }
 
 static void
@@ -2212,7 +2215,7 @@ bgp_decode_nlri(struct bgp_parse_state *s, u32 afi, byte *nlri, uint len, ea_lis
 
   c->desc->decode_nlri(s, nlri, len, a);
 
-  rta_free(s->cached_rta);
+  rta_free(s->cached_rta); /* Freeing the rta used in bgp_rte_update */
   s->cached_rta = NULL;
 }
 

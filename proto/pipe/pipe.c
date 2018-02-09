@@ -50,6 +50,7 @@ pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *o
   struct channel *dst = (src_ch == p->pri) ? p->sec : p->pri;
   struct rte_src *src;
 
+  rte ee = {};
   rte *e;
   rta *a;
 
@@ -71,8 +72,10 @@ pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *o
       a->aflags = 0;
       a->eattrs = attrs;
       a->hostentry = NULL;
-      e = rte_get_temp(a);
+
+      e = &ee;
       e->pflags = 0;
+      e->attrs = a;
 
       /* Copy protocol specific embedded attributes. */
       memcpy(&(e->u), &(new->u), sizeof(e->u));

@@ -218,26 +218,6 @@ rte_find(net *net, struct rte_src *src)
   return e;
 }
 
-/**
- * rte_get_temp - get a temporary &rte
- * @a: attributes to assign to the new route (a &rta; in case it's
- * un-cached, rte_update() will create a cached copy automatically)
- *
- * Create a temporary &rte and bind it with the attributes @a.
- * Also set route preference to the default preference set for
- * the protocol.
- */
-rte *
-rte_get_temp(rta *a)
-{
-  rte *e = sl_alloc(rte_slab);
-
-  e->attrs = a;
-  e->flags = 0;
-  e->pref = 0;
-  return e;
-}
-
 rte *
 rte_do_cow(rte *r)
 {
@@ -246,6 +226,25 @@ rte_do_cow(rte *r)
   memcpy(e, r, sizeof(rte));
   e->attrs = rta_clone(r->attrs);
   e->flags = 0;
+  return e;
+}
+
+/**
+ * rte_clone - do a complete copy of given rte
+ * @e: route to clone
+ */
+
+rte *
+rte_clone(rte *r)
+{
+  rte *e = sl_alloc(rte_slab);
+  memcpy(e, r, sizeof(rte));
+
+  if (rta_is_cached(r->attrs))
+    e->attrs = rta_clone(r->attrs);
+  else
+    e->attrs = rta_lookup(r->attrs);
+
   return e;
 }
 
@@ -1240,11 +1239,8 @@ rte_unhide_dummy_routes(net *net, rte **dummy)
  *
  * This function is called by the routing protocols whenever they discover
  * a new route or wish to update/remove an existing route. The right announcement
- * sequence is to build route attributes first (either un-cached with @aflags set
- * to zero or a cached one using rta_lookup(); in this case please note that
- * you need to increase the use count of the attributes yourself by calling
- * rta_clone()), call rte_get_temp() to obtain a temporary &rte, fill in all
- * the appropriate data and finally submit the new &rte by calling rte_update().
+ * sequence is to build route attributes first, allocate a temporary &rte, fill in all
+ * the appropriate data and submit the new &rte by calling rte_update().
  *
  * @src specifies the protocol that originally created the route and the meaning
  * of protocol-dependent data of @new. If @new is not %NULL, @src have to be the
@@ -1334,9 +1330,8 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 		src->proto->store_tmp_attrs(new, tmpa);
 	    }
 	}
-      if (!rta_is_cached(new->attrs)) /* Need to copy attributes */
-	new->attrs = rta_lookup(new->attrs);
-      new->flags |= REF_COW;
+
+      new = rte_clone(new);
     }
   else
     {
@@ -1358,7 +1353,6 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
   return;
 
  drop:
-  rte_free(new);
   new = NULL;
   goto recalc;
 }

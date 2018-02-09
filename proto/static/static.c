@@ -98,14 +98,17 @@ static_announce_rte(struct static_proto *p, struct static_route *r)
   if (r->state == SRS_CLEAN)
     return;
 
-  /* We skip rta_lookup() here */
-  rte *e = rte_get_temp(a);
-  e->pflags = 0;
+  rte e = {
+    .attrs = a,
+    .pflags = 0
+  };
+  
+  rte *ep = &e;
 
   if (r->cmds)
-    f_eval_rte(r->cmds, &e, static_lp);
+    f_eval_rte(r->cmds, &ep, static_lp);
 
-  rte_update(&p->p, r->net, e);
+  rte_update(&p->p, r->net, ep);
   r->state = SRS_CLEAN;
 
   if (r->cmds)
