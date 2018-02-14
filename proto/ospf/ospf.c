@@ -101,7 +101,7 @@
 #include <stdlib.h>
 #include "ospf.h"
 
-static int ospf_import_control(struct proto *P, rte **new, ea_list **attrs, struct linpool *pool);
+static int ospf_preexport(struct proto *P, rte **new, ea_list **attrs, struct linpool *pool);
 static struct ea_list *ospf_make_tmp_attrs(struct rte *rt, struct linpool *pool);
 static void ospf_store_tmp_attrs(struct rte *rt, struct ea_list *attrs);
 static void ospf_reload_routes(struct channel *C);
@@ -317,7 +317,7 @@ ospf_init(struct proto_config *CF)
   P->rt_notify = ospf_rt_notify;
   P->if_notify = ospf_if_notify;
   P->ifa_notify = cf->ospf2 ? ospf_ifa_notify2 : ospf_ifa_notify3;
-  P->import_control = ospf_import_control;
+  P->preexport = ospf_preexport;
   P->reload_routes = ospf_reload_routes;
   P->make_tmp_attrs = ospf_make_tmp_attrs;
   P->store_tmp_attrs = ospf_store_tmp_attrs;
@@ -436,7 +436,7 @@ ospf_disp(timer * timer)
 
 
 /**
- * ospf_import_control - accept or reject new route from nest's routing table
+ * ospf_preexport - accept or reject new route from nest's routing table
  * @P: OSPF protocol instance
  * @new: the new route
  * @attrs: list of attributes
@@ -446,7 +446,7 @@ ospf_disp(timer * timer)
  * import to the filters.
  */
 static int
-ospf_import_control(struct proto *P, rte **new, ea_list **attrs, struct linpool *pool)
+ospf_preexport(struct proto *P, rte **new, ea_list **attrs, struct linpool *pool)
 {
   struct ospf_proto *p = (struct ospf_proto *) P;
   struct ospf_area *oa = ospf_main_area(p);

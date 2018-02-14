@@ -2085,7 +2085,7 @@ babel_prepare_attrs(struct linpool *pool, ea_list *next, uint metric, u64 router
 
 
 static int
-babel_import_control(struct proto *P, struct rte **new, struct ea_list **attrs, struct linpool *pool)
+babel_preexport(struct proto *P, struct rte **new, struct ea_list **attrs, struct linpool *pool)
 {
   struct babel_proto *p = (void *) P;
   rte *rt = *new;
@@ -2197,7 +2197,7 @@ babel_init(struct proto_config *CF)
 
   P->if_notify = babel_if_notify;
   P->rt_notify = babel_rt_notify;
-  P->import_control = babel_import_control;
+  P->preexport = babel_preexport;
   P->make_tmp_attrs = babel_make_tmp_attrs;
   P->store_tmp_attrs = babel_store_tmp_attrs;
   P->rte_better = babel_rte_better;

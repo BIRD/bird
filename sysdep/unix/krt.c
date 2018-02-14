@@ -570,7 +570,7 @@ krt_export_net(struct krt_proto *p, net *net, rte **rt_free, ea_list **tmpa)
   struct proto *src = rt->attrs->src->proto;
   *tmpa = src->make_tmp_attrs ? src->make_tmp_attrs(rt, krt_filter_lp) : NULL;
 
-  /* We could run krt_import_control() here, but it is already handled by KRF_INSTALLED */
+  /* We could run krt_preexport() here, but it is already handled by KRF_INSTALLED */
 
   if (filter == FILTER_ACCEPT)
     goto accept;
@@ -932,7 +932,7 @@ krt_store_tmp_attrs(rte *rt, struct ea_list *attrs)
 }
 
 static int
-krt_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+krt_preexport(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
 {
   // struct krt_proto *p = (struct krt_proto *) P;
   rte *e = *new;
@@ -1077,7 +1077,7 @@ krt_init(struct proto_config *CF)
 
   p->p.main_channel = proto_add_channel(&p->p, proto_cf_main_channel(CF));
 
-  p->p.import_control = krt_import_control;
+  p->p.preexport = krt_preexport;
   p->p.rt_notify = krt_rt_notify;
   p->p.if_notify = krt_if_notify;
   p->p.reload_routes = krt_reload_routes;

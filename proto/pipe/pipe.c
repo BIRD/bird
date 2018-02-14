@@ -96,7 +96,7 @@ pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *o
 }
 
 static int
-pipe_import_control(struct proto *P, rte **ee, ea_list **ea UNUSED, struct linpool *p UNUSED)
+pipe_preexport(struct proto *P, rte **ee, ea_list **ea UNUSED, struct linpool *p UNUSED)
 {
   struct proto *pp = (*ee)->sender->proto;
 
@@ -177,7 +177,7 @@ pipe_init(struct proto_config *CF)
   struct pipe_config *cf = (void *) CF;
 
   P->rt_notify = pipe_rt_notify;
-  P->import_control = pipe_import_control;
+  P->preexport = pipe_preexport;
   P->reload_routes = pipe_reload_routes;
 
   pipe_configure_channels(p, cf);

@@ -28,7 +28,7 @@
  * processes asynchronous events (specified by RA_EV_* codes), and radv_timer(),
  * which triggers sending RAs and computes the next timeout.
  *
- * The RAdv protocol could receive routes (through radv_import_control() and
+ * The RAdv protocol could receive routes (through radv_preexport() and
  * radv_rt_notify()), but only the configured trigger route is tracked (in
  * &active var).  When a radv protocol is reconfigured, the connected routing
  * table is examined (in radv_check_active()) to have proper &active value in
@@ -395,7 +395,7 @@ radv_net_match_trigger(struct radv_config *cf, net *n)
 }
 
 int
-radv_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+radv_preexport(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
 {
   // struct radv_proto *p = (struct radv_proto *) P;
   struct radv_config *cf = (struct radv_config *) (P->cf);
@@ -581,7 +581,7 @@ radv_init(struct proto_config *CF)
 
   P->main_channel = proto_add_channel(P, proto_cf_main_channel(CF));
 
-  P->import_control = radv_import_control;
+  P->preexport = radv_preexport;
   P->rt_notify = radv_rt_notify;
   P->if_notify = radv_if_notify;
   P->ifa_notify = radv_ifa_notify;

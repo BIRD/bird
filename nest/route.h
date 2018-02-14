@@ -269,7 +269,7 @@ static inline int rte_is_filtered(rte *r) { return !!(r->flags & REF_FILTERED); 
 #define RA_ANY		3		/* Announcement of any route change */
 #define RA_MERGED	4		/* Announcement of optimal route merged with next ones */
 
-/* Return value of import_control() callback */
+/* Return value of preexport() callback */
 #define RIC_ACCEPT	1		/* Accepted by protocol */
 #define RIC_PROCESS	0		/* Process it through import filter */
 #define RIC_REJECT	-1		/* Rejected by protocol */
