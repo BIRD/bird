@@ -498,6 +498,15 @@ krt_read_route(struct ks_msg *msg, struct krt_proto *p, int scan)
     .scope = SCOPE_UNIVERSE,
   };
 
+  rte e = {
+    .attrs = &a,
+    .net = net,
+    .u.krt = {
+      .src = src,
+      .proto = src2,
+    },
+  };
+
   /* reject/blackhole routes have also set RTF_GATEWAY,
      we wil check them first. */
 
@@ -548,18 +557,10 @@ krt_read_route(struct ks_msg *msg, struct krt_proto *p, int scan)
   }
 
  done:
-  e = rte_get_temp(&a);
-  e->net = net;
-  e->u.krt.src = src;
-  e->u.krt.proto = src2;
-  e->u.krt.seen = 0;
-  e->u.krt.best = 0;
-  e->u.krt.metric = 0;
-
   if (scan)
-    krt_got_route(p, e);
+    krt_got_route(p, &e);
   else
-    krt_got_route_async(p, e, new);
+    krt_got_route_async(p, &e, new);
 }
 
 static void

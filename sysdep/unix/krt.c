@@ -433,8 +433,6 @@ krt_learn_async(struct krt_proto *p, rte *e, int new)
   net *n = net_get(&p->krt_table, n0->n.addr);
   rte *g, **gg, *best, **bestp, *old_best;
 
-//  e->attrs = rta_lookup(e->attrs);
-
   old_best = n->routes;
   for(gg=&n->routes; g = *gg; gg = &g->next)
     if (krt_same_key(g, e))
