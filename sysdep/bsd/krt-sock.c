@@ -372,7 +372,6 @@ krt_read_route(struct ks_msg *msg, struct krt_proto *p, int scan)
   /* p is NULL iff KRT_SHARED_SOCKET and !scan */
 
   int ipv6;
-  rte *e;
   net *net;
   sockaddr dst, gate, mask;
   ip_addr idst, igate, imask;
