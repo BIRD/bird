@@ -12,8 +12,6 @@ CF_HDR
 
 CF_DEFINES
 
-#define P(a,b) ((a << 8) | b)
-
 static inline u32 pair(u32 a, u32 b) { return (a << 16) | b; }
 static inline u32 pair_a(u32 p) { return p >> 16; }
 static inline u32 pair_b(u32 p) { return p & 0xFFFF; }
@@ -157,12 +155,11 @@ f_new_lc_item(u32 f1, u32 t1, u32 f2, u32 t2, u32 f3, u32 t3)
 }
 
 static inline struct f_inst *
-f_generate_empty(struct f_inst *dyn)
+f_generate_empty(struct f_dynamic_attr dyn)
 {
-  struct f_inst *e = f_new_inst();
-  e->code = 'E';
+  struct f_inst *e = f_new_inst(FI_EMPTY);
 
-  switch (dyn->aux & EAF_TYPE_MASK) {
+  switch (dyn.type & EAF_TYPE_MASK) {
     case EAF_TYPE_AS_PATH:
       e->aux = T_PATH;
       break;
@@ -179,9 +176,9 @@ f_generate_empty(struct f_inst *dyn)
       cf_error("Can't empty that attribute");
   }
 
-  dyn->code = P('e','S');
-  dyn->a1.p = e;
-  return dyn;
+  struct f_inst *s = f_new_inst_da(FI_EA_SET, dyn);
+  s->a1.p = e;
+  return s;
 }
 
 
@@ -190,21 +187,19 @@ f_generate_dpair(struct f_inst *t1, struct f_inst *t2)
 {
   struct f_inst *rv;
 
-  if ((t1->code == 'c') && (t2->code == 'c')) {
+  if ((t1->fi_code == FI_CONSTANT) && (t2->fi_code == FI_CONSTANT)) {
     if ((t1->aux != T_INT) || (t2->aux != T_INT))
       cf_error( "Can't operate with value of non-integer type in pair constructor");
 
     check_u16(t1->a2.i);
     check_u16(t2->a2.i);
 
-    rv = f_new_inst();
-    rv->code = 'c';
+    rv = f_new_inst(FI_CONSTANT);
     rv->aux = T_PAIR;
     rv->a2.i = pair(t1->a2.i, t2->a2.i);
   }
   else {
-    rv = f_new_inst();
-    rv->code = P('m', 'p');
+    rv = f_new_inst(FI_PAIR_CONSTRUCT);
     rv->a1.p = t1;
     rv->a2.p = t2;
   }
@@ -219,7 +214,7 @@ f_generate_ec(u16 kind, struct f_inst *tk, struct f_inst *tv)
   int c1 = 0, c2 = 0, ipv4_used = 0;
   u32 key = 0, val2 = 0;
 
-  if (tk->code == 'c') {
+  if (tk->fi_code == FI_CONSTANT) {
     c1 = 1;
 
     if (tk->aux == T_INT) {
@@ -233,7 +228,7 @@ f_generate_ec(u16 kind, struct f_inst *tk, struct f_inst *tv)
   }
 
   /* IP->Quad implicit conversion */
-  else if (tk->code == 'C') {
+  else if (tk->fi_code == FI_CONSTANT_INDIRECT) {
     c1 = 1;
     struct f_val *val = tk->a1.p;
 
@@ -250,7 +245,7 @@ f_generate_ec(u16 kind, struct f_inst *tk, struct f_inst *tv)
       cf_error("Can't operate with key of non-integer/IPv4 type in EC constructor");
   }
 
-  if (tv->code == 'c') {
+  if (tv->fi_code == FI_CONSTANT) {
     if (tv->aux != T_INT)
       cf_error("Can't operate with value of non-integer type in EC constructor");
     c2 = 1;
@@ -276,15 +271,13 @@ f_generate_ec(u16 kind, struct f_inst *tk, struct f_inst *tv)
     }
 
     NEW_F_VAL;
-    rv = f_new_inst();
-    rv->code = 'C';
+    rv = f_new_inst(FI_CONSTANT_INDIRECT);
     rv->a1.p = val;
     val->type = T_EC;
     val->val.ec = ec;
   }
   else {
-    rv = f_new_inst();
-    rv->code = P('m','c');
+    rv = f_new_inst(FI_EC_CONSTRUCT);
     rv->aux = kind;
     rv->a1.p = tk;
     rv->a2.p = tv;
@@ -298,12 +291,11 @@ f_generate_lc(struct f_inst *t1, struct f_inst *t2, struct f_inst *t3)
 {
   struct f_inst *rv;
 
-  if ((t1->code == 'c') && (t2->code == 'c') && (t3->code == 'c')) {
+  if ((t1->fi_code == FI_CONSTANT) && (t2->fi_code == FI_CONSTANT) && (t3->fi_code == FI_CONSTANT)) {
     if ((t1->aux != T_INT) || (t2->aux != T_INT) || (t3->aux != T_INT))
       cf_error( "LC - Can't operate with value of non-integer type in tuple constructor");
 
-    rv = f_new_inst();
-    rv->code = 'C';
+    rv = f_new_inst(FI_CONSTANT_INDIRECT);
 
     NEW_F_VAL;
     rv->a1.p = val;
@@ -314,7 +306,7 @@ f_generate_lc(struct f_inst *t1, struct f_inst *t2, struct f_inst *t3)
   {
     rv = cfg_allocz(sizeof(struct f_inst3));
     rv->lineno = ifs->lino;
-    rv->code = P('m','l');
+    rv->fi_code = FI_LC_CONSTRUCT;
     rv->a1.p = t1;
     rv->a2.p = t2;
     INST3(rv).p = t3;
@@ -372,8 +364,7 @@ static struct f_inst *
 assert_done(struct f_inst *expr, const char *start, const char *end)
 {
   struct f_inst *i;
-  i = f_new_inst();
-  i->code = P('a','s');
+  i = f_new_inst(FI_ASSERT);
   i->a1.p = expr;
 
   if (end >= start)
@@ -412,7 +403,9 @@ CF_KEYWORDS(FUNCTION, PRINT, PRINTN, UNSET, RETURN,
 %nonassoc THEN
 %nonassoc ELSE
 
-%type <x> term block cmds cmds_int cmd function_body constant constructor print_one print_list var_list var_listn dynamic_attr static_attr function_call symbol bgp_path_expr
+%type <x> term block cmds cmds_int cmd function_body constant constructor print_one print_list var_list var_listn function_call symbol bgp_path_expr
+%type <fda> dynamic_attr
+%type <fsa> static_attr
 %type <f> filter filter_body where_filter
 %type <i> type break_command ec_kind
 %type <i32> cnum
@@ -543,16 +536,13 @@ where_filter:
      /* Construct 'IF term THEN ACCEPT; REJECT;' */
      struct filter *f = cfg_alloc(sizeof(struct filter));
      struct f_inst *i, *acc, *rej;
-     acc = f_new_inst();		/* ACCEPT */
-     acc->code = P('p',',');
+     acc = f_new_inst(FI_PRINT_AND_DIE);	/* ACCEPT */
      acc->a1.p = NULL;
      acc->a2.i = F_ACCEPT;
-     rej = f_new_inst();		/* REJECT */
-     rej->code = P('p',',');
+     rej = f_new_inst(FI_PRINT_AND_DIE);	/* REJECT */
      rej->a1.p = NULL;
      rej->a2.i = F_REJECT;
-     i = f_new_inst();			/* IF */
-     i->code = '?';
+     i = f_new_inst(FI_CONDITION);			/* IF */
      i->a1.p = $2;
      i->a2.p = acc;
      i->next = rej;
@@ -571,8 +561,7 @@ function_body:
    decls '{' cmds '}' {
      if ($1) {
        /* Prepend instruction to clear local variables */
-       $$ = f_new_inst();
-       $$->code = P('c','v');
+       $$ = f_new_inst(FI_CLEAR_LOCAL_VARS);
        $$->a1.p = $1;
        $$->next = $3;
      } else
@@ -755,7 +744,7 @@ switch_body: /* EMPTY */ { $$ = NULL; }
  }
  ;
 
-/* CONST '(' expr ')' { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_INT; $$->a2.i = $3; } */
+/* CONST '(' expr ')' { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_INT; $$->a2.i = $3; } */
 
 bgp_path_expr:
    symbol       { $$ = $1; }
@@ -776,17 +765,17 @@ bgp_path_tail:
  ;
 
 constant:
-   NUM    { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_INT;  $$->a2.i = $1; }
- | TRUE   { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_BOOL; $$->a2.i = 1;  }
- | FALSE  { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_BOOL; $$->a2.i = 0;  }
- | TEXT   { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_STRING; $$->a2.p = $1; }
- | fipa	  { NEW_F_VAL; $$ = f_new_inst(); $$->code = 'C'; $$->a1.p = val; *val = $1; }
- | VPN_RD { NEW_F_VAL; $$ = f_new_inst(); $$->code = 'C'; val->type = T_RD; val->val.ec = $1; $$->a1.p = val; }
- | net_   { NEW_F_VAL; $$ = f_new_inst(); $$->code = 'C'; val->type = T_NET; val->val.net = $1; $$->a1.p = val; }
- | '[' set_items ']' { DBG( "We've got a set here..." ); $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_SET; $$->a2.p = build_tree($2); DBG( "ook\n" ); }
- | '[' fprefix_set ']' { $$ = f_new_inst(); $$->code = 'c'; $$->aux = T_PREFIX_SET;  $$->a2.p = $2; }
- | ENUM	  { $$ = f_new_inst(); $$->code = 'c'; $$->aux = $1 >> 16; $$->a2.i = $1 & 0xffff; }
- | bgp_path { NEW_F_VAL; $$ = f_new_inst(); $$->code = 'C'; val->type = T_PATH_MASK; val->val.path_mask = $1; $$->a1.p = val; }
+   NUM    { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_INT;  $$->a2.i = $1; }
+ | TRUE   { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_BOOL; $$->a2.i = 1;  }
+ | FALSE  { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_BOOL; $$->a2.i = 0;  }
+ | TEXT   { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_STRING; $$->a2.p = $1; }
+ | fipa	  { NEW_F_VAL; $$ = f_new_inst(FI_CONSTANT_INDIRECT); $$->a1.p = val; *val = $1; }
+ | VPN_RD { NEW_F_VAL; $$ = f_new_inst(FI_CONSTANT_INDIRECT); val->type = T_RD; val->val.ec = $1; $$->a1.p = val; }
+ | net_   { NEW_F_VAL; $$ = f_new_inst(FI_CONSTANT_INDIRECT); val->type = T_NET; val->val.net = $1; $$->a1.p = val; }
+ | '[' set_items ']' { DBG( "We've got a set here..." ); $$ = f_new_inst(FI_CONSTANT); $$->aux = T_SET; $$->a2.p = build_tree($2); DBG( "ook\n" ); }
+ | '[' fprefix_set ']' { $$ = f_new_inst(FI_CONSTANT); $$->aux = T_PREFIX_SET;  $$->a2.p = $2; }
+ | ENUM	  { $$ = f_new_inst(FI_CONSTANT); $$->aux = $1 >> 16; $$->a2.i = $1 & 0xffff; }
+ | bgp_path { NEW_F_VAL; $$ = f_new_inst(FI_CONSTANT_INDIRECT); val->type = T_PATH_MASK; val->val.path_mask = $1; $$->a1.p = val; }
  ;
 
 constructor:
@@ -801,7 +790,7 @@ constructor:
  *  For such cases, we force the dynamic_attr list to contain
  *  at least an invalid token, so it is syntantically correct.
  */
-CF_ADDTO(dynamic_attr, INVALID_TOKEN { $$ = NULL; })
+CF_ADDTO(dynamic_attr, INVALID_TOKEN { $$ = (struct f_dynamic_attr) {}; })
 
 rtadot: /* EMPTY, we are not permitted RTA. prefix */
  ;
@@ -813,8 +802,7 @@ function_call:
      if ($1->class != SYM_FUNCTION)
        cf_error("You can't call something which is not a function. Really.");
      DBG("You are calling function %s\n", $1->name);
-     $$ = f_new_inst();
-     $$->code = P('c','a');
+     $$ = f_new_inst(FI_CALL);
      $$->a1.p = inst;
      $$->a2.p = $1->def;
      sym = $1->aux2;
@@ -831,11 +819,9 @@ function_call:
 
 symbol:
    SYM {
-     $$ = f_new_inst();
-
      switch ($1->class & 0xff00) {
-       case SYM_CONSTANT: $$->code = 'C'; break;
-       case SYM_VARIABLE: $$->code = 'V'; break;
+       case SYM_CONSTANT: $$ = f_new_inst(FI_CONSTANT_INDIRECT); break;
+       case SYM_VARIABLE: $$ = f_new_inst(FI_VARIABLE); break;
        default: cf_error("%s: variable expected.", $1->name);
      }
 
@@ -844,57 +830,57 @@ symbol:
    }
 
 static_attr:
-   FROM    { $$ = f_new_inst(); $$->aux = T_IP;         $$->a2.i = SA_FROM;	$$->a1.i = 1; }
- | GW      { $$ = f_new_inst(); $$->aux = T_IP;         $$->a2.i = SA_GW;	$$->a1.i = 1; }
- | NET     { $$ = f_new_inst(); $$->aux = T_NET;        $$->a2.i = SA_NET; }
- | PROTO   { $$ = f_new_inst(); $$->aux = T_STRING;     $$->a2.i = SA_PROTO; }
- | SOURCE  { $$ = f_new_inst(); $$->aux = T_ENUM_RTS;   $$->a2.i = SA_SOURCE; }
- | SCOPE   { $$ = f_new_inst(); $$->aux = T_ENUM_SCOPE; $$->a2.i = SA_SCOPE;	$$->a1.i = 1; }
- | DEST    { $$ = f_new_inst(); $$->aux = T_ENUM_RTD;   $$->a2.i = SA_DEST;	$$->a1.i = 1; }
- | IFNAME  { $$ = f_new_inst(); $$->aux = T_STRING;     $$->a2.i = SA_IFNAME; }
- | IFINDEX { $$ = f_new_inst(); $$->aux = T_INT;        $$->a2.i = SA_IFINDEX; }
+   FROM    { $$ = f_new_static_attr(T_IP,         SA_FROM,	1); }
+ | GW      { $$ = f_new_static_attr(T_IP,         SA_GW,	1); }
+ | NET     { $$ = f_new_static_attr(T_NET,	  SA_NET,	0); }
+ | PROTO   { $$ = f_new_static_attr(T_STRING,     SA_PROTO,	0); }
+ | SOURCE  { $$ = f_new_static_attr(T_ENUM_RTS,   SA_SOURCE,	0); }
+ | SCOPE   { $$ = f_new_static_attr(T_ENUM_SCOPE, SA_SCOPE,	1); }
+ | DEST    { $$ = f_new_static_attr(T_ENUM_RTD,   SA_DEST,	1); }
+ | IFNAME  { $$ = f_new_static_attr(T_STRING,     SA_IFNAME,	0); }
+ | IFINDEX { $$ = f_new_static_attr(T_INT,        SA_IFINDEX,	0); }
  ;
 
 term:
-   '(' term ')'      { $$ = $2; }
- | term '+' term     { $$ = f_new_inst(); $$->code = '+';        $$->a1.p = $1; $$->a2.p = $3; }
- | term '-' term     { $$ = f_new_inst(); $$->code = '-';        $$->a1.p = $1; $$->a2.p = $3; }
- | term '*' term     { $$ = f_new_inst(); $$->code = '*';        $$->a1.p = $1; $$->a2.p = $3; }
- | term '/' term     { $$ = f_new_inst(); $$->code = '/';        $$->a1.p = $1; $$->a2.p = $3; }
- | term AND term     { $$ = f_new_inst(); $$->code = '&';        $$->a1.p = $1; $$->a2.p = $3; }
- | term OR  term     { $$ = f_new_inst(); $$->code = '|';        $$->a1.p = $1; $$->a2.p = $3; }
- | term '=' term     { $$ = f_new_inst(); $$->code = P('=','='); $$->a1.p = $1; $$->a2.p = $3; }
- | term NEQ term { $$ = f_new_inst(); $$->code = P('!','=');     $$->a1.p = $1; $$->a2.p = $3; }
- | term '<' term     { $$ = f_new_inst(); $$->code = '<';        $$->a1.p = $1; $$->a2.p = $3; }
- | term LEQ term { $$ = f_new_inst(); $$->code = P('<','=');     $$->a1.p = $1; $$->a2.p = $3; }
- | term '>' term     { $$ = f_new_inst(); $$->code = '<';        $$->a1.p = $3; $$->a2.p = $1; }
- | term GEQ term { $$ = f_new_inst(); $$->code = P('<','=');     $$->a1.p = $3; $$->a2.p = $1; }
- | term '~' term     { $$ = f_new_inst(); $$->code = '~';        $$->a1.p = $1; $$->a2.p = $3; }
- | term NMA term { $$ = f_new_inst(); $$->code = P('!','~');     $$->a1.p = $1; $$->a2.p = $3; }
- | '!' term { $$ = f_new_inst(); $$->code = '!'; $$->a1.p = $2; }
- | DEFINED '(' term ')' { $$ = f_new_inst(); $$->code = P('d','e');  $$->a1.p = $3; }
+   '(' term ')'		{ $$ = $2; }
+ | term '+' term	{ $$ = f_new_inst(FI_ADD);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '-' term	{ $$ = f_new_inst(FI_SUBTRACT);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '*' term	{ $$ = f_new_inst(FI_MULTIPLY);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '/' term	{ $$ = f_new_inst(FI_DIVIDE);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term AND term	{ $$ = f_new_inst(FI_AND);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term OR  term	{ $$ = f_new_inst(FI_OR);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '=' term	{ $$ = f_new_inst(FI_EQ);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term NEQ term	{ $$ = f_new_inst(FI_NEQ);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '<' term	{ $$ = f_new_inst(FI_LT);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term LEQ term	{ $$ = f_new_inst(FI_LTE);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term '>' term	{ $$ = f_new_inst(FI_LT);	$$->a1.p = $3; $$->a2.p = $1; }
+ | term GEQ term	{ $$ = f_new_inst(FI_LTE);	$$->a1.p = $3; $$->a2.p = $1; }
+ | term '~' term	{ $$ = f_new_inst(FI_MATCH);	$$->a1.p = $1; $$->a2.p = $3; }
+ | term NMA term	{ $$ = f_new_inst(FI_NOT_MATCH);$$->a1.p = $1; $$->a2.p = $3; }
+ | '!' term		{ $$ = f_new_inst(FI_NOT);	$$->a1.p = $2; }
+ | DEFINED '(' term ')' { $$ = f_new_inst(FI_DEFINED);	$$->a1.p = $3; }
 
  | symbol   { $$ = $1; }
  | constant { $$ = $1; }
  | constructor { $$ = $1; }
 
- | PREFERENCE { $$ = f_new_inst(); $$->code = 'P'; }
+ | PREFERENCE { $$ = f_new_inst(FI_PREF_GET); }
 
- | rtadot static_attr { $$ = $2; $$->code = 'a'; }
+ | rtadot static_attr { $$ = f_new_inst_sa(FI_RTA_GET, $2); }
 
- | rtadot dynamic_attr { $$ = $2; $$->code = P('e','a'); }
+ | rtadot dynamic_attr { $$ = f_new_inst_da(FI_EA_GET, $2); }
 
- | term '.' IS_V4 { $$ = f_new_inst(); $$->code = P('I','i'); $$->a1.p = $1; }
- | term '.' TYPE { $$ = f_new_inst(); $$->code = 'T'; $$->a1.p = $1; }
- | term '.' IP { $$ = f_new_inst(); $$->code = P('c','p'); $$->a1.p = $1; $$->aux = T_IP; }
- | term '.' RD { $$ = f_new_inst(); $$->code = P('R','D'); $$->a1.p = $1; $$->aux = T_RD; }
- | term '.' LEN { $$ = f_new_inst(); $$->code = 'L'; $$->a1.p = $1; }
- | term '.' MAXLEN { $$ = f_new_inst(); $$->code = P('R','m'); $$->a1.p = $1; }
- | term '.' ASN { $$ = f_new_inst(); $$->code = P('R','a'); $$->a1.p = $1; }
- | term '.' MASK '(' term ')' { $$ = f_new_inst(); $$->code = P('i','M'); $$->a1.p = $1; $$->a2.p = $5; }
- | term '.' FIRST { $$ = f_new_inst(); $$->code = P('a','f'); $$->a1.p = $1; }
- | term '.' LAST  { $$ = f_new_inst(); $$->code = P('a','l'); $$->a1.p = $1; }
- | term '.' LAST_NONAGGREGATED  { $$ = f_new_inst(); $$->code = P('a','L'); $$->a1.p = $1; }
+ | term '.' IS_V4 { $$ = f_new_inst(FI_IS_V4); $$->a1.p = $1; }
+ | term '.' TYPE { $$ = f_new_inst(FI_TYPE); $$->a1.p = $1; }
+ | term '.' IP { $$ = f_new_inst(FI_IP); $$->a1.p = $1; $$->aux = T_IP; }
+ | term '.' RD { $$ = f_new_inst(FI_ROUTE_DISTINGUISHER); $$->a1.p = $1; $$->aux = T_RD; }
+ | term '.' LEN { $$ = f_new_inst(FI_LENGTH); $$->a1.p = $1; }
+ | term '.' MAXLEN { $$ = f_new_inst(FI_ROA_MAXLEN); $$->a1.p = $1; }
+ | term '.' ASN { $$ = f_new_inst(FI_ROA_ASN); $$->a1.p = $1; }
+ | term '.' MASK '(' term ')' { $$ = f_new_inst(FI_IP_MASK); $$->a1.p = $1; $$->a2.p = $5; }
+ | term '.' FIRST { $$ = f_new_inst(FI_AS_PATH_FIRST); $$->a1.p = $1; }
+ | term '.' LAST  { $$ = f_new_inst(FI_AS_PATH_LAST); $$->a1.p = $1; }
+ | term '.' LAST_NONAGGREGATED  { $$ = f_new_inst(FI_AS_PATH_LAST_NAG); $$->a1.p = $1; }
 
 /* Communities */
 /* This causes one shift/reduce conflict
@@ -904,19 +890,19 @@ term:
  | rtadot dynamic_attr '.' RESET{ }
 */
 
- | '+' EMPTY '+' { $$ = f_new_inst(); $$->code = 'E'; $$->aux = T_PATH; }
- | '-' EMPTY '-' { $$ = f_new_inst(); $$->code = 'E'; $$->aux = T_CLIST; }
- | '-' '-' EMPTY '-' '-' { $$ = f_new_inst(); $$->code = 'E'; $$->aux = T_ECLIST; }
- | '-' '-' '-' EMPTY '-' '-' '-' { $$ = f_new_inst(); $$->code = 'E'; $$->aux = T_LCLIST; }
- | PREPEND '(' term ',' term ')' { $$ = f_new_inst(); $$->code = P('A','p'); $$->a1.p = $3; $$->a2.p = $5; }
- | ADD '(' term ',' term ')' { $$ = f_new_inst(); $$->code = P('C','a'); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'a'; }
- | DELETE '(' term ',' term ')' { $$ = f_new_inst(); $$->code = P('C','a'); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'd'; }
- | FILTER '(' term ',' term ')' { $$ = f_new_inst(); $$->code = P('C','a'); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'f'; }
+ | '+' EMPTY '+' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_PATH; }
+ | '-' EMPTY '-' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_CLIST; }
+ | '-' '-' EMPTY '-' '-' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_ECLIST; }
+ | '-' '-' '-' EMPTY '-' '-' '-' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_LCLIST; }
+ | PREPEND '(' term ',' term ')' { $$ = f_new_inst(FI_PATH_PREPEND); $$->a1.p = $3; $$->a2.p = $5; }
+ | ADD '(' term ',' term ')' { $$ = f_new_inst(FI_CLIST_ADD_DEL); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'a'; }
+ | DELETE '(' term ',' term ')' { $$ = f_new_inst(FI_CLIST_ADD_DEL); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'd'; }
+ | FILTER '(' term ',' term ')' { $$ = f_new_inst(FI_CLIST_ADD_DEL); $$->a1.p = $3; $$->a2.p = $5; $$->aux = 'f'; }
 
  | ROA_CHECK '(' rtable ')' { $$ = f_generate_roa_check($3, NULL, NULL); }
  | ROA_CHECK '(' rtable ',' term ',' term ')' { $$ = f_generate_roa_check($3, $5, $7); }
 
- | FORMAT '(' term ')' {  $$ = f_new_inst(); $$->code = P('f','m'); $$->a1.p = $3; }
+ | FORMAT '(' term ')' {  $$ = f_new_inst(FI_FORMAT); $$->a1.p = $3; }
 
 /* | term '.' LEN { $$->code = P('P','l'); } */
 
@@ -927,8 +913,7 @@ term:
      if ($1->class != SYM_FUNCTION)
        cf_error("You can't call something which is not a function. Really.");
      DBG("You are calling function %s\n", $1->name);
-     $$ = f_new_inst();
-     $$->code = P('c','a');
+     $$ = f_new_inst(FI_CALL);
      $$->a1.p = inst;
      $$->a2.p = $1->def;
      sym = $1->aux2;
@@ -953,7 +938,7 @@ break_command:
  ;
 
 print_one:
-   term { $$ = f_new_inst(); $$->code = 'p'; $$->a1.p = $1; $$->a2.p = NULL; }
+   term { $$ = f_new_inst(FI_PRINT); $$->a1.p = $1; $$->a2.p = NULL; }
  ;
 
 print_list: /* EMPTY */ { $$ = NULL; }
@@ -967,15 +952,13 @@ print_list: /* EMPTY */ { $$ = NULL; }
  ;
 
 var_listn: term {
-     $$ = f_new_inst();
-     $$->code = 's';
+     $$ = f_new_inst(FI_SET);
      $$->a1.p = NULL;
      $$->a2.p = $1;
      $$->next = NULL;
    }
  | term ',' var_listn {
-     $$ = f_new_inst();
-     $$->code = 's';
+     $$ = f_new_inst(FI_SET);
      $$->a1.p = NULL;
      $$->a2.p = $1;
      $$->next = $3;
@@ -988,73 +971,63 @@ var_list: /* EMPTY */ { $$ = NULL; }
 
 cmd:
    IF term THEN block {
-     $$ = f_new_inst();
-     $$->code = '?';
+     $$ = f_new_inst(FI_CONDITION);
      $$->a1.p = $2;
      $$->a2.p = $4;
    }
  | IF term THEN block ELSE block {
-     struct f_inst *i = f_new_inst();
-     i->code = '?';
+     struct f_inst *i = f_new_inst(FI_CONDITION);
      i->a1.p = $2;
      i->a2.p = $4;
-     $$ = f_new_inst();
-     $$->code = '?';
+     $$ = f_new_inst(FI_CONDITION);
      $$->a1.p = i;
      $$->a2.p = $6;
    }
  | SYM '=' term ';' {
-     $$ = f_new_inst();
      DBG( "Ook, we'll set value\n" );
      if (($1->class & ~T_MASK) != SYM_VARIABLE)
        cf_error( "You may set only variables." );
-     $$->code = 's';
+     $$ = f_new_inst(FI_SET);
      $$->a1.p = $1;
      $$->a2.p = $3;
    }
  | RETURN term ';' {
-     $$ = f_new_inst();
      DBG( "Ook, we'll return the value\n" );
-     $$->code = 'r';
+     $$ = f_new_inst(FI_RETURN);
      $$->a1.p = $2;
    }
  | rtadot dynamic_attr '=' term ';' {
-     $$ = $2;
-     $$->code = P('e','S');
+     $$ = f_new_inst_da(FI_EA_SET, $2);
      $$->a1.p = $4;
    }
  | rtadot static_attr '=' term ';' {
-     $$ = $2;
+     $$ = f_new_inst_sa(FI_RTA_SET, $2);
      if (!$$->a1.i)
        cf_error( "This static attribute is read-only.");
-     $$->code = P('a','S');
      $$->a1.p = $4;
    }
  | PREFERENCE '=' term ';' {
-     $$ = f_new_inst();
-     $$->code = P('P','S');
+     $$ = f_new_inst(FI_PREF_SET);
      $$->a1.p = $3;
    }
  | UNSET '(' rtadot dynamic_attr ')' ';' {
-     $$ = $4;
+     $$ = f_new_inst_da(FI_EA_SET, $4);
      $$->aux = EAF_TYPE_UNDEF | EAF_TEMP;
-     $$->code = P('e','S');
      $$->a1.p = NULL;
    }
- | break_command print_list ';' { $$ = f_new_inst(); $$->code = P('p',','); $$->a1.p = $2; $$->a2.i = $1; }
+ | break_command print_list ';' { $$ = f_new_inst(FI_PRINT_AND_DIE); $$->a1.p = $2; $$->a2.i = $1; }
  | function_call ';' { $$ = $1; }
  | CASE term '{' switch_body '}' {
-      $$ = f_new_inst();
-      $$->code = P('S','W');
+      $$ = f_new_inst(FI_SWITCH);
       $$->a1.p = $2;
       $$->a2.p = build_tree( $4 );
    }
 
  | rtadot dynamic_attr '.' EMPTY ';' { $$ = f_generate_empty($2); }
- | rtadot dynamic_attr '.' PREPEND '(' term ')' ';'   { $$ = f_generate_complex( P('A','p'), 'x', $2, $6 ); }
- | rtadot dynamic_attr '.' ADD '(' term ')' ';'       { $$ = f_generate_complex( P('C','a'), 'a', $2, $6 ); }
- | rtadot dynamic_attr '.' DELETE '(' term ')' ';'    { $$ = f_generate_complex( P('C','a'), 'd', $2, $6 ); }
- | rtadot dynamic_attr '.' FILTER '(' term ')' ';'    { $$ = f_generate_complex( P('C','a'), 'f', $2, $6 ); }
+ | rtadot dynamic_attr '.' PREPEND '(' term ')' ';'   { $$ = f_generate_complex( FI_PATH_PREPEND, 'x', $2, $6 ); }
+ | rtadot dynamic_attr '.' ADD '(' term ')' ';'       { $$ = f_generate_complex( FI_CLIST_ADD_DEL, 'a', $2, $6 ); }
+ | rtadot dynamic_attr '.' DELETE '(' term ')' ';'    { $$ = f_generate_complex( FI_CLIST_ADD_DEL, 'd', $2, $6 ); }
+ | rtadot dynamic_attr '.' FILTER '(' term ')' ';'    { $$ = f_generate_complex( FI_CLIST_ADD_DEL, 'f', $2, $6 ); }
  | BT_ASSERT '(' get_cf_position term get_cf_position ')' ';' { $$ = assert_done($4, $3 + 1, $5 - 1); }
  ;
 

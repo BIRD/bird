@@ -49,6 +49,8 @@ CF_DECLS
   struct rtable_config *r;
   struct channel_config *cc;
   struct f_inst *x;
+  struct f_dynamic_attr fda;
+  struct f_static_attr fsa;
   struct filter *f;
   struct f_tree *e;
   struct f_trie *trie;

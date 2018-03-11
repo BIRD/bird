@@ -14,10 +14,75 @@
 #include "nest/route.h"
 #include "nest/attrs.h"
 
+/* Filter instruction types */
+
+#define FI__TWOCHAR(a,b)	((a<<8) | b)
+#define FI__LIST \
+  F(FI_COMMA,			  0, ',') \
+  F(FI_ADD,			  0, '+') \
+  F(FI_SUBTRACT,		  0, '-') \
+  F(FI_MULTIPLY,		  0, '*') \
+  F(FI_DIVIDE,			  0, '/') \
+  F(FI_AND,			  0, '&') \
+  F(FI_OR,			  0, '|') \
+  F(FI_PAIR_CONSTRUCT,		'm', 'p') \
+  F(FI_EC_CONSTRUCT,		'm', 'c') \
+  F(FI_LC_CONSTRUCT,		'm', 'l') \
+  F(FI_NEQ,			'!', '=') \
+  F(FI_EQ,			'=', '=') \
+  F(FI_LT,			  0, '<') \
+  F(FI_LTE,			'<', '=') \
+  F(FI_NOT,			  0, '!') \
+  F(FI_MATCH,			  0, '~') \
+  F(FI_NOT_MATCH,		'!', '~') \
+  F(FI_DEFINED,			'd', 'e') \
+  F(FI_SET,			  0, 's') \
+  F(FI_CONSTANT,		  0, 'c') \
+  F(FI_VARIABLE,		  0, 'V') \
+  F(FI_CONSTANT_INDIRECT,	  0, 'C') \
+  F(FI_PRINT,			  0, 'p') \
+  F(FI_CONDITION,		  0, '?') \
+  F(FI_NOP,			  0, '0') \
+  F(FI_PRINT_AND_DIE,		'p', ',') \
+  F(FI_RTA_GET,			  0, 'a') \
+  F(FI_RTA_SET,			'a', 'S') \
+  F(FI_EA_GET,			'e', 'a') \
+  F(FI_EA_SET,			'e', 'S') \
+  F(FI_PREF_GET,		  0, 'P') \
+  F(FI_PREF_SET,		'P', 'S') \
+  F(FI_TYPE,			  0, 'T') \
+  F(FI_LENGTH,			  0, 'L') \
+  F(FI_IS_V4,			'I', 'i') \
+  F(FI_IP,			'c', 'p') \
+  F(FI_ROUTE_DISTINGUISHER,	'R', 'D') \
+  F(FI_AS_PATH_FIRST,		'a', 'f') \
+  F(FI_AS_PATH_LAST,		'a', 'l') \
+  F(FI_AS_PATH_LAST_NAG,	'a', 'L') \
+  F(FI_RETURN,			  0, 'r') \
+  F(FI_CALL,			'c', 'a') \
+  F(FI_CLEAR_LOCAL_VARS,	'c', 'V') \
+  F(FI_SWITCH,			'S', 'W') \
+  F(FI_IP_MASK,			'i', 'M') \
+  F(FI_EMPTY,			  0, 'E') \
+  F(FI_PATH_PREPEND,		'A', 'p') \
+  F(FI_CLIST_ADD_DEL,		'C', 'a') \
+  F(FI_ROA_CHECK,		'R', 'C') \
+  F(FI_ROA_MAXLEN,		'R', 'M') \
+  F(FI_ROA_ASN,			'R', 'A') \
+  F(FI_FORMAT,			  0, 'f') \
+  F(FI_ASSERT,			'a', 's') \
+
+enum f_instuction_code {
+#define F(c,a,b) \
+  c = FI__TWOCHAR(a,b),
+FI__LIST
+#undef F
+} PACKED;
+
 struct f_inst {		/* Instruction */
   struct f_inst *next;	/* Structure is 16 bytes, anyway */
-  u16 code;		/* Instruction code, see the interpret() function and P() macro */
-  u16 aux;		/* Extension to instruction code, T_*, EA_*, EAF_*  */
+  enum f_instuction_code fi_code;
+  u16 aux;
   union {
     uint i;
     void *p;
@@ -70,15 +135,32 @@ struct f_val {
   } val;
 };
 
+struct f_dynamic_attr {
+  int type;
+  int f_type;
+  int ea_code;
+};
+
+struct f_static_attr {
+  int f_type;
+  int sa_code;
+  int readonly;
+};
+
 struct filter {
   char *name;
   struct f_inst *root;
 };
 
-struct f_inst *f_new_inst(void);
-struct f_inst *f_new_dynamic_attr(int type, int f_type, int code);	/* Type as core knows it, type as filters know it, and code of dynamic attribute */
+struct f_inst *f_new_inst(enum f_instuction_code fi_code);
+struct f_inst *f_new_inst_da(enum f_instuction_code fi_code, struct f_dynamic_attr da);
+struct f_inst *f_new_inst_sa(enum f_instuction_code fi_code, struct f_static_attr sa);
+static inline struct f_dynamic_attr f_new_dynamic_attr(int type, int f_type, int code) /* Type as core knows it, type as filters know it, and code of dynamic attribute */
+{ return (struct f_dynamic_attr) { .type = type, .f_type = f_type, .ea_code = code }; }   /* f_type currently unused; will be handy for static type checking */
+static inline struct f_static_attr f_new_static_attr(int f_type, int code, int readonly)
+{ return (struct f_static_attr) { .f_type = f_type, .sa_code = code, .readonly = readonly }; }
 struct f_tree *f_new_tree(void);
-struct f_inst *f_generate_complex(int operation, int operation_aux, struct f_inst *dyn, struct f_inst *argument);
+struct f_inst *f_generate_complex(int operation, int operation_aux, struct f_dynamic_attr da, struct f_inst *argument);
 struct f_inst *f_generate_roa_check(struct rtable_config *table, struct f_inst *prefix, struct f_inst *asn);
 
 
