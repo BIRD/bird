@@ -18,7 +18,6 @@
 
 #define FI__TWOCHAR(a,b)	((a<<8) | b)
 #define FI__LIST \
-  F(FI_COMMA,			  0, ',') \
   F(FI_ADD,			  0, '+') \
   F(FI_SUBTRACT,		  0, '-') \
   F(FI_MULTIPLY,		  0, '*') \

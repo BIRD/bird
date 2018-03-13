@@ -637,10 +637,6 @@ interpret(struct f_inst *what)
   for ( ; what; what = what->next) {
   res.type = T_VOID;
   switch(what->fi_code) {
-  case FI_COMMA:
-    TWOARGS;
-    break;
-
 /* Binary operators */
   case FI_ADD:
     TWOARGS_C;
@@ -1607,8 +1603,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
     return 1;
 
   switch(f1->fi_code) {
-  case FI_COMMA: /* fall through */
-  case FI_ADD:
+  case FI_ADD: /* fall through */
   case FI_SUBTRACT:
   case FI_MULTIPLY:
   case FI_DIVIDE:
