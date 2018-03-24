@@ -283,8 +283,11 @@ ospf_originate_lsa(struct ospf_proto *p, struct ospf_new_lsa *lsa)
 
   if (en->nf != lsa->nf)
   {
-    log(L_ERR "%s: LSA ID collision for %I/%d",
-	p->p.name, lsa->nf->fn.prefix, lsa->nf->fn.pxlen);
+    if(lsa)
+    {
+        log(L_ERR "%s: LSA ID collision for %I/%d",
+            p->p.name, lsa->nf->fn.prefix, lsa->nf->fn.pxlen);
+    }
 
     en = NULL;
     goto drop;
