@@ -457,7 +457,7 @@ static inline int rte_is_reachable(rte *r)
  */
 
 typedef struct eattr {
-  word id;				/* EA_CODE(EAP_..., protocol-dependent ID) */
+  word id;				/* EA_CODE(PROTOCOL_..., protocol-dependent ID) */
   byte flags;				/* Protocol-dependent flags */
   byte type;				/* Attribute type and several flags (EAF_...) */
   union {
@@ -466,20 +466,11 @@ typedef struct eattr {
   } u;
 } eattr;
 
-#define EAP_GENERIC 0			/* Generic attributes */
-#define EAP_BGP 1			/* BGP attributes */
-#define EAP_RIP 2			/* RIP */
-#define EAP_OSPF 3			/* OSPF */
-#define EAP_KRT 4			/* Kernel route attributes */
-#define EAP_BABEL 5			/* Babel attributes */
-#define EAP_RADV 6			/* Router advertisment attributes */
-#define EAP_MAX 7
-
 #define EA_CODE(proto,id) (((proto) << 8) | (id))
 #define EA_PROTO(ea) ((ea) >> 8)
 #define EA_ID(ea) ((ea) & 0xff)
 
-#define EA_GEN_IGP_METRIC EA_CODE(EAP_GENERIC, 0)
+#define EA_GEN_IGP_METRIC EA_CODE(PROTOCOL_NONE, 0)
 
 #define EA_CODE_MASK 0xffff
 #define EA_ALLOW_UNDEF 0x10000		/* ea_find: allow EAF_TYPE_UNDEF */
@@ -655,9 +646,6 @@ rta_set_recursive_next_hop(rtable *dep, rta *a, rtable *tab, ip_addr gw, ip_addr
 
 static inline void rt_lock_hostentry(struct hostentry *he) { if (he) he->uc++; }
 static inline void rt_unlock_hostentry(struct hostentry *he) { if (he) he->uc--; }
-
-
-extern struct protocol *attr_class_to_protocol[EAP_MAX];
 
 /*
  *	Default protocol preferences

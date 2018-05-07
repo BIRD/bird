@@ -275,6 +275,7 @@ pipe_show_proto_info(struct proto *P)
 struct protocol proto_pipe = {
   .name =		"Pipe",
   .template =		"pipe%d",
+  .class =		PROTOCOL_PIPE,
   .proto_size =		sizeof(struct pipe_proto),
   .config_size =	sizeof(struct pipe_config),
   .postconfig =		pipe_postconfig,

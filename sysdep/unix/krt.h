@@ -30,8 +30,8 @@ struct kif_proto;
 
 #define KRT_DEFAULT_ECMP_LIMIT	16
 
-#define EA_KRT_SOURCE	EA_CODE(EAP_KRT, 0)
-#define EA_KRT_METRIC	EA_CODE(EAP_KRT, 1)
+#define EA_KRT_SOURCE	EA_CODE(PROTOCOL_KERNEL, 0)
+#define EA_KRT_METRIC	EA_CODE(PROTOCOL_KERNEL, 1)
 
 /* Whenever we recognize our own routes, we allow learing of foreign routes */
 

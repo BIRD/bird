@@ -192,8 +192,8 @@ struct radv_iface
 #define RA_PREF_MASK	0x18
 
 /* Attributes */
-#define EA_RA_PREFERENCE	EA_CODE(EAP_RADV, 0)
-#define EA_RA_LIFETIME		EA_CODE(EAP_RADV, 1)
+#define EA_RA_PREFERENCE	EA_CODE(PROTOCOL_RADV, 0)
+#define EA_RA_LIFETIME		EA_CODE(PROTOCOL_RADV, 1)
 
 #ifdef LOCAL_DEBUG
 #define RADV_FORCE_DEBUG 1

@@ -1508,7 +1508,7 @@ interpret(struct f_inst *what)
 
       /* We ignore temporary attributes, probably not a problem here */
       /* 0x02 is a value of BA_AS_PATH, we don't want to include BGP headers */
-      eattr *e = ea_find((*f_rte)->attrs->eattrs, EA_CODE(EAP_BGP, 0x02));
+      eattr *e = ea_find((*f_rte)->attrs->eattrs, EA_CODE(PROTOCOL_BGP, 0x02));
 
       if (!e || e->type != EAF_TYPE_AS_PATH)
 	runtime("Missing AS_PATH attribute");

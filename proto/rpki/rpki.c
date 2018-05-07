@@ -913,6 +913,7 @@ rpki_copy_config(struct proto_config *dest UNUSED, struct proto_config *src UNUS
 struct protocol proto_rpki = {
   .name = 		"RPKI",
   .template = 		"rpki%d",
+  .class =		PROTOCOL_RPKI,
   .preference = 	DEF_PREF_RPKI,
   .proto_size = 	sizeof(struct rpki_proto),
   .config_size =	sizeof(struct rpki_config),

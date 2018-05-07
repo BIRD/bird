@@ -462,7 +462,7 @@ struct rte_source *bgp_get_source(struct bgp_proto *p, u32 path_id);
 static inline eattr *
 bgp_find_attr(ea_list *attrs, uint code)
 {
-  return ea_find(attrs, EA_CODE(EAP_BGP, code));
+  return ea_find(attrs, EA_CODE(PROTOCOL_BGP, code));
 }
 
 eattr *

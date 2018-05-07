@@ -37,12 +37,31 @@ struct symbol;
  *	Routing Protocol
  */
 
+enum protocol_class {
+  PROTOCOL_NONE,
+  PROTOCOL_BABEL,
+  PROTOCOL_BFD,
+  PROTOCOL_BGP,
+  PROTOCOL_DEVICE,
+  PROTOCOL_DIRECT,
+  PROTOCOL_KERNEL,
+  PROTOCOL_OSPF,
+  PROTOCOL_PIPE,
+  PROTOCOL_RADV,
+  PROTOCOL_RIP,
+  PROTOCOL_RPKI,
+  PROTOCOL_STATIC,
+  PROTOCOL__MAX
+};
+
+extern struct protocol *class_to_protocol[PROTOCOL__MAX];
+
 struct protocol {
   node n;
   char *name;
   char *template;			/* Template for automatic generation of names */
   int name_counter;			/* Counter for automatic name generation */
-  int attr_class;			/* Attribute class known to this protocol */
+  enum protocol_class class;		/* Machine readable protocol class */
   uint preference;			/* Default protocol preference */
   uint channel_mask;			/* Mask of accepted channel types (NB_*) */
   uint proto_size;			/* Size of protocol data structure */

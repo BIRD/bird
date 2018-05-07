@@ -75,8 +75,8 @@ bt_bird_init(void)
 
 void bt_bird_cleanup(void)
 {
-  for (int i = 0; i < EAP_MAX; i++)
-    attr_class_to_protocol[i] = NULL;
+  for (int i = 0; i < PROTOCOL__MAX; i++)
+    class_to_protocol[i] = NULL;
 
   config = new_config = NULL;
 }

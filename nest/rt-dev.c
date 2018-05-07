@@ -185,6 +185,7 @@ dev_copy_config(struct proto_config *dest, struct proto_config *src)
 struct protocol proto_device = {
   .name =		"Direct",
   .template =		"direct%d",
+  .class =		PROTOCOL_DIRECT,
   .preference =		DEF_PREF_DIRECT,
   .channel_mask =	NB_IP | NB_IP6_SADR,
   .proto_size =		sizeof(struct rt_dev_proto),

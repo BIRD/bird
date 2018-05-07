@@ -88,9 +88,6 @@ static struct idm src_ids;
 
 static HASH(struct rte_src) src_hash;
 
-struct protocol *attr_class_to_protocol[EAP_MAX];
-
-
 static void
 rte_src_init(void)
 {
@@ -851,7 +848,7 @@ ea_show(struct cli *c, eattr *e)
   byte buf[CLI_MSG_SIZE];
   byte *pos = buf, *end = buf + sizeof(buf);
 
-  if (p = attr_class_to_protocol[EA_PROTO(e->id)])
+  if (p = class_to_protocol[EA_PROTO(e->id)])
     {
       pos += bsprintf(pos, "%s.", p->name);
       if (p->get_attr)

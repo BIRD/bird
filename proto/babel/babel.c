@@ -2307,7 +2307,7 @@ babel_reconfigure(struct proto *P, struct proto_config *CF)
 struct protocol proto_babel = {
   .name =		"Babel",
   .template =		"babel%d",
-  .attr_class =		EAP_BABEL,
+  .class =		PROTOCOL_BABEL,
   .preference =		DEF_PREF_BABEL,
   .channel_mask =	NB_IP | NB_IP6_SADR,
   .proto_size =		sizeof(struct babel_proto),

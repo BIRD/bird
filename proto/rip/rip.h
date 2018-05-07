@@ -182,8 +182,8 @@ struct rip_rte
 #define RIP_ENTRY_VALID		1	/* Valid outgoing route */
 #define RIP_ENTRY_STALE		2	/* Stale outgoing route, waiting for GC */
 
-#define EA_RIP_METRIC		EA_CODE(EAP_RIP, 0)
-#define EA_RIP_TAG		EA_CODE(EAP_RIP, 1)
+#define EA_RIP_METRIC		EA_CODE(PROTOCOL_RIP, 0)
+#define EA_RIP_TAG		EA_CODE(PROTOCOL_RIP, 1)
 
 static inline int rip_is_v2(struct rip_proto *p)
 { return p->rip2; }

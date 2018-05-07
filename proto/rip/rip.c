@@ -1284,7 +1284,7 @@ rip_dump(struct proto *P)
 struct protocol proto_rip = {
   .name =		"RIP",
   .template =		"rip%d",
-  .attr_class =		EAP_RIP,
+  .class =		PROTOCOL_RIP,
   .preference =		DEF_PREF_RIP,
   .channel_mask =	NB_IP,
   .proto_size =		sizeof(struct rip_proto),

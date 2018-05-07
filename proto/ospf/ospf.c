@@ -1476,7 +1476,7 @@ ospf_sh_lsadb(struct lsadb_show_data *ld)
 struct protocol proto_ospf = {
   .name =		"OSPF",
   .template =		"ospf%d",
-  .attr_class =		EAP_OSPF,
+  .class =		PROTOCOL_OSPF,
   .preference =		DEF_PREF_OSPF,
   .channel_mask =	NB_IP,
   .proto_size =		sizeof(struct ospf_proto),

@@ -1751,7 +1751,7 @@ nl_parse_route(struct nl_parse_state *s, struct nlmsghdr *h)
       for (t = 1; t < KRT_METRICS_MAX; t++)
 	if (metrics[0] & (1 << t))
 	  {
-	    ea->attrs[n].id = EA_CODE(EAP_KRT, KRT_METRICS_OFFSET + t);
+	    ea->attrs[n].id = EA_CODE(PROTOCOL_KERNEL, KRT_METRICS_OFFSET + t);
 	    ea->attrs[n].flags = 0;
 	    ea->attrs[n].type = EAF_TYPE_INT; /* FIXME: Some are EAF_TYPE_BITFIELD */
 	    ea->attrs[n].u.data = metrics[t];

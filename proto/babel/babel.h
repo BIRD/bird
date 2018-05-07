@@ -25,8 +25,8 @@
 #include "lib/string.h"
 #include "lib/timer.h"
 
-#define EA_BABEL_METRIC		EA_CODE(EAP_BABEL, 0)
-#define EA_BABEL_ROUTER_ID	EA_CODE(EAP_BABEL, 1)
+#define EA_BABEL_METRIC		EA_CODE(PROTOCOL_BABEL, 0)
+#define EA_BABEL_ROUTER_ID	EA_CODE(PROTOCOL_BABEL, 1)
 
 #define BABEL_MAGIC		42
 #define BABEL_VERSION		2

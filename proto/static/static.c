@@ -656,6 +656,7 @@ static_show(struct proto *P)
 struct protocol proto_static = {
   .name =		"Static",
   .template =		"static%d",
+  .class =		PROTOCOL_STATIC,
   .preference =		DEF_PREF_STATIC,
   .channel_mask =	NB_ANY,
   .proto_size =		sizeof(struct static_proto),

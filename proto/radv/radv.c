@@ -762,7 +762,7 @@ radv_get_attr(eattr *a, byte *buf, int buflen UNUSED)
 struct protocol proto_radv = {
   .name =		"RAdv",
   .template =		"radv%d",
-  .attr_class =		EAP_RADV,
+  .class =		PROTOCOL_RADV,
   .channel_mask =	NB_IP6,
   .proto_size =		sizeof(struct radv_proto),
   .config_size =	sizeof(struct radv_config),
