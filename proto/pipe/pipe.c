@@ -147,7 +147,7 @@ pipe_configure_channels(struct pipe_proto *p, struct pipe_config *cf)
     .name = "pri",
     .channel = cc->channel,
     .table = cc->table,
-    .out_filter = cc->out_filter,
+    .in_filter = cc->out_filter,
     .in_limit = cc->in_limit,
     .ra_mode = RA_ANY
   };
@@ -156,7 +156,7 @@ pipe_configure_channels(struct pipe_proto *p, struct pipe_config *cf)
     .name = "sec",
     .channel = cc->channel,
     .table = cf->peer,
-    .out_filter = cc->in_filter,
+    .in_filter = cc->in_filter,
     .in_limit = cc->out_limit,
     .ra_mode = RA_ANY
   };
@@ -261,8 +261,8 @@ pipe_show_proto_info(struct proto *P)
   cli_msg(-1006, "    Peer table:     %s", p->sec->table->name);
   cli_msg(-1006, "    Import state:   %s", pipe_feed_state[p->sec->export_state]);
   cli_msg(-1006, "    Export state:   %s", pipe_feed_state[p->pri->export_state]);
-  cli_msg(-1006, "    Import filter:  %s", filter_name(p->sec->out_filter));
-  cli_msg(-1006, "    Export filter:  %s", filter_name(p->pri->out_filter));
+  cli_msg(-1006, "    Import filter:  %s", filter_name(p->sec->in_filter));
+  cli_msg(-1006, "    Export filter:  %s", filter_name(p->pri->in_filter));
 
   channel_show_limit(&p->pri->in_limit, "Import limit:");
   channel_show_limit(&p->sec->in_limit, "Export limit:");
