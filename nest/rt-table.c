@@ -430,7 +430,7 @@ export_filter_(struct channel *c, rte *rt0, rte **rt_free, ea_list **tmpa, linpo
 
   v = filter && ((filter == FILTER_REJECT) ||
 		 (f_run(filter, &rt, tmpa, pool,
-			FF_FORCE_TMPATTR | (silent ? FF_SILENT : 0)) > F_ACCEPT));
+			(silent ? FF_SILENT : 0)) > F_ACCEPT));
   if (v)
     {
       if (silent)
@@ -1395,7 +1395,7 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 		  new->flags |= REF_FILTERED;
 		}
 	      if (tmpa != old_tmpa && src->proto->store_tmp_attrs)
-		src->proto->store_tmp_attrs(new, tmpa);
+		src->proto->store_tmp_attrs(new, tmpa, rte_update_pool);
 	    }
 	}
       if (!rta_is_cached(new->attrs)) /* Need to copy attributes */
@@ -1462,8 +1462,7 @@ rt_examine(rtable *t, net_addr *a, struct proto *p, struct filter *filter)
   ea_list *tmpa = rte_make_tmp_attrs(rt, rte_update_pool);
   int v = p->import_control ? p->import_control(p, &rt, &tmpa, rte_update_pool) : 0;
   if (v == RIC_PROCESS)
-    v = (f_run(filter, &rt, &tmpa, rte_update_pool,
-	       FF_FORCE_TMPATTR | FF_SILENT) <= F_ACCEPT);
+    v = (f_run(filter, &rt, &tmpa, rte_update_pool, FF_SILENT) <= F_ACCEPT);
 
    /* Discard temporary rte */
   if (rt != n->routes)

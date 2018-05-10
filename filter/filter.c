@@ -1000,11 +1000,9 @@ interpret(struct f_inst *what)
       u16 code = what->a2.i;
       int f_type = what->aux >> 8;
 
-      if (!(f_flags & FF_FORCE_TMPATTR))
-	e = ea_find((*f_rte)->attrs->eattrs, code);
       if (!e)
 	e = ea_find((*f_tmp_attrs), code);
-      if ((!e) && (f_flags & FF_FORCE_TMPATTR))
+      if (!e)
 	e = ea_find((*f_rte)->attrs->eattrs, code);
 
       if (!e) {
@@ -1144,11 +1142,9 @@ interpret(struct f_inst *what)
 	{
 	  /* First, we have to find the old value */
 	  eattr *e = NULL;
-	  if (!(f_flags & FF_FORCE_TMPATTR))
-	    e = ea_find((*f_rte)->attrs->eattrs, code);
 	  if (!e)
 	    e = ea_find((*f_tmp_attrs), code);
-	  if ((!e) && (f_flags & FF_FORCE_TMPATTR))
+	  if (!e)
 	    e = ea_find((*f_rte)->attrs->eattrs, code);
 	  u32 data = e ? e->u.data : 0;
 
@@ -1181,14 +1177,8 @@ interpret(struct f_inst *what)
       default: bug("Unknown type in e,S");
       }
 
-      if (!(what->aux & EAF_TEMP) && (!(f_flags & FF_FORCE_TMPATTR))) {
-	f_rta_cow();
-	l->next = (*f_rte)->attrs->eattrs;
-	(*f_rte)->attrs->eattrs = l;
-      } else {
-	l->next = (*f_tmp_attrs);
-	(*f_tmp_attrs) = l;
-      }
+      l->next = (*f_tmp_attrs);
+      (*f_tmp_attrs) = l;
     }
     break;
   case FI_PREF_GET:

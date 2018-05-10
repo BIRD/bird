@@ -2110,10 +2110,14 @@ babel_make_tmp_attrs(struct rte *rt, struct linpool *pool)
   return babel_prepare_attrs(pool, NULL, rt->u.babel.metric, rt->u.babel.router_id);
 }
 
-static void
-babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
+static struct ea_list *
+babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs, struct linpool *pool)
 {
   rt->u.babel.metric = ea_get_int(attrs, EA_BABEL_METRIC, 0);
+  struct ea_list *new = babel_prepare_attrs(pool, attrs, 0, 0);
+  for (int i=0; i<new->count; i++)
+    new->attrs[i].type = EAF_TYPE_UNDEF;
+  return new;
 }
 
 /*

@@ -208,7 +208,7 @@ struct proto {
   void (*rt_notify)(struct proto *, struct channel *, struct network *net, struct rte *new, struct rte *old, struct ea_list *attrs);
   void (*neigh_notify)(struct neighbor *neigh);
   struct ea_list *(*make_tmp_attrs)(struct rte *rt, struct linpool *pool);
-  void (*store_tmp_attrs)(struct rte *rt, struct ea_list *attrs);
+  struct ea_list *(*store_tmp_attrs)(struct rte *rt, struct ea_list *attrs, struct linpool *pool);
   int (*import_control)(struct proto *, struct rte **rt, struct ea_list **attrs, struct linpool *pool);
   void (*reload_routes)(struct channel *);
   void (*feed_begin)(struct channel *, int initial);
