@@ -1177,11 +1177,12 @@ nh_bufsize(struct nexthop *nh)
 }
 
 static int
-nl_send_route(struct krt_proto *p, rte *e, struct ea_list *eattrs, int op, int dest, struct nexthop *nh)
+nl_send_route(struct krt_proto *p, rte *e, int op, int dest, struct nexthop *nh)
 {
   eattr *ea;
   net *net = e->net;
   rta *a = e->attrs;
+  ea_list *eattrs = a->eattrs;
   int bufsize = 128 + KRT_METRICS_MAX*8 + nh_bufsize(&(a->nh));
   u32 priority = 0;
 
@@ -1328,7 +1329,7 @@ dest:
 }
 
 static inline int
-nl_add_rte(struct krt_proto *p, rte *e, struct ea_list *eattrs)
+nl_add_rte(struct krt_proto *p, rte *e)
 {
   rta *a = e->attrs;
   int err = 0;
@@ -1337,34 +1338,34 @@ nl_add_rte(struct krt_proto *p, rte *e, struct ea_list *eattrs)
   {
     struct nexthop *nh = &(a->nh);
 
-    err = nl_send_route(p, e, eattrs, NL_OP_ADD, RTD_UNICAST, nh);
+    err = nl_send_route(p, e, NL_OP_ADD, RTD_UNICAST, nh);
     if (err < 0)
       return err;
 
     for (nh = nh->next; nh; nh = nh->next)
-      err += nl_send_route(p, e, eattrs, NL_OP_APPEND, RTD_UNICAST, nh);
+      err += nl_send_route(p, e, NL_OP_APPEND, RTD_UNICAST, nh);
 
     return err;
   }
 
-  return nl_send_route(p, e, eattrs, NL_OP_ADD, a->dest, &(a->nh));
+  return nl_send_route(p, e, NL_OP_ADD, a->dest, &(a->nh));
 }
 
 static inline int
-nl_delete_rte(struct krt_proto *p, rte *e, struct ea_list *eattrs)
+nl_delete_rte(struct krt_proto *p, rte *e)
 {
   int err = 0;
 
   /* For IPv6, we just repeatedly request DELETE until we get error */
   do
-    err = nl_send_route(p, e, eattrs, NL_OP_DELETE, RTD_NONE, NULL);
+    err = nl_send_route(p, e, NL_OP_DELETE, RTD_NONE, NULL);
   while (krt_ecmp6(p) && !err);
 
   return err;
 }
 
 void
-krt_replace_rte(struct krt_proto *p, net *n, rte *new, rte *old, struct ea_list *eattrs)
+krt_replace_rte(struct krt_proto *p, net *n, rte *new, rte *old)
 {
   int err = 0;
 
@@ -1380,10 +1381,10 @@ krt_replace_rte(struct krt_proto *p, net *n, rte *new, rte *old, struct ea_list 
    */
 
   if (old)
-    nl_delete_rte(p, old, eattrs);
+    nl_delete_rte(p, old);
 
   if (new)
-    err = nl_add_rte(p, new, eattrs);
+    err = nl_add_rte(p, new);
 
   if (err < 0)
     n->n.flags |= KRF_SYNC_ERROR;

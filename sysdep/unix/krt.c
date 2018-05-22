@@ -551,7 +551,7 @@ krt_flush_routes(struct krt_proto *p)
       if (rte_is_valid(e) && (n->n.flags & KRF_INSTALLED))
 	{
 	  /* FIXME: this does not work if gw is changed in export filter */
-	  krt_replace_rte(p, e->net, NULL, e, NULL);
+	  krt_replace_rte(p, e->net, NULL, e);
 	  n->n.flags &= ~KRF_INSTALLED;
 	}
     }
@@ -559,14 +559,14 @@ krt_flush_routes(struct krt_proto *p)
 }
 
 static struct rte *
-krt_export_net(struct krt_proto *p, net *net, rte **rt_free, ea_list **tmpa)
+krt_export_net(struct krt_proto *p, net *net, rte **rt_free)
 {
   struct channel *c = p->p.main_channel;
   struct filter *filter = c->out_filter;
   rte *rt;
 
   if (c->ra_mode == RA_MERGED)
-    return rt_export_merged(c, net, rt_free, tmpa, krt_filter_lp, 1);
+    return rt_export_merged(c, net, rt_free, krt_filter_lp, 1);
 
   rt = net->routes;
   *rt_free = NULL;
@@ -577,15 +577,14 @@ krt_export_net(struct krt_proto *p, net *net, rte **rt_free, ea_list **tmpa)
   if (filter == FILTER_REJECT)
     return NULL;
 
-  struct proto *src = rt->attrs->src->proto;
-  *tmpa = src->make_tmp_attrs ? src->make_tmp_attrs(rt, krt_filter_lp) : NULL;
+  proto_rte_make_tmp_attrs(rt->attrs->src->proto, &rt, krt_filter_lp);
 
   /* We could run krt_import_control() here, but it is already handled by KRF_INSTALLED */
 
   if (filter == FILTER_ACCEPT)
     goto accept;
 
-  if (f_run(filter, &rt, tmpa, krt_filter_lp, FF_SILENT) > F_ACCEPT)
+  if (f_run(filter, &rt, krt_filter_lp, FF_SILENT) > F_ACCEPT)
     goto reject;
 
 
@@ -667,9 +666,8 @@ krt_got_route(struct krt_proto *p, rte *e)
   if (net->n.flags & KRF_INSTALLED)
     {
       rte *new, *rt_free;
-      ea_list *tmpa;
 
-      new = krt_export_net(p, net, &rt_free, &tmpa);
+      new = krt_export_net(p, net, &rt_free);
 
       /* TODO: There also may be changes in route eattrs, we ignore that for now. */
 
@@ -714,7 +712,6 @@ krt_prune(struct krt_proto *p)
     {
       int verdict = n->n.flags & KRF_VERDICT_MASK;
       rte *new, *old, *rt_free = NULL;
-      ea_list *tmpa = NULL;
 
       if (verdict == KRF_UPDATE || verdict == KRF_DELETE)
 	{
@@ -728,12 +725,10 @@ krt_prune(struct krt_proto *p)
       if (verdict == KRF_CREATE || verdict == KRF_UPDATE)
 	{
 	  /* We have to run export filter to get proper 'new' route */
-	  new = krt_export_net(p, n, &rt_free, &tmpa);
+	  new = krt_export_net(p, n, &rt_free);
 
 	  if (!new)
 	    verdict = (verdict == KRF_CREATE) ? KRF_IGNORE : KRF_DELETE;
-	  else
-	    tmpa = ea_append(tmpa, new->attrs->eattrs);
 	}
       else
 	new = NULL;
@@ -744,7 +739,7 @@ krt_prune(struct krt_proto *p)
 	  if (new && (n->n.flags & KRF_INSTALLED))
 	    {
 	      krt_trace_in(p, new, "reinstalling");
-	      krt_replace_rte(p, n, new, NULL, tmpa);
+	      krt_replace_rte(p, n, new, NULL);
 	    }
 	  break;
 	case KRF_SEEN:
@@ -753,11 +748,11 @@ krt_prune(struct krt_proto *p)
 	  break;
 	case KRF_UPDATE:
 	  krt_trace_in(p, new, "updating");
-	  krt_replace_rte(p, n, new, old, tmpa);
+	  krt_replace_rte(p, n, new, old);
 	  break;
 	case KRF_DELETE:
 	  krt_trace_in(p, old, "deleting");
-	  krt_replace_rte(p, n, NULL, old, NULL);
+	  krt_replace_rte(p, n, NULL, old);
 	  break;
 	default:
 	  bug("krt_prune: invalid route status");
@@ -795,7 +790,7 @@ krt_got_route_async(struct krt_proto *p, rte *e, int new)
       if (new)
 	{
 	  krt_trace_in(p, e, "[redirect] deleting");
-	  krt_replace_rte(p, net, NULL, e, NULL);
+	  krt_replace_rte(p, net, NULL, e);
 	}
       /* If !new, it is probably echo of our deletion */
       break;
@@ -942,16 +937,16 @@ krt_make_tmp_attrs(rte *rt, struct linpool *pool)
   return krt_make_tmp_attrs_(rt, pool, NULL, 0);
 }
 
-static struct ea_list *
-krt_store_tmp_attrs(rte *rt, struct ea_list *attrs, struct linpool *pool)
+static void
+krt_store_tmp_attrs(rte *rt, struct linpool *pool)
 {
   /* EA_KRT_SOURCE is read-only */
-  rt->u.krt.metric = ea_get_int(attrs, EA_KRT_METRIC, 0);
-  return krt_make_tmp_attrs_(rt, pool, attrs, 1);
+  rt->u.krt.metric = ea_get_int(rt->attrs->eattrs, EA_KRT_METRIC, 0);
+  rt->attrs->eattrs = krt_make_tmp_attrs_(rt, pool, rt->attrs->eattrs, 1);
 }
 
 static int
-krt_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+krt_import_control(struct proto *P, rte **new, struct linpool *pool UNUSED)
 {
   // struct krt_proto *p = (struct krt_proto *) P;
   rte *e = *new;
@@ -982,7 +977,7 @@ krt_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct li
 
 static void
 krt_rt_notify(struct proto *P, struct channel *ch UNUSED, net *net,
-	      rte *new, rte *old, struct ea_list *eattrs)
+	      rte *new, rte *old)
 {
   struct krt_proto *p = (struct krt_proto *) P;
 
@@ -995,7 +990,7 @@ krt_rt_notify(struct proto *P, struct channel *ch UNUSED, net *net,
   else
     net->n.flags &= ~KRF_INSTALLED;
   if (p->initialized)		/* Before first scan we don't touch the routes */
-    krt_replace_rte(p, net, new, old, eattrs);
+    krt_replace_rte(p, net, new, old);
 }
 
 static void

@@ -1128,15 +1128,7 @@ rta_lookup(rta *o)
 
   ASSERT(!(o->aflags & RTAF_CACHED));
   if (o->eattrs)
-    {
-      if (o->eattrs->next)	/* Multiple ea_list's, need to merge them */
-	{
-	  ea_list *ml = alloca(ea_scan(o->eattrs));
-	  ea_merge(o->eattrs, ml);
-	  o->eattrs = ml;
-	}
-      ea_sort(o->eattrs);
-    }
+    ea_normalize(o->eattrs);
 
   h = rta_hash(o);
   for(r=rta_hash_table[h & rta_cache_mask]; r; r=r->next)
@@ -1250,17 +1242,15 @@ rta_dump_all(void)
 }
 
 void
-rta_show(struct cli *c, rta *a, ea_list *eal)
+rta_show(struct cli *c, rta *a)
 {
   static char *src_names[] = { "dummy", "static", "inherit", "device", "static-device", "redirect",
 			       "RIP", "OSPF", "OSPF-IA", "OSPF-E1", "OSPF-E2", "BGP", "pipe" };
-  int i;
 
   cli_printf(c, -1008, "\tType: %s %s", src_names[a->source], ip_scope_text(a->scope));
-  if (!eal)
-    eal = a->eattrs;
-  for(; eal; eal=eal->next)
-    for(i=0; i<eal->count; i++)
+
+  for(ea_list *eal = a->eattrs; eal; eal=eal->next)
+    for(int i=0; i<eal->count; i++)
       ea_show(c, &eal->attrs[i]);
 }
 

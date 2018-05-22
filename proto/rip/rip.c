@@ -298,7 +298,7 @@ rip_withdraw_rte(struct rip_proto *p, net_addr *n, struct rip_neighbor *from)
  */
 static void
 rip_rt_notify(struct proto *P, struct channel *ch UNUSED, struct network *net, struct rte *new,
-	      struct rte *old UNUSED, struct ea_list *attrs)
+	      struct rte *old UNUSED)
 {
   struct rip_proto *p = (struct rip_proto *) P;
   struct rip_entry *en;
@@ -307,8 +307,8 @@ rip_rt_notify(struct proto *P, struct channel *ch UNUSED, struct network *net, s
   if (new)
   {
     /* Update */
-    u32 rt_metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
-    u32 rt_tag = ea_get_int(attrs, EA_RIP_TAG, 0);
+    u32 rt_metric = ea_get_int(new->attrs->eattrs, EA_RIP_METRIC, 1);
+    u32 rt_tag = ea_get_int(new->attrs->eattrs, EA_RIP_TAG, 0);
 
     if (rt_metric > p->infinity)
     {
@@ -1021,11 +1021,14 @@ rip_prepare_attrs(struct linpool *pool, ea_list *next, u8 metric, u16 tag)
 }
 
 static int
-rip_import_control(struct proto *P UNUSED, struct rte **rt, struct ea_list **attrs, struct linpool *pool)
+rip_import_control(struct proto *P UNUSED, struct rte **rt, struct linpool *pool)
 {
   /* Prepare attributes with initial values */
   if ((*rt)->attrs->source != RTS_RIP)
-    *attrs = rip_prepare_attrs(pool, *attrs, 1, 0);
+  {
+    *rt = rte_cow_rta(*rt, pool);
+    (*rt)->attrs->eattrs = rip_prepare_attrs(pool, (*rt)->attrs->eattrs, 1, 0);
+  }
 
   return 0;
 }
@@ -1049,16 +1052,17 @@ rip_make_tmp_attrs(struct rte *rt, struct linpool *pool)
   return rip_prepare_attrs(pool, NULL, rt->u.rip.metric, rt->u.rip.tag);
 }
 
-static struct ea_list *
-rip_store_tmp_attrs(struct rte *rt, struct ea_list *attrs, struct linpool *pool)
+static void
+rip_store_tmp_attrs(struct rte *rt, struct linpool *pool)
 {
-  rt->u.rip.metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
-  rt->u.rip.tag = ea_get_int(attrs, EA_RIP_TAG, 0);
+  rt->u.rip.metric = ea_get_int(rt->attrs->eattrs, EA_RIP_METRIC, 1);
+  rt->u.rip.tag = ea_get_int(rt->attrs->eattrs, EA_RIP_TAG, 0);
 
-  struct ea_list *new = rip_prepare_attrs(pool, attrs, 0, 0);
+  struct ea_list *new = rip_prepare_attrs(pool, rt->attrs->eattrs, 0, 0);
   for (int i=0; i<new->count; i++)
     new->attrs[i].type = EAF_TYPE_UNDEF;
-  return new;
+
+  rt->attrs->eattrs = new;
 }
 
 static int
@@ -1160,7 +1164,7 @@ rip_reconfigure(struct proto *P, struct proto_config *CF)
 }
 
 static void
-rip_get_route_info(rte *rte, byte *buf, ea_list *attrs UNUSED)
+rip_get_route_info(rte *rte, byte *buf)
 {
   buf += bsprintf(buf, " (%d/%d)", rte->pref, rte->u.rip.metric);
 

@@ -29,14 +29,14 @@ rt_show_table(struct cli *c, struct rt_show_data *d)
 }
 
 static void
-rt_show_rte(struct cli *c, byte *ia, rte *e, struct rt_show_data *d, ea_list *tmpa)
+rt_show_rte(struct cli *c, byte *ia, rte *e, struct rt_show_data *d)
 {
   byte from[IPA_MAX_TEXT_LENGTH+8];
   byte tm[TM_DATETIME_BUFFER_SIZE], info[256];
   rta *a = e->attrs;
   int primary = (e->net->routes == e);
   int sync_error = (e->net->n.flags & KRF_SYNC_ERROR);
-  void (*get_route_info)(struct rte *, byte *buf, struct ea_list *attrs);
+  void (*get_route_info)(struct rte *, byte *buf);
   struct nexthop *nh;
 
   tm_format_time(tm, &config->tf_route, e->lastmod);
@@ -46,17 +46,11 @@ rt_show_rte(struct cli *c, byte *ia, rte *e, struct rt_show_data *d, ea_list *tm
     from[0] = 0;
 
   get_route_info = a->src->proto->proto->get_route_info;
-  if (get_route_info || d->verbose)
-    {
-      /* Need to normalize the extended attributes */
-      ea_list *t = tmpa;
-      t = ea_append(t, a->eattrs);
-      tmpa = alloca(ea_scan(t));
-      ea_merge(t, tmpa);
-      ea_sort(tmpa);
-    }
+  /* Need to normalize the extended attributes */
+  if ((get_route_info || d->verbose) && !rta_is_cached(a))
+    ea_normalize(a->eattrs);
   if (get_route_info)
-    get_route_info(e, info, tmpa);
+    get_route_info(e, info);
   else
     bsprintf(info, " (%d)", e->pref);
 
@@ -93,7 +87,7 @@ rt_show_rte(struct cli *c, byte *ia, rte *e, struct rt_show_data *d, ea_list *tm
     }
 
   if (d->verbose)
-    rta_show(c, a, tmpa);
+    rta_show(c, a);
 }
 
 static void
@@ -101,7 +95,6 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
 {
   rte *e, *ee;
   byte ia[NET_MAX_TEXT_LENGTH+1];
-  struct ea_list *tmpa;
   struct channel *ec = d->tab->export_channel;
   int first = 1;
   int pass = 0;
@@ -121,7 +114,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
 	continue;
 
       ee = e;
-      tmpa = rte_make_tmp_attrs(e, c->show_pool);
+      rte_make_tmp_attrs(&e, c->show_pool);
 
       /* Export channel is down, do not try to export routes to it */
       if (ec && (ec->export_state == ES_DOWN))
@@ -131,7 +124,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
       if ((d->export_mode == RSEM_EXPORT) && (ec->ra_mode == RA_MERGED))
 	{
 	  rte *rt_free;
-	  e = rt_export_merged(ec, n, &rt_free, &tmpa, c->show_pool, 1);
+	  e = rt_export_merged(ec, n, &rt_free, c->show_pool, 1);
 	  pass = 1;
 
 	  if (!e)
@@ -140,7 +133,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
       else if (d->export_mode)
 	{
 	  struct proto *ep = ec->proto;
-	  int ic = ep->import_control ? ep->import_control(ep, &e, &tmpa, c->show_pool) : 0;
+	  int ic = ep->import_control ? ep->import_control(ep, &e, c->show_pool) : 0;
 
 	  if (ec->ra_mode == RA_OPTIMAL || ec->ra_mode == RA_MERGED)
 	    pass = 1;
@@ -156,7 +149,7 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
 	       * command may change the export filter and do not update routes.
 	       */
 	      int do_export = (ic > 0) ||
-		(f_run(ec->out_filter, &e, &tmpa, c->show_pool, FF_SILENT) <= F_ACCEPT);
+		(f_run(ec->out_filter, &e, c->show_pool, FF_SILENT) <= F_ACCEPT);
 
 	      if (do_export != (d->export_mode == RSEM_EXPORT))
 		goto skip;
@@ -169,11 +162,11 @@ rt_show_net(struct cli *c, net *n, struct rt_show_data *d)
       if (d->show_protocol && (d->show_protocol != e->attrs->src->proto))
 	goto skip;
 
-      if (f_run(d->filter, &e, &tmpa, c->show_pool, 0) > F_ACCEPT)
+      if (f_run(d->filter, &e, c->show_pool, 0) > F_ACCEPT)
 	goto skip;
 
       if (d->stats < 2)
-	rt_show_rte(c, ia, e, d, tmpa);
+	rt_show_rte(c, ia, e, d);
 
       d->show_counter++;
       ia[0] = 0;

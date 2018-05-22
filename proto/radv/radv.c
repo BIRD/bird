@@ -395,7 +395,7 @@ radv_net_match_trigger(struct radv_config *cf, net *n)
 }
 
 int
-radv_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+radv_import_control(struct proto *P, rte **new, struct linpool *pool UNUSED)
 {
   // struct radv_proto *p = (struct radv_proto *) P;
   struct radv_config *cf = (struct radv_config *) (P->cf);
@@ -410,7 +410,7 @@ radv_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct l
 }
 
 static void
-radv_rt_notify(struct proto *P, struct channel *ch UNUSED, net *n, rte *new, rte *old UNUSED, ea_list *attrs)
+radv_rt_notify(struct proto *P, struct channel *ch UNUSED, net *n, rte *new, rte *old UNUSED)
 {
   struct radv_proto *p = (struct radv_proto *) P;
   struct radv_config *cf = (struct radv_config *) (P->cf);
@@ -448,11 +448,11 @@ radv_rt_notify(struct proto *P, struct channel *ch UNUSED, net *n, rte *new, rte
   {
     /* Update */
 
-    ea = ea_find(attrs, EA_RA_PREFERENCE);
+    ea = ea_find(new->attrs->eattrs, EA_RA_PREFERENCE);
     uint preference = ea ? ea->u.data : RA_PREF_MEDIUM;
     uint preference_set = !!ea;
 
-    ea = ea_find(attrs, EA_RA_LIFETIME);
+    ea = ea_find(new->attrs->eattrs, EA_RA_LIFETIME);
     uint lifetime = ea ? ea->u.data : 0;
     uint lifetime_set = !!ea;
 

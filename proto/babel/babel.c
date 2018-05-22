@@ -1829,7 +1829,7 @@ babel_dump(struct proto *P)
 }
 
 static void
-babel_get_route_info(rte *rte, byte *buf, ea_list *attrs UNUSED)
+babel_get_route_info(rte *rte, byte *buf)
 {
   buf += bsprintf(buf, " (%d/%d) [%lR]", rte->pref, rte->u.babel.metric, rte->u.babel.router_id);
 }
@@ -2070,36 +2070,49 @@ babel_prepare_attrs(struct linpool *pool, ea_list *next, uint metric, u64 router
 
   l->next = next;
   l->flags = EALF_SORTED;
-  l->count = 2;
+  int cnt = 0;
 
-  l->attrs[0].id = EA_BABEL_METRIC;
-  l->attrs[0].flags = 0;
-  l->attrs[0].type = EAF_TYPE_INT | EAF_TEMP;
-  l->attrs[0].u.data = metric;
+  if (!ea_find(next, EA_BABEL_METRIC))
+  {
+    l->attrs[cnt].id = EA_BABEL_METRIC;
+    l->attrs[cnt].flags = 0;
+    l->attrs[cnt].type = EAF_TYPE_INT | EAF_TEMP;
+    l->attrs[cnt].u.data = metric;
+    cnt++;
+  }
 
-  l->attrs[1].id = EA_BABEL_ROUTER_ID;
-  l->attrs[1].flags = 0;
-  l->attrs[1].type = EAF_TYPE_OPAQUE | EAF_TEMP;
-  l->attrs[1].u.ptr = rid;
+  if (!ea_find(next, EA_BABEL_ROUTER_ID))
+  {
+    l->attrs[cnt].id = EA_BABEL_ROUTER_ID;
+    l->attrs[cnt].flags = 0;
+    l->attrs[cnt].type = EAF_TYPE_OPAQUE | EAF_TEMP;
+    l->attrs[cnt].u.ptr = rid;
+    cnt++;
+  }
 
+  l->count = cnt;
   return l;
 }
 
 
 static int
-babel_import_control(struct proto *P, struct rte **new, struct ea_list **attrs, struct linpool *pool)
+babel_import_control(struct proto *P, struct rte **new, struct linpool *pool)
 {
   struct babel_proto *p = (void *) P;
-  rte *rt = *new;
+  struct rta *a = (*new)->attrs;
 
   /* Reject our own unreachable routes */
-  if ((rt->attrs->dest == RTD_UNREACHABLE) && (rt->attrs->src->proto == P))
+  if ((a->dest == RTD_UNREACHABLE) && (a->src->proto == P))
     return -1;
 
 
   /* Prepare attributes with initial values */
-  if (rt->attrs->source != RTS_BABEL)
-    *attrs = babel_prepare_attrs(pool, NULL, 0, p->router_id);
+  if (a->source != RTS_BABEL)
+  {
+    *new = rte_cow_rta(*new, pool);
+    a = (*new)->attrs;
+    a->eattrs = babel_prepare_attrs(pool, a->eattrs, 0, p->router_id);
+  }
 
   return 0;
 }
@@ -2110,14 +2123,14 @@ babel_make_tmp_attrs(struct rte *rt, struct linpool *pool)
   return babel_prepare_attrs(pool, NULL, rt->u.babel.metric, rt->u.babel.router_id);
 }
 
-static struct ea_list *
-babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs, struct linpool *pool)
+static void
+babel_store_tmp_attrs(struct rte *rt, struct linpool *pool)
 {
-  rt->u.babel.metric = ea_get_int(attrs, EA_BABEL_METRIC, 0);
-  struct ea_list *new = babel_prepare_attrs(pool, attrs, 0, 0);
+  rt->u.babel.metric = ea_get_int(rt->attrs->eattrs, EA_BABEL_METRIC, 0);
+  struct ea_list *new = babel_prepare_attrs(pool, rt->attrs->eattrs, 0, 0);
   for (int i=0; i<new->count; i++)
     new->attrs[i].type = EAF_TYPE_UNDEF;
-  return new;
+  rt->attrs->eattrs = new;
 }
 
 /*
@@ -2126,7 +2139,7 @@ babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs, struct linpool *poo
  */
 static void
 babel_rt_notify(struct proto *P, struct channel *c UNUSED, struct network *net,
-		struct rte *new, struct rte *old UNUSED, struct ea_list *attrs UNUSED)
+		struct rte *new, struct rte *old UNUSED)
 {
   struct babel_proto *p = (void *) P;
   struct babel_entry *e;
@@ -2136,7 +2149,7 @@ babel_rt_notify(struct proto *P, struct channel *c UNUSED, struct network *net,
     /* Update */
     uint internal = (new->attrs->src->proto == P);
     uint rt_seqno = internal ? new->u.babel.seqno : p->update_seqno;
-    uint rt_metric = ea_get_int(attrs, EA_BABEL_METRIC, 0);
+    uint rt_metric = ea_get_int(new->attrs->eattrs, EA_BABEL_METRIC, 0);
     uint rt_router_id = internal ? new->u.babel.router_id : p->router_id;
 
     if (rt_metric > BABEL_INFINITY)

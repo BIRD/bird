@@ -44,7 +44,7 @@
 #include "pipe.h"
 
 static void
-pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *old, ea_list *attrs)
+pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *old)
 {
   struct pipe_proto *p = (void *) P;
   struct channel *dst = (src_ch == p->pri) ? p->sec : p->pri;
@@ -69,7 +69,6 @@ pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *o
       memcpy(a, new->attrs, rta_size(new->attrs));
 
       a->aflags = 0;
-      a->eattrs = attrs;
       a->hostentry = NULL;
       e = rte_get_temp(a);
       e->pflags = 0;
@@ -93,7 +92,7 @@ pipe_rt_notify(struct proto *P, struct channel *src_ch, net *n, rte *new, rte *o
 }
 
 static int
-pipe_import_control(struct proto *P, rte **ee, ea_list **ea UNUSED, struct linpool *p UNUSED)
+pipe_import_control(struct proto *P, rte **ee, struct linpool *p UNUSED)
 {
   struct proto *pp = (*ee)->sender->proto;
 
