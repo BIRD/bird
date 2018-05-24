@@ -2124,13 +2124,9 @@ babel_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-babel_store_tmp_attrs(struct rte *rt, struct linpool *pool)
+babel_store_tmp_attrs(struct rte *rt)
 {
   rt->u.babel.metric = ea_get_int(rt->attrs->eattrs, EA_BABEL_METRIC, 0);
-  struct ea_list *new = babel_prepare_attrs(pool, rt->attrs->eattrs, 0, 0);
-  for (int i=0; i<new->count; i++)
-    new->attrs[i].type = EAF_TYPE_UNDEF;
-  rt->attrs->eattrs = new;
 }
 
 /*

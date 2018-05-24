@@ -529,10 +529,7 @@ do_rt_notify(struct channel *c, net *net, rte *new, rte *old, int refeed)
       else if (old)
 	rte_trace_out(D_ROUTES, p, old, "removed");
     }
-  if (!new)
-    p->rt_notify(p, c, net, NULL, old);
-  else
-    p->rt_notify(p, c, net, new, old);
+  p->rt_notify(p, c, net, new, old);
 }
 
 static void
@@ -1378,7 +1375,7 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 		  new->flags |= REF_FILTERED;
 		}
 	      if (new->attrs->eattrs != oldea && src->proto->store_tmp_attrs)
-		src->proto->store_tmp_attrs(new, rte_update_pool);
+		src->proto->store_tmp_attrs(new);
 	    }
 	}
       if (!rta_is_cached(new->attrs)) /* Need to copy attributes */

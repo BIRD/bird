@@ -124,7 +124,7 @@ babel_iface_opt_list:
 babel_iface:
   babel_iface_start iface_patt_list_nopx babel_iface_opt_list babel_iface_finish;
 
-CF_ADDTO(dynamic_attr, BABEL_METRIC { $$ = f_new_dynamic_attr(EAF_TYPE_INT | EAF_TEMP, T_INT, EA_BABEL_METRIC); })
+CF_ADDTO(dynamic_attr, BABEL_METRIC { $$ = f_new_dynamic_attr(EAF_TYPE_INT, T_INT, EA_BABEL_METRIC); })
 
 CF_CLI_HELP(SHOW BABEL, ..., [[Show information about Babel protocol]]);
 

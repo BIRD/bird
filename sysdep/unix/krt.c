@@ -910,39 +910,32 @@ krt_scan_timer_kick(struct krt_proto *p)
  */
 
 static struct ea_list *
-krt_make_tmp_attrs_(rte *rt, struct linpool *pool, struct ea_list *next, int delete)
+krt_make_tmp_attrs(rte *rt, struct linpool *pool)
 {
   struct ea_list *l = lp_alloc(pool, sizeof(struct ea_list) + 2 * sizeof(eattr));
 
-  l->next = next;
+  l->next = NULL;
   l->flags = EALF_SORTED;
   l->count = 2;
 
   l->attrs[0].id = EA_KRT_SOURCE;
   l->attrs[0].flags = 0;
-  l->attrs[0].type = delete ? EAF_TYPE_UNDEF : (EAF_TYPE_INT | EAF_TEMP);
+  l->attrs[0].type = EAF_TYPE_INT | EAF_TEMP;
   l->attrs[0].u.data = rt->u.krt.proto;
 
   l->attrs[1].id = EA_KRT_METRIC;
   l->attrs[1].flags = 0;
-  l->attrs[1].type = delete ? EAF_TYPE_UNDEF : (EAF_TYPE_INT | EAF_TEMP);
+  l->attrs[1].type = EAF_TYPE_INT | EAF_TEMP;
   l->attrs[1].u.data = rt->u.krt.metric;
 
   return l;
 }
 
-static struct ea_list *
-krt_make_tmp_attrs(rte *rt, struct linpool *pool)
-{
-  return krt_make_tmp_attrs_(rt, pool, NULL, 0);
-}
-
 static void
-krt_store_tmp_attrs(rte *rt, struct linpool *pool)
+krt_store_tmp_attrs(rte *rt)
 {
   /* EA_KRT_SOURCE is read-only */
   rt->u.krt.metric = ea_get_int(rt->attrs->eattrs, EA_KRT_METRIC, 0);
-  rt->attrs->eattrs = krt_make_tmp_attrs_(rt, pool, rt->attrs->eattrs, 1);
 }
 
 static int

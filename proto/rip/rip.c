@@ -1053,16 +1053,10 @@ rip_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-rip_store_tmp_attrs(struct rte *rt, struct linpool *pool)
+rip_store_tmp_attrs(struct rte *rt)
 {
   rt->u.rip.metric = ea_get_int(rt->attrs->eattrs, EA_RIP_METRIC, 1);
   rt->u.rip.tag = ea_get_int(rt->attrs->eattrs, EA_RIP_TAG, 0);
-
-  struct ea_list *new = rip_prepare_attrs(pool, rt->attrs->eattrs, 0, 0);
-  for (int i=0; i<new->count; i++)
-    new->attrs[i].type = EAF_TYPE_UNDEF;
-
-  rt->attrs->eattrs = new;
 }
 
 static int

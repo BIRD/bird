@@ -550,29 +550,47 @@ ea_do_sort(ea_list *e)
   while (ss);
 }
 
+/**
+ * In place discard duplicates, undefs and temporary attributes in sorted
+ * ea_list. We use stable sort for this reason.
+ **/
 static inline void
 ea_do_prune(ea_list *e)
 {
   eattr *s, *d, *l, *s0;
   int i = 0;
 
-  /* Discard duplicates and undefs. Do you remember sorting was stable? */
-  s = d = e->attrs;
-  l = e->attrs + e->count;
+  s = d = e->attrs;	    /* Beginning of the list. @s is source, @d is destination. */
+  l = e->attrs + e->count;  /* End of the list */
+
+  /* Walk from begin to end. */
   while (s < l)
     {
       s0 = s++;
+      /* Find a consecutive block of the same attribute */
       while (s < l && s->id == s[-1].id)
 	s++;
-      /* s0 is the most recent version, s[-1] the oldest one */
-      if ((s0->type & EAF_TYPE_MASK) != EAF_TYPE_UNDEF)
-	{
-	  *d = *s0;
-	  d->type = (d->type & ~(EAF_ORIGINATED|EAF_FRESH)) | (s[-1].type & EAF_ORIGINATED);
-	  d++;
-	  i++;
-	}
+
+      /* Now s0 is the most recent version, s[-1] the oldest one */
+      /* Drop undefs */
+      if ((s0->type & EAF_TYPE_MASK) == EAF_TYPE_UNDEF)
+	continue;
+
+      /* Drop temporary attributes */
+      if (s0->type & EAF_TEMP)
+	continue;
+
+      /* Copy the newest version to destination */
+      *d = *s0;
+
+      /* Preserve info whether it originated locally */
+      d->type = (d->type & ~(EAF_ORIGINATED|EAF_FRESH)) | (s[-1].type & EAF_ORIGINATED);
+
+      /* Next destination */
+      d++;
+      i++;
     }
+
   e->count = i;
 }
 

@@ -191,7 +191,7 @@ struct proto {
    *	   rt_notify	Notify protocol about routing table updates.
    *	   neigh_notify	Notify protocol about neighbor cache events.
    *	   make_tmp_attrs  Construct ea_list from private attrs stored in rte.
-   *	   store_tmp_attrs Store private attrs back to the rte. It MUST NOT be cached.
+   *	   store_tmp_attrs Store private attrs back to rta. The route MUST NOT be cached.
    *	   import_control  Called as the first step of the route importing process.
    *			It can construct a new rte, add private attributes and
    *			decide whether the route shall be imported: 1=yes, -1=no,
@@ -208,7 +208,7 @@ struct proto {
   void (*rt_notify)(struct proto *, struct channel *, struct network *net, struct rte *new, struct rte *old);
   void (*neigh_notify)(struct neighbor *neigh);
   struct ea_list *(*make_tmp_attrs)(struct rte *rt, struct linpool *pool);
-  void (*store_tmp_attrs)(struct rte *rt, struct linpool *pool);
+  void (*store_tmp_attrs)(struct rte *rt);
   int (*import_control)(struct proto *, struct rte **rt, struct linpool *pool);
   void (*reload_routes)(struct channel *);
   void (*feed_begin)(struct channel *, int initial);

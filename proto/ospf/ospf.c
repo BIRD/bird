@@ -103,7 +103,7 @@
 
 static int ospf_import_control(struct proto *P, rte **new, struct linpool *pool);
 static struct ea_list *ospf_make_tmp_attrs(struct rte *rt, struct linpool *pool);
-static void ospf_store_tmp_attrs(struct rte *rt, struct linpool *pool);
+static void ospf_store_tmp_attrs(struct rte *rt);
 static void ospf_reload_routes(struct channel *C);
 static int ospf_rte_better(struct rte *new, struct rte *old);
 static int ospf_rte_same(struct rte *new, struct rte *old);
@@ -485,18 +485,12 @@ ospf_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-ospf_store_tmp_attrs(struct rte *rt, struct linpool *pool)
+ospf_store_tmp_attrs(struct rte *rt)
 {
   rt->u.ospf.metric1 = ea_get_int(rt->attrs->eattrs, EA_OSPF_METRIC1, LSINFINITY);
   rt->u.ospf.metric2 = ea_get_int(rt->attrs->eattrs, EA_OSPF_METRIC2, 10000);
   rt->u.ospf.tag = ea_get_int(rt->attrs->eattrs, EA_OSPF_TAG, 0);
   rt->u.ospf.router_id = ea_get_int(rt->attrs->eattrs, EA_OSPF_ROUTER_ID, 0);
-
-  struct ea_list *new = ospf_build_attrs(rt->attrs->eattrs, pool, 0, 0, 0, 0);
-  for (int i=0; i<new->count; i++)
-    new->attrs[i].type = EAF_TYPE_UNDEF;
-
-  rt->attrs->eattrs = new;
 }
 
 /**
