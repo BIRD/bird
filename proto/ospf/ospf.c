@@ -101,9 +101,9 @@
 #include <stdlib.h>
 #include "ospf.h"
 
-static int ospf_import_control(struct proto *P, rte **new, ea_list **attrs, struct linpool *pool);
+static int ospf_import_control(struct proto *P, rte **new, struct linpool *pool);
 static struct ea_list *ospf_make_tmp_attrs(struct rte *rt, struct linpool *pool);
-static void ospf_store_tmp_attrs(struct rte *rt, struct ea_list *attrs);
+static void ospf_store_tmp_attrs(struct rte *rt);
 static void ospf_reload_routes(struct channel *C);
 static int ospf_rte_better(struct rte *new, struct rte *old);
 static int ospf_rte_same(struct rte *new, struct rte *old);
@@ -446,7 +446,7 @@ ospf_disp(timer * timer)
  * import to the filters.
  */
 static int
-ospf_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+ospf_import_control(struct proto *P, rte **new, struct linpool *pool)
 {
   struct ospf_proto *p = (struct ospf_proto *) P;
   struct ospf_area *oa = ospf_main_area(p);
@@ -471,12 +471,12 @@ ospf_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-ospf_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
+ospf_store_tmp_attrs(struct rte *rt)
 {
-  rt->u.ospf.metric1 = ea_get_int(attrs, EA_OSPF_METRIC1, LSINFINITY);
-  rt->u.ospf.metric2 = ea_get_int(attrs, EA_OSPF_METRIC2, 10000);
-  rt->u.ospf.tag = ea_get_int(attrs, EA_OSPF_TAG, 0);
-  rt->u.ospf.router_id = ea_get_int(attrs, EA_OSPF_ROUTER_ID, 0);
+  rt->u.ospf.metric1 = ea_get_int(rt->attrs->eattrs, EA_OSPF_METRIC1, LSINFINITY);
+  rt->u.ospf.metric2 = ea_get_int(rt->attrs->eattrs, EA_OSPF_METRIC2, 10000);
+  rt->u.ospf.tag = ea_get_int(rt->attrs->eattrs, EA_OSPF_TAG, 0);
+  rt->u.ospf.router_id = ea_get_int(rt->attrs->eattrs, EA_OSPF_ROUTER_ID, 0);
 }
 
 /**
@@ -535,7 +535,7 @@ ospf_get_status(struct proto *P, byte * buf)
 }
 
 static void
-ospf_get_route_info(rte * rte, byte * buf, ea_list * attrs UNUSED)
+ospf_get_route_info(rte * rte, byte * buf)
 {
   char *type = "<bug>";
 

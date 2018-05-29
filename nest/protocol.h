@@ -77,7 +77,7 @@ struct protocol {
   int (*shutdown)(struct proto *);		/* Stop the instance */
   void (*cleanup)(struct proto *);		/* Called after shutdown when protocol became hungry/down */
   void (*get_status)(struct proto *, byte *buf); /* Get instance status (for `show protocols' command) */
-  void (*get_route_info)(struct rte *, byte *buf, struct ea_list *attrs); /* Get route information (for `show route' command) */
+  void (*get_route_info)(struct rte *, byte *buf); /* Get route information (for `show route' command) */
   int (*get_attr)(struct eattr *, byte *buf, int buflen);	/* ASCIIfy dynamic attribute (returns GA_*) */
   void (*show_proto_info)(struct proto *);	/* Show protocol info (for `show protocols all' command) */
   void (*copy_config)(struct proto_config *, struct proto_config *);	/* Copy config from given protocol instance */
@@ -191,7 +191,7 @@ struct proto {
    *	   rt_notify	Notify protocol about routing table updates.
    *	   neigh_notify	Notify protocol about neighbor cache events.
    *	   make_tmp_attrs  Construct ea_list from private attrs stored in rte.
-   *	   store_tmp_attrs Store private attrs back to the rte.
+   *	   store_tmp_attrs Store private attrs back to rta. The route MUST NOT be cached.
    *	   import_control  Called as the first step of the route importing process.
    *			It can construct a new rte, add private attributes and
    *			decide whether the route shall be imported: 1=yes, -1=no,
@@ -205,11 +205,11 @@ struct proto {
 
   void (*if_notify)(struct proto *, unsigned flags, struct iface *i);
   void (*ifa_notify)(struct proto *, unsigned flags, struct ifa *a);
-  void (*rt_notify)(struct proto *, struct channel *, struct network *net, struct rte *new, struct rte *old, struct ea_list *attrs);
+  void (*rt_notify)(struct proto *, struct channel *, struct network *net, struct rte *new, struct rte *old);
   void (*neigh_notify)(struct neighbor *neigh);
   struct ea_list *(*make_tmp_attrs)(struct rte *rt, struct linpool *pool);
-  void (*store_tmp_attrs)(struct rte *rt, struct ea_list *attrs);
-  int (*import_control)(struct proto *, struct rte **rt, struct ea_list **attrs, struct linpool *pool);
+  void (*store_tmp_attrs)(struct rte *rt);
+  int (*import_control)(struct proto *, struct rte **rt, struct linpool *pool);
   void (*reload_routes)(struct channel *);
   void (*feed_begin)(struct channel *, int initial);
   void (*feed_end)(struct channel *);
@@ -292,12 +292,22 @@ proto_get_router_id(struct proto_config *pc)
   return pc->router_id ? pc->router_id : pc->global->router_id;
 }
 
-static inline struct ea_list *
-rte_make_tmp_attrs(struct rte *rt, struct linpool *pool)
+static inline void
+proto_rte_make_tmp_attrs(struct proto *p, struct rte **rt, struct linpool *pool)
 {
   struct ea_list *(*mta)(struct rte *rt, struct linpool *pool);
-  mta = rt->attrs->src->proto->make_tmp_attrs;
-  return mta ? mta(rt, pool) : NULL;
+  mta = p->make_tmp_attrs;
+  if (!mta) return;
+  *rt = rte_cow_rta(*rt, pool);
+  struct ea_list *ea = mta(*rt, pool);
+  ea->next = (*rt)->attrs->eattrs;
+  (*rt)->attrs->eattrs = ea;
+}
+
+static inline void
+rte_make_tmp_attrs(struct rte **rt, struct linpool *pool)
+{
+  return proto_rte_make_tmp_attrs((*rt)->attrs->src->proto, rt, pool);
 }
 
 /* Moved from route.h to avoid dependency conflicts */
@@ -466,7 +476,7 @@ struct channel_class {
   void (*dump_attrs)(struct rte *);		/* Dump protocol-dependent attributes */
 
   void (*get_status)(struct proto *, byte *buf); /* Get instance status (for `show protocols' command) */
-  void (*get_route_info)(struct rte *, byte *buf, struct ea_list *attrs); /* Get route information (for `show route' command) */
+  void (*get_route_info)(struct rte *, byte *buf); /* Get route information (for `show route' command) */
   int (*get_attr)(struct eattr *, byte *buf, int buflen);	/* ASCIIfy dynamic attribute (returns GA_*) */
   void (*show_proto_info)(struct proto *);	/* Show protocol info (for `show protocols all' command) */
 

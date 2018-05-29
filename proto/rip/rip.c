@@ -298,7 +298,7 @@ rip_withdraw_rte(struct rip_proto *p, net_addr *n, struct rip_neighbor *from)
  */
 static void
 rip_rt_notify(struct proto *P, struct channel *ch UNUSED, struct network *net, struct rte *new,
-	      struct rte *old UNUSED, struct ea_list *attrs)
+	      struct rte *old UNUSED)
 {
   struct rip_proto *p = (struct rip_proto *) P;
   struct rip_entry *en;
@@ -307,8 +307,8 @@ rip_rt_notify(struct proto *P, struct channel *ch UNUSED, struct network *net, s
   if (new)
   {
     /* Update */
-    u32 rt_metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
-    u32 rt_tag = ea_get_int(attrs, EA_RIP_TAG, 0);
+    u32 rt_metric = ea_get_int(new->attrs->eattrs, EA_RIP_METRIC, 1);
+    u32 rt_tag = ea_get_int(new->attrs->eattrs, EA_RIP_TAG, 0);
 
     if (rt_metric > p->infinity)
     {
@@ -1040,10 +1040,10 @@ rip_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-rip_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
+rip_store_tmp_attrs(struct rte *rt)
 {
-  rt->u.rip.metric = ea_get_int(attrs, EA_RIP_METRIC, 1);
-  rt->u.rip.tag = ea_get_int(attrs, EA_RIP_TAG, 0);
+  rt->u.rip.metric = ea_get_int(rt->attrs->eattrs, EA_RIP_METRIC, 1);
+  rt->u.rip.tag = ea_get_int(rt->attrs->eattrs, EA_RIP_TAG, 0);
 }
 
 static int
@@ -1081,7 +1081,6 @@ rip_init(struct proto_config *CF)
   P->if_notify = rip_if_notify;
   P->rt_notify = rip_rt_notify;
   P->neigh_notify = rip_neigh_notify;
-  // P->import_control = rip_import_control;
   P->reload_routes = rip_reload_routes;
   P->make_tmp_attrs = rip_make_tmp_attrs;
   P->store_tmp_attrs = rip_store_tmp_attrs;
@@ -1145,7 +1144,7 @@ rip_reconfigure(struct proto *P, struct proto_config *CF)
 }
 
 static void
-rip_get_route_info(rte *rte, byte *buf, ea_list *attrs UNUSED)
+rip_get_route_info(rte *rte, byte *buf)
 {
   buf += bsprintf(buf, " (%d/%d)", rte->pref, rte->u.rip.metric);
 

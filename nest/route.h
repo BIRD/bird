@@ -294,7 +294,7 @@ rte *rte_get_temp(struct rta *);
 void rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src);
 /* rte_update() moved to protocol.h to avoid dependency conflicts */
 int rt_examine(rtable *t, net_addr *a, struct proto *p, struct filter *filter);
-rte *rt_export_merged(struct channel *c, net *net, rte **rt_free, struct ea_list **tmpa, linpool *pool, int silent);
+rte *rt_export_merged(struct channel *c, net *net, rte **rt_free, linpool *pool, int silent);
 void rt_refresh_begin(rtable *t, struct channel *c);
 void rt_refresh_end(rtable *t, struct channel *c);
 void rt_schedule_prune(rtable *t);
@@ -546,6 +546,15 @@ uint ea_hash(ea_list *e);	/* Calculate 16-bit hash value */
 ea_list *ea_append(ea_list *to, ea_list *what);
 void ea_format_bitfield(struct eattr *a, byte *buf, int bufsize, const char **names, int min, int max);
 
+#define ea_normalize(ea) do { \
+  if (ea->next) { \
+    ea_list *t = alloca(ea_scan(ea)); \
+    ea_merge(ea, t); \
+    ea = t; \
+  } \
+  ea_sort(ea); \
+} while(0) \
+
 static inline eattr *
 ea_set_attr(ea_list **to, struct linpool *pool, uint id, uint flags, uint type, uintptr_t val)
 {
@@ -611,7 +620,7 @@ rta *rta_do_cow(rta *o, linpool *lp);
 static inline rta * rta_cow(rta *r, linpool *lp) { return rta_is_cached(r) ? rta_do_cow(r, lp) : r; }
 void rta_dump(rta *);
 void rta_dump_all(void);
-void rta_show(struct cli *, rta *, ea_list *);
+void rta_show(struct cli *, rta *);
 
 struct hostentry * rt_get_hostentry(rtable *tab, ip_addr a, ip_addr ll, rtable *dep);
 void rta_apply_hostentry(rta *a, struct hostentry *he, mpls_label_stack *mls);

@@ -1372,7 +1372,7 @@ bgp_free_prefix(struct bgp_channel *c, struct bgp_prefix *px)
  */
 
 int
-bgp_import_control(struct proto *P, rte **new, ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+bgp_import_control(struct proto *P, rte **new, struct linpool *pool UNUSED)
 {
   rte *e = *new;
   struct proto *SRC = e->attrs->src->proto;
@@ -1536,7 +1536,7 @@ bgp_update_attrs(struct bgp_proto *p, struct bgp_channel *c, rte *e, ea_list *at
 }
 
 void
-bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old, ea_list *attrs)
+bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old)
 {
   struct bgp_proto *p = (void *) P;
   struct bgp_channel *c = (void *) C;
@@ -1546,7 +1546,7 @@ bgp_rt_notify(struct proto *P, struct channel *C, net *n, rte *new, rte *old, ea
 
   if (new)
   {
-    attrs = bgp_update_attrs(p, c, new, attrs, bgp_linpool2);
+    struct ea_list *attrs = bgp_update_attrs(p, c, new, new->attrs->eattrs, bgp_linpool2);
 
     /* If attributes are invalid, we fail back to withdraw */
     buck = attrs ? bgp_get_bucket(c, attrs) : bgp_get_withdraw_bucket(c);
@@ -2007,10 +2007,10 @@ bgp_get_attr(eattr *a, byte *buf, int buflen)
 }
 
 void
-bgp_get_route_info(rte *e, byte *buf, ea_list *attrs)
+bgp_get_route_info(rte *e, byte *buf)
 {
-  eattr *p = ea_find(attrs, EA_CODE(PROTOCOL_BGP, BA_AS_PATH));
-  eattr *o = ea_find(attrs, EA_CODE(PROTOCOL_BGP, BA_ORIGIN));
+  eattr *p = ea_find(e->attrs->eattrs, EA_CODE(PROTOCOL_BGP, BA_AS_PATH));
+  eattr *o = ea_find(e->attrs->eattrs, EA_CODE(PROTOCOL_BGP, BA_ORIGIN));
   u32 origas;
 
   buf += bsprintf(buf, " (%d", e->pref);
