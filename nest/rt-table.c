@@ -317,11 +317,11 @@ rte_cow_rta(rte *r, linpool *lp)
   if (!rta_is_cached(r->attrs))
     return r;
 
-  rte *e = rte_cow(r);
+  r = rte_cow(r);
   rta *a = rta_do_cow(r->attrs, lp);
-  rta_free(e->attrs);
-  e->attrs = a;
-  return e;
+  rta_free(r->attrs);
+  r->attrs = a;
+  return r;
 }
 
 static int				/* Actually better or at least as good as */
@@ -393,24 +393,20 @@ rte_trace_out(uint flag, struct proto *p, rte *e, char *msg)
 }
 
 static rte *
-export_filter_(struct channel *c, rte *rt0, rte **rt_free, ea_list **tmpa, linpool *pool, int silent)
+export_filter_(struct channel *c, rte *rt0, rte **rt_free, linpool *pool, int silent)
 {
   struct proto *p = c->proto;
   struct filter *filter = c->out_filter;
   struct proto_stats *stats = &c->stats;
-  ea_list *tmpb = NULL;
   rte *rt;
   int v;
 
   rt = rt0;
   *rt_free = NULL;
 
-  if (!tmpa)
-    tmpa = &tmpb;
+  rte_make_tmp_attrs(&rt, pool);
 
-  *tmpa = rte_make_tmp_attrs(rt, pool);
-
-  v = p->import_control ? p->import_control(p, &rt, tmpa, pool) : 0;
+  v = p->import_control ? p->import_control(p, &rt, pool) : 0;
   if (v < 0)
     {
       if (silent)
@@ -429,8 +425,8 @@ export_filter_(struct channel *c, rte *rt0, rte **rt_free, ea_list **tmpa, linpo
     }
 
   v = filter && ((filter == FILTER_REJECT) ||
-		 (f_run(filter, &rt, tmpa, pool,
-			FF_FORCE_TMPATTR | (silent ? FF_SILENT : 0)) > F_ACCEPT));
+		 (f_run(filter, &rt, pool,
+			(silent ? FF_SILENT : 0)) > F_ACCEPT));
   if (v)
     {
       if (silent)
@@ -454,13 +450,13 @@ export_filter_(struct channel *c, rte *rt0, rte **rt_free, ea_list **tmpa, linpo
 }
 
 static inline rte *
-export_filter(struct channel *c, rte *rt0, rte **rt_free, ea_list **tmpa, int silent)
+export_filter(struct channel *c, rte *rt0, rte **rt_free, int silent)
 {
-  return export_filter_(c, rt0, rt_free, tmpa, rte_update_pool, silent);
+  return export_filter_(c, rt0, rt_free, rte_update_pool, silent);
 }
 
 static void
-do_rt_notify(struct channel *c, net *net, rte *new, rte *old, ea_list *tmpa, int refeed)
+do_rt_notify(struct channel *c, net *net, rte *new, rte *old, int refeed)
 {
   struct proto *p = c->proto;
   struct proto_stats *stats = &c->stats;
@@ -533,19 +529,7 @@ do_rt_notify(struct channel *c, net *net, rte *new, rte *old, ea_list *tmpa, int
       else if (old)
 	rte_trace_out(D_ROUTES, p, old, "removed");
     }
-  if (!new)
-    p->rt_notify(p, c, net, NULL, old, NULL);
-  else if (tmpa)
-    {
-      ea_list *t = tmpa;
-      while (t->next)
-	t = t->next;
-      t->next = new->attrs->eattrs;
-      p->rt_notify(p, c, net, new, old, tmpa);
-      t->next = NULL;
-    }
-  else
-    p->rt_notify(p, c, net, new, old, new->attrs->eattrs);
+  p->rt_notify(p, c, net, new, old);
 }
 
 static void
@@ -557,7 +541,6 @@ rt_notify_basic(struct channel *c, net *net, rte *new0, rte *old0, int refeed)
   rte *old = old0;
   rte *new_free = NULL;
   rte *old_free = NULL;
-  ea_list *tmpa = NULL;
 
   if (new)
     c->stats.exp_updates_received++;
@@ -585,10 +568,10 @@ rt_notify_basic(struct channel *c, net *net, rte *new0, rte *old0, int refeed)
    */
 
   if (new)
-    new = export_filter(c, new, &new_free, &tmpa, 0);
+    new = export_filter(c, new, &new_free, 0);
 
   if (old && !refeed)
-    old = export_filter(c, old, &old_free, NULL, 1);
+    old = export_filter(c, old, &old_free, 1);
 
   if (!new && !old)
   {
@@ -605,13 +588,13 @@ rt_notify_basic(struct channel *c, net *net, rte *new0, rte *old0, int refeed)
 
 #ifdef CONFIG_PIPE
     if ((p->proto == &proto_pipe) && !new0 && (p != old0->sender->proto))
-      p->rt_notify(p, c, net, NULL, old0, NULL);
+      p->rt_notify(p, c, net, NULL, old0);
 #endif
 
     return;
   }
 
-  do_rt_notify(c, net, new, old, tmpa, refeed);
+  do_rt_notify(c, net, new, old, refeed);
 
   /* Discard temporary rte's */
   if (new_free)
@@ -630,7 +613,6 @@ rt_notify_accepted(struct channel *c, net *net, rte *new_changed, rte *old_chang
   rte *old_best = NULL;
   rte *new_free = NULL;
   rte *old_free = NULL;
-  ea_list *tmpa = NULL;
 
   /* Used to track whether we met old_changed position. If before_old is NULL
      old_changed was the first and we met it implicitly before current best route. */
@@ -648,7 +630,7 @@ rt_notify_accepted(struct channel *c, net *net, rte *new_changed, rte *old_chang
   /* First, find the new_best route - first accepted by filters */
   for (r=net->routes; rte_is_valid(r); r=r->next)
     {
-      if (new_best = export_filter(c, r, &new_free, &tmpa, 0))
+      if (new_best = export_filter(c, r, &new_free, 0))
 	break;
 
       /* Note if we walked around the position of old_changed route */
@@ -699,7 +681,7 @@ rt_notify_accepted(struct channel *c, net *net, rte *new_changed, rte *old_chang
 
   /* First case */
   if (old_meet)
-    if (old_best = export_filter(c, old_changed, &old_free, NULL, 1))
+    if (old_best = export_filter(c, old_changed, &old_free, 1))
       goto found;
 
   /* Second case */
@@ -717,18 +699,18 @@ rt_notify_accepted(struct channel *c, net *net, rte *new_changed, rte *old_chang
   /* Fourth case */
   for (r=r->next; rte_is_valid(r); r=r->next)
     {
-      if (old_best = export_filter(c, r, &old_free, NULL, 1))
+      if (old_best = export_filter(c, r, &old_free, 1))
 	goto found;
 
       if (r == before_old)
-	if (old_best = export_filter(c, old_changed, &old_free, NULL, 1))
+	if (old_best = export_filter(c, old_changed, &old_free, 1))
 	  goto found;
     }
 
   /* Implicitly, old_best is NULL and new_best is non-NULL */
 
  found:
-  do_rt_notify(c, net, new_best, old_best, tmpa, (feed == 2));
+  do_rt_notify(c, net, new_best, old_best, (feed == 2));
 
   /* Discard temporary rte's */
   if (new_free)
@@ -745,7 +727,7 @@ nexthop_merge_rta(struct nexthop *nhs, rta *a, linpool *pool, int max)
 }
 
 rte *
-rt_export_merged(struct channel *c, net *net, rte **rt_free, ea_list **tmpa, linpool *pool, int silent)
+rt_export_merged(struct channel *c, net *net, rte **rt_free, linpool *pool, int silent)
 {
   // struct proto *p = c->proto;
   struct nexthop *nhs = NULL;
@@ -757,7 +739,7 @@ rt_export_merged(struct channel *c, net *net, rte **rt_free, ea_list **tmpa, lin
   if (!rte_is_valid(best0))
     return NULL;
 
-  best = export_filter_(c, best0, rt_free, tmpa, pool, silent);
+  best = export_filter_(c, best0, rt_free, pool, silent);
 
   if (!best || !rte_is_reachable(best))
     return best;
@@ -767,7 +749,7 @@ rt_export_merged(struct channel *c, net *net, rte **rt_free, ea_list **tmpa, lin
     if (!rte_mergable(best0, rt0))
       continue;
 
-    rt = export_filter_(c, rt0, &tmp, NULL, pool, 1);
+    rt = export_filter_(c, rt0, &tmp, pool, 1);
 
     if (!rt)
       continue;
@@ -807,7 +789,6 @@ rt_notify_merged(struct channel *c, net *net, rte *new_changed, rte *old_changed
   rte *old_best_free = NULL;
   rte *new_changed_free = NULL;
   rte *old_changed_free = NULL;
-  ea_list *tmpa = NULL;
 
   /* We assume that all rte arguments are either NULL or rte_is_valid() */
 
@@ -819,10 +800,10 @@ rt_notify_merged(struct channel *c, net *net, rte *new_changed, rte *old_changed
   if ((new_best == old_best) && !refeed)
   {
     new_changed = rte_mergable(new_best, new_changed) ?
-      export_filter(c, new_changed, &new_changed_free, NULL, 1) : NULL;
+      export_filter(c, new_changed, &new_changed_free, 1) : NULL;
 
     old_changed = rte_mergable(old_best, old_changed) ?
-      export_filter(c, old_changed, &old_changed_free, NULL, 1) : NULL;
+      export_filter(c, old_changed, &old_changed_free, 1) : NULL;
 
     if (!new_changed && !old_changed)
       return;
@@ -835,15 +816,15 @@ rt_notify_merged(struct channel *c, net *net, rte *new_changed, rte *old_changed
 
   /* Prepare new merged route */
   if (new_best)
-    new_best = rt_export_merged(c, net, &new_best_free, &tmpa, rte_update_pool, 0);
+    new_best = rt_export_merged(c, net, &new_best_free, rte_update_pool, 0);
 
   /* Prepare old merged route (without proper merged next hops) */
   /* There are some issues with running filter on old route - see rt_notify_basic() */
   if (old_best && !refeed)
-    old_best = export_filter(c, old_best, &old_best_free, NULL, 1);
+    old_best = export_filter(c, old_best, &old_best_free, 1);
 
   if (new_best || old_best)
-    do_rt_notify(c, net, new_best, old_best, tmpa, refeed);
+    do_rt_notify(c, net, new_best, old_best, refeed);
 
   /* Discard temporary rte's */
   if (new_best_free)
@@ -1341,7 +1322,6 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
   struct proto *p = c->proto;
   struct proto_stats *stats = &c->stats;
   struct filter *filter = c->in_filter;
-  ea_list *tmpa = NULL;
   rte *dummy = NULL;
   net *nn;
 
@@ -1379,11 +1359,11 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 	}
       else
 	{
-	  tmpa = rte_make_tmp_attrs(new, rte_update_pool);
+	  rte_make_tmp_attrs(&new, rte_update_pool);
 	  if (filter && (filter != FILTER_REJECT))
 	    {
-	      ea_list *old_tmpa = tmpa;
-	      int fr = f_run(filter, &new, &tmpa, rte_update_pool, 0);
+	      ea_list *oldea = new->attrs->eattrs;
+	      int fr = f_run(filter, &new, rte_update_pool, 0);
 	      if (fr > F_ACCEPT)
 		{
 		  stats->imp_updates_filtered++;
@@ -1394,8 +1374,8 @@ rte_update2(struct channel *c, const net_addr *n, rte *new, struct rte_src *src)
 
 		  new->flags |= REF_FILTERED;
 		}
-	      if (tmpa != old_tmpa && src->proto->store_tmp_attrs)
-		src->proto->store_tmp_attrs(new, tmpa);
+	      if (new->attrs->eattrs != oldea && src->proto->store_tmp_attrs)
+		src->proto->store_tmp_attrs(new);
 	    }
 	}
       if (!rta_is_cached(new->attrs)) /* Need to copy attributes */
@@ -1459,11 +1439,10 @@ rt_examine(rtable *t, net_addr *a, struct proto *p, struct filter *filter)
   rte_update_lock();
 
   /* Rest is stripped down export_filter() */
-  ea_list *tmpa = rte_make_tmp_attrs(rt, rte_update_pool);
-  int v = p->import_control ? p->import_control(p, &rt, &tmpa, rte_update_pool) : 0;
+  rte_make_tmp_attrs(&rt, rte_update_pool);
+  int v = p->import_control ? p->import_control(p, &rt, rte_update_pool) : 0;
   if (v == RIC_PROCESS)
-    v = (f_run(filter, &rt, &tmpa, rte_update_pool,
-	       FF_FORCE_TMPATTR | FF_SILENT) <= F_ACCEPT);
+    v = (f_run(filter, &rt, rte_update_pool, FF_SILENT) <= F_ACCEPT);
 
    /* Discard temporary rte */
   if (rt != n->routes)

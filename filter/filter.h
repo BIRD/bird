@@ -175,7 +175,7 @@ void trie_format(struct f_trie *t, buffer *buf);
 struct ea_list;
 struct rte;
 
-int f_run(struct filter *filter, struct rte **rte, struct ea_list **tmp_attrs, struct linpool *tmp_pool, int flags);
+int f_run(struct filter *filter, struct rte **rte, struct linpool *tmp_pool, int flags);
 struct f_val f_eval_rte(struct f_inst *expr, struct rte **rte, struct linpool *tmp_pool);
 struct f_val f_eval(struct f_inst *expr, struct linpool *tmp_pool);
 uint f_eval_int(struct f_inst *expr);
@@ -285,7 +285,6 @@ struct f_trie
 
 #define NEW_F_VAL struct f_val * val; val = cfg_alloc(sizeof(struct f_val));
 
-#define FF_FORCE_TMPATTR 1		/* Force all attributes to be temporary */
 #define FF_SILENT 2			/* Silent filter execution */
 
 /* Bird Tests */

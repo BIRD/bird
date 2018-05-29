@@ -1829,7 +1829,7 @@ babel_dump(struct proto *P)
 }
 
 static void
-babel_get_route_info(rte *rte, byte *buf, ea_list *attrs UNUSED)
+babel_get_route_info(rte *rte, byte *buf)
 {
   buf += bsprintf(buf, " (%d/%d) [%lR]", rte->pref, rte->u.babel.metric, rte->u.babel.router_id);
 }
@@ -2087,12 +2087,13 @@ babel_prepare_attrs(struct linpool *pool, ea_list *next, uint metric, u64 router
 
 
 static int
-babel_import_control(struct proto *P, struct rte **new, struct ea_list **attrs UNUSED, struct linpool *pool UNUSED)
+babel_import_control(struct proto *P, struct rte **new, struct linpool *pool)
 {
-  rte *e = *new;
+  struct babel_proto *p = (void *) P;
+  struct rta *a = (*new)->attrs;
 
   /* Reject our own unreachable routes */
-  if ((e->attrs->dest == RTD_UNREACHABLE) && (e->attrs->src->proto == P))
+  if ((a->dest == RTD_UNREACHABLE) && (a->src->proto == P))
     return -1;
 
   return 0;
@@ -2105,9 +2106,9 @@ babel_make_tmp_attrs(struct rte *rt, struct linpool *pool)
 }
 
 static void
-babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
+babel_store_tmp_attrs(struct rte *rt)
 {
-  rt->u.babel.metric = ea_get_int(attrs, EA_BABEL_METRIC, 0);
+  rt->u.babel.metric = ea_get_int(rt->attrs->eattrs, EA_BABEL_METRIC, 0);
 }
 
 /*
@@ -2116,7 +2117,7 @@ babel_store_tmp_attrs(struct rte *rt, struct ea_list *attrs)
  */
 static void
 babel_rt_notify(struct proto *P, struct channel *c UNUSED, struct network *net,
-		struct rte *new, struct rte *old UNUSED, struct ea_list *attrs UNUSED)
+		struct rte *new, struct rte *old UNUSED)
 {
   struct babel_proto *p = (void *) P;
   struct babel_entry *e;
@@ -2126,7 +2127,7 @@ babel_rt_notify(struct proto *P, struct channel *c UNUSED, struct network *net,
     /* Update */
     uint internal = (new->attrs->src->proto == P);
     uint rt_seqno = internal ? new->u.babel.seqno : p->update_seqno;
-    uint rt_metric = ea_get_int(attrs, EA_BABEL_METRIC, 0);
+    uint rt_metric = ea_get_int(new->attrs->eattrs, EA_BABEL_METRIC, 0);
     u64 rt_router_id = internal ? new->u.babel.router_id : p->router_id;
 
     if (rt_metric > BABEL_INFINITY)
