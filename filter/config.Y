@@ -989,12 +989,10 @@ cmd:
      $$->a2.p = $4;
    }
  | IF term THEN block ELSE block {
-     struct f_inst *i = f_new_inst(FI_CONDITION);
-     i->a1.p = $2;
-     i->a2.p = $4;
      $$ = f_new_inst(FI_CONDITION);
-     $$->a1.p = i;
-     $$->a2.p = $6;
+     $$->a1.p = $2;
+     $$->a2.p = $4;
+     $$->a3.p = $6;
    }
  | SYM '=' term ';' {
      DBG( "Ook, we'll set value\n" );

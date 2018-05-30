@@ -897,14 +897,13 @@ interpret(struct f_inst *what)
     ARG_ANY(1);
     val_format(v1, &f_buf);
     break;
-  case FI_CONDITION:	/* ? has really strange error value, so we can implement if ... else nicely :-) */
+  case FI_CONDITION:
     ARG(1, T_BOOL);
     if (v1.val.i) {
       ARG_ANY(2);
-      res.val.i = 0;
-    } else
-      res.val.i = 1;
-    res.type = T_BOOL;
+    } else {
+      ARG_ANY(3);
+    }
     break;
   case FI_NOP:
     debug( "No operation\n" );
@@ -1669,7 +1668,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
       return 0;
     break;
   case FI_PRINT: case FI_LENGTH: ONEARG; break;
-  case FI_CONDITION: TWOARGS; break;
+  case FI_CONDITION: THREEARGS; break;
   case FI_NOP: case FI_EMPTY: break;
   case FI_PRINT_AND_DIE: ONEARG; A2_SAME; break;
   case FI_PREF_GET:
