@@ -538,13 +538,23 @@ val_format(struct f_val v, buffer *buf)
 
 static struct rte **f_rte;
 static struct rta *f_old_rta;
+static struct ea_list **f_eattrs;
 static struct linpool *f_pool;
 static struct buffer f_buf;
 static int f_flags;
 
+static inline void f_cache_eattrs(void)
+{
+  f_eattrs = &((*f_rte)->attrs->eattrs);
+}
+
 static inline void f_rte_cow(void)
 {
-  *f_rte = rte_cow(*f_rte);
+  if (!((*f_rte)->flags & REF_COW))
+    return;
+
+  *f_rte = rte_do_cow(*f_rte);
+  f_eattrs = NULL;
 }
 
 /*
@@ -569,6 +579,9 @@ f_rta_cow(void)
    * suppose hostentry is not changed by filters).
    */
   (*f_rte)->attrs = rta_do_cow((*f_rte)->attrs, f_pool);
+
+  /* Re-cache the ea_list */
+  f_cache_eattrs();
 }
 
 static char *
@@ -602,7 +615,10 @@ static struct tbf rl_runtime_err = TBF_DEFAULT_LOG_LIMITS;
       return val;
 
 #define ACCESS_RTE \
-  do { if (!f_rte) runtime("No route to access"); } while (0)
+  do { if (!f_rte) runtime("No route to access"); else f_cache_eattrs(); } while (0)
+
+#define ACCESS_EATTRS \
+  do { if (!f_eattrs) f_cache_eattrs(); } while (0)
 
 #define BITFIELD_MASK(what) \
   (1u << (what->a2.i >> 24))
@@ -994,10 +1010,11 @@ interpret(struct f_inst *what)
     break;
   case FI_EA_GET:	/* Access to extended attributes */
     ACCESS_RTE;
+    ACCESS_EATTRS;
     {
       u16 code = what->a2.i;
       int f_type = what->aux >> 8;
-      eattr *e = ea_find((*f_rte)->attrs->eattrs, code);
+      eattr *e = ea_find(*f_eattrs, code);
 
       if (!e) {
 	/* A special case: undefined as_path looks like empty as_path */
@@ -1081,6 +1098,7 @@ interpret(struct f_inst *what)
     break;
   case FI_EA_SET:
     ACCESS_RTE;
+    ACCESS_EATTRS;
     ARG_ANY(1);
     {
       struct ea_list *l = lp_alloc(f_pool, sizeof(struct ea_list) + sizeof(eattr));
@@ -1135,7 +1153,7 @@ interpret(struct f_inst *what)
 	  runtime( "Setting bit in bitfield attribute to non-bool value" );
 	{
 	  /* First, we have to find the old value */
-	  eattr *e = ea_find((*f_rte)->attrs->eattrs, code);
+	  eattr *e = ea_find(*f_eattrs, code);
 	  u32 data = e ? e->u.data : 0;
 
 	  if (v1.val.i)
@@ -1168,8 +1186,8 @@ interpret(struct f_inst *what)
       }
 
       f_rta_cow();
-      l->next = (*f_rte)->attrs->eattrs;
-      (*f_rte)->attrs->eattrs = l;
+      l->next = *f_eattrs;
+      *f_eattrs = l;
     }
     break;
   case FI_PREF_GET:
@@ -1499,11 +1517,12 @@ interpret(struct f_inst *what)
     else
     {
       ACCESS_RTE;
+      ACCESS_EATTRS;
       v1.val.net = (*f_rte)->net->n.addr;
 
       /* We ignore temporary attributes, probably not a problem here */
       /* 0x02 is a value of BA_AS_PATH, we don't want to include BGP headers */
-      eattr *e = ea_find((*f_rte)->attrs->eattrs, EA_CODE(PROTOCOL_BGP, 0x02));
+      eattr *e = ea_find(*f_eattrs, EA_CODE(PROTOCOL_BGP, 0x02));
 
       if (!e || e->type != EAF_TYPE_AS_PATH)
 	runtime("Missing AS_PATH attribute");
