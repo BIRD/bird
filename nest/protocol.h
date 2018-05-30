@@ -293,21 +293,15 @@ proto_get_router_id(struct proto_config *pc)
 }
 
 static inline void
-proto_rte_make_tmp_attrs(struct proto *p, struct rte **rt, struct linpool *pool)
+rte_make_tmp_attrs(struct rte **rt, struct linpool *pool)
 {
   struct ea_list *(*mta)(struct rte *rt, struct linpool *pool);
-  mta = p->make_tmp_attrs;
+  mta = (*rt)->attrs->src->proto->make_tmp_attrs;
   if (!mta) return;
   *rt = rte_cow_rta(*rt, pool);
   struct ea_list *ea = mta(*rt, pool);
   ea->next = (*rt)->attrs->eattrs;
   (*rt)->attrs->eattrs = ea;
-}
-
-static inline void
-rte_make_tmp_attrs(struct rte **rt, struct linpool *pool)
-{
-  return proto_rte_make_tmp_attrs((*rt)->attrs->src->proto, rt, pool);
 }
 
 /* Moved from route.h to avoid dependency conflicts */

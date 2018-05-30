@@ -577,7 +577,7 @@ krt_export_net(struct krt_proto *p, net *net, rte **rt_free)
   if (filter == FILTER_REJECT)
     return NULL;
 
-  proto_rte_make_tmp_attrs(rt->attrs->src->proto, &rt, krt_filter_lp);
+  rte_make_tmp_attrs(&rt, krt_filter_lp);
 
   /* We could run krt_import_control() here, but it is already handled by KRF_INSTALLED */
 
