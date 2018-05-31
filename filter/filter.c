@@ -899,12 +899,14 @@ interpret(struct f_inst *what)
     break;
   case FI_CONDITION:
     ARG(1, T_BOOL);
-    if (v1.val.i) {
+    if (v1.val.i && what->a2.p) {
       ARG_ANY(2);
-    } else {
-      ARG_ANY(3);
+      break;
     }
-    break;
+    if ((!v1.val.i) && what->a3.p) {
+      ARG_ANY(3);
+      break;
+    }
   case FI_NOP:
     debug( "No operation\n" );
     break;
