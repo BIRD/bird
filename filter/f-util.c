@@ -42,6 +42,16 @@ f_new_inst_sa(enum f_instruction_code fi_code, struct f_static_attr sa)
   return ret;
 }
 
+struct f_inst *
+f_new_inst_method(struct f_inst *target, enum f_method method)
+{
+  struct f_inst *ret = f_new_inst(FI_METHOD);
+  ret->a1.p = target;
+  ret->a2.i = method;
+
+  return ret;
+}
+
 /*
  * Generate set_dynamic( operation( get_dynamic(), argument ) )
  */

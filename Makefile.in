@@ -69,7 +69,7 @@ $(daemon): LIBS += $(DAEMON_LIBS)
 # Include directories
 dirs := client conf doc filter lib nest test $(addprefix proto/,$(protocols)) @sysdep_dirs@
 
-conf-y-targets := $(addprefix $(objdir)/conf/,cf-parse.y keywords.h commands.h)
+conf-y-targets := $(addprefix $(objdir)/conf/,cf-parse.y keywords.h commands.h) $(objdir)/filter/methods.h
 cf-local = $(conf-y-targets): $(s)config.Y
 
 src-o-files = $(patsubst %.c,$(o)%.o,$(src))

@@ -45,6 +45,7 @@
 #include "nest/route.h"
 #include "nest/protocol.h"
 #include "filter/filter.h"
+#include "filter/methods.h"
 #include "conf/conf.h"
 #include "conf/cf-parse.tab.h"
 #include "lib/string.h"

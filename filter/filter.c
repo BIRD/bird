@@ -840,22 +840,100 @@ interpret(struct f_inst *what)
     res.type = T_BOOL;
     res.val.i = (v1.type != T_VOID) && !undef_value(v1);
     break;
-  case FI_TYPE:
-    ARG_ANY(1); /* There may be more types supporting this operation */
-    switch (v1.type)
+  case FI_METHOD:
+    switch (what->a2.i)
     {
-      case T_NET:
+      case FM_IS_V4:
+	ARG(1, T_IP);
+	res.type = T_BOOL;
+	res.val.i = ipa_is_ip4(v1.val.ip);
+	break;
+      case FM_TYPE:
+	ARG(1, T_NET);
 	res.type = T_ENUM_NETTYPE;
 	res.val.i = v1.val.net->type;
 	break;
-      default:
-	runtime( "Can't determine type of this item" );
+      case FM_IP:	/* Convert prefix to ... */
+	ARG(1, T_NET);
+	res.type = T_IP;
+	res.val.ip = net_prefix(v1.val.net);
+	break;
+      case FM_RD:
+	ARG(1, T_NET);
+	if (!net_is_vpn(v1.val.net))
+	  runtime( "VPN address expected" );
+	res.type = T_RD;
+	res.val.ec = net_rd(v1.val.net);
+	break;
+      case FM_LEN:	/* Get length of */
+	ARG_ANY(1);
+	res.type = T_INT;
+	switch(v1.type) {
+	  case T_NET:    res.val.i = net_pxlen(v1.val.net); break;
+	  case T_PATH:   res.val.i = as_path_getlen(v1.val.ad); break;
+	  case T_CLIST:  res.val.i = int_set_get_size(v1.val.ad); break;
+	  case T_ECLIST: res.val.i = ec_set_get_size(v1.val.ad); break;
+	  case T_LCLIST: res.val.i = lc_set_get_size(v1.val.ad); break;
+	  default: runtime( "Prefix, path, clist, eclist or lclist expected" );
+	}
+	break;
+      case FM_MAXLEN: 	/* Get ROA max prefix length */
+	ARG(1, T_NET);
+	if (!net_is_roa(v1.val.net))
+	  runtime( "ROA expected" );
+
+	res.type = T_INT;
+	res.val.i = (v1.val.net->type == NET_ROA4) ?
+	  ((net_addr_roa4 *) v1.val.net)->max_pxlen :
+	  ((net_addr_roa6 *) v1.val.net)->max_pxlen;
+	break;
+      case FM_ASN: 	/* Get ROA ASN */
+	ARG(1, T_NET);
+	if (!net_is_roa(v1.val.net))
+	  runtime( "ROA expected" );
+
+	res.type = T_INT;
+	res.val.i = (v1.val.net->type == NET_ROA4) ?
+	  ((net_addr_roa4 *) v1.val.net)->asn :
+	  ((net_addr_roa6 *) v1.val.net)->asn;
+	break;
+      case FM_SRC: 	/* Get SADR src prefix */
+	ARG(1, T_NET);
+	if (!net_is_sadr(v1.val.net))
+	  runtime( "SADR expected" );
+
+	{
+	  net_addr_ip6_sadr *net = (void *) v1.val.net;
+	  net_addr *src = lp_alloc(f_pool, sizeof(net_addr_ip6));
+	  net_fill_ip6(src, net->src_prefix, net->src_pxlen);
+
+	  res.type = T_NET;
+	  res.val.net = src;
+	}
+	break;
+      case FM_FIRST:	/* Get first ASN from AS PATH */
+	ARG(1, T_PATH);
+
+	as = 0;
+	as_path_get_first(v1.val.ad, &as);
+	res.type = T_INT;
+	res.val.i = as;
+	break;
+      case FM_LAST:	/* Get last ASN from AS PATH */
+	ARG(1, T_PATH);
+
+	as = 0;
+	as_path_get_last(v1.val.ad, &as);
+	res.type = T_INT;
+	res.val.i = as;
+	break;
+      case FM_LAST_NONAGGREGATED:	/* Get last ASN from non-aggregated part of AS PATH */
+	ARG(1, T_PATH);
+
+	res.type = T_INT;
+	res.val.i = as_path_get_last_nonaggregated(v1.val.ad);
+	break;
     }
-    break;
-  case FI_IS_V4:
-    ARG(1, T_IP);
-    res.type = T_BOOL;
-    res.val.i = ipa_is_ip4(v1.val.ip);
     break;
 
   /* Set to indirect value, a1 = variable, a2 = value */
@@ -1204,87 +1282,6 @@ interpret(struct f_inst *what)
     f_rte_cow();
     (*f_rte)->pref = v1.val.i;
     break;
-  case FI_LENGTH:	/* Get length of */
-    ARG_ANY(1);
-    res.type = T_INT;
-    switch(v1.type) {
-    case T_NET:    res.val.i = net_pxlen(v1.val.net); break;
-    case T_PATH:   res.val.i = as_path_getlen(v1.val.ad); break;
-    case T_CLIST:  res.val.i = int_set_get_size(v1.val.ad); break;
-    case T_ECLIST: res.val.i = ec_set_get_size(v1.val.ad); break;
-    case T_LCLIST: res.val.i = lc_set_get_size(v1.val.ad); break;
-    default: runtime( "Prefix, path, clist or eclist expected" );
-    }
-    break;
-  case FI_SADR_SRC: 	/* Get SADR src prefix */
-    ARG(1, T_NET);
-    if (!net_is_sadr(v1.val.net))
-      runtime( "SADR expected" );
-
-    {
-      net_addr_ip6_sadr *net = (void *) v1.val.net;
-      net_addr *src = lp_alloc(f_pool, sizeof(net_addr_ip6));
-      net_fill_ip6(src, net->src_prefix, net->src_pxlen);
-
-      res.type = T_NET;
-      res.val.net = src;
-    }
-    break;
-  case FI_ROA_MAXLEN: 	/* Get ROA max prefix length */
-    ARG(1, T_NET);
-    if (!net_is_roa(v1.val.net))
-      runtime( "ROA expected" );
-
-    res.type = T_INT;
-    res.val.i = (v1.val.net->type == NET_ROA4) ?
-      ((net_addr_roa4 *) v1.val.net)->max_pxlen :
-      ((net_addr_roa6 *) v1.val.net)->max_pxlen;
-    break;
-  case FI_ROA_ASN: 	/* Get ROA ASN */
-    ARG(1, T_NET);
-    if (!net_is_roa(v1.val.net))
-      runtime( "ROA expected" );
-
-    res.type = T_INT;
-    res.val.i = (v1.val.net->type == NET_ROA4) ?
-      ((net_addr_roa4 *) v1.val.net)->asn :
-      ((net_addr_roa6 *) v1.val.net)->asn;
-    break;
-  case FI_IP:	/* Convert prefix to ... */
-    ARG(1, T_NET);
-    res.type = T_IP;
-    res.val.ip = net_prefix(v1.val.net);
-    break;
-  case FI_ROUTE_DISTINGUISHER:
-    ARG(1, T_NET);
-    res.type = T_IP;
-    if (!net_is_vpn(v1.val.net))
-      runtime( "VPN address expected" );
-    res.type = T_RD;
-    res.val.ec = net_rd(v1.val.net);
-    break;
-  case FI_AS_PATH_FIRST:	/* Get first ASN from AS PATH */
-    ARG(1, T_PATH);
-
-    as = 0;
-    as_path_get_first(v1.val.ad, &as);
-    res.type = T_INT;
-    res.val.i = as;
-    break;
-  case FI_AS_PATH_LAST:	/* Get last ASN from AS PATH */
-    ARG(1, T_PATH);
-
-    as = 0;
-    as_path_get_last(v1.val.ad, &as);
-    res.type = T_INT;
-    res.val.i = as;
-    break;
-  case FI_AS_PATH_LAST_NAG:	/* Get last ASN from non-aggregated part of AS PATH */
-    ARG(1, T_PATH);
-
-    res.type = T_INT;
-    res.val.i = as_path_get_last_nonaggregated(v1.val.ad);
-    break;
   case FI_RETURN:
     ARG_ANY(1);
     res = v1;
@@ -1619,7 +1616,6 @@ i_same(struct f_inst *f1, struct f_inst *f2)
   case FI_NOT_MATCH:
   case FI_MATCH: TWOARGS; break;
   case FI_DEFINED: ONEARG; break;
-  case FI_TYPE: ONEARG; break;
 
   case FI_LC_CONSTRUCT:
     THREEARGS;
@@ -1670,7 +1666,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
     if (strcmp((char *) f1->a2.p, (char *) f2->a2.p))
       return 0;
     break;
-  case FI_PRINT: case FI_LENGTH: ONEARG; break;
+  case FI_PRINT: ONEARG; break;
   case FI_CONDITION: THREEARGS; break;
   case FI_NOP: case FI_EMPTY: break;
   case FI_PRINT_AND_DIE: ONEARG; A2_SAME; break;
@@ -1682,12 +1678,7 @@ i_same(struct f_inst *f1, struct f_inst *f2)
   case FI_EA_SET: ONEARG; A2_SAME; break;
 
   case FI_RETURN: ONEARG; break;
-  case FI_ROA_MAXLEN: ONEARG; break;
-  case FI_ROA_ASN: ONEARG; break;
-  case FI_SADR_SRC: ONEARG; break;
-  case FI_IP: ONEARG; break;
-  case FI_IS_V4: ONEARG; break;
-  case FI_ROUTE_DISTINGUISHER: ONEARG; break;
+  case FI_METHOD: ONEARG; A2_SAME; break;
   case FI_CALL: /* Call rewriting trickery to avoid exponential behaviour */
              ONEARG;
 	     if (!i_same(f1->a2.p, f2->a2.p))
@@ -1699,9 +1690,6 @@ i_same(struct f_inst *f1, struct f_inst *f2)
   case FI_IP_MASK: TWOARGS; break;
   case FI_PATH_PREPEND: TWOARGS; break;
   case FI_CLIST_ADD_DEL: TWOARGS; break;
-  case FI_AS_PATH_FIRST:
-  case FI_AS_PATH_LAST:
-  case FI_AS_PATH_LAST_NAG: ONEARG; break;
   case FI_ROA_CHECK:
     TWOARGS;
     /* Does not really make sense - ROA check results may change anyway */

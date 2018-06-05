@@ -39,6 +39,10 @@ m4_define(CF_dyn_rules,)
 m4_define(CF_ADDTO, `m4_define([[CF_rule_$1]],m4_ifdef([[CF_rule_$1]],CF_rule_$1 | ,[[m4_define([[CF_dyn_rules]],CF_dyn_rules[[CF_RULE($1)
 ]])]])$2)DNL')
 
+# Simple filter object methods
+m4_define(CF_OBJM, `m4_divert(2)CF_KEYWORDS($1)
+m4_divert(3)f_object_method_simple: $1 { $$ = FM_$1; };')
+
 # CLI commands
 m4_define(CF_CLI, `m4_define([[CF_cmd]], cmd_[[]]m4_translit($1, [[ ]], _))DNL
 m4_divert(2)CF_KEYWORDS(m4_translit($1, [[ ]], [[,]]))

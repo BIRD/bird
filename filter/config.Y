@@ -10,6 +10,8 @@
 
 CF_HDR
 
+#include "filter/methods.h"
+
 CF_DEFINES
 
 static inline u32 pair(u32 a, u32 b) { return (a << 16) | b; }
@@ -413,7 +415,7 @@ CF_KEYWORDS(FUNCTION, PRINT, PRINTN, UNSET, RETURN,
 	IS_V4, IS_V6,
 	LEN, MAXLEN,
 	DEFINED,
-	ADD, DELETE, CONTAINS, RESET,
+	ADD, DELETE, CONTAINS,
 	PREPEND, FIRST, LAST, LAST_NONAGGREGATED, MATCH,
 	EMPTY,
 	FILTER, WHERE, EVAL,
@@ -425,6 +427,7 @@ CF_KEYWORDS(FUNCTION, PRINT, PRINTN, UNSET, RETURN,
 %type <x> term block cmds cmds_int cmd function_body constant constructor print_one print_list var_list var_listn function_call symbol bgp_path_expr
 %type <fda> dynamic_attr
 %type <fsa> static_attr
+%type <efm> f_object_method_simple
 %type <f> filter filter_body where_filter
 %type <i> type break_command ec_kind
 %type <i32> cnum
@@ -889,26 +892,9 @@ term:
 
  | rtadot dynamic_attr { $$ = f_new_inst_da(FI_EA_GET, $2); }
 
- | term '.' IS_V4 { $$ = f_new_inst(FI_IS_V4); $$->a1.p = $1; }
- | term '.' TYPE { $$ = f_new_inst(FI_TYPE); $$->a1.p = $1; }
- | term '.' IP { $$ = f_new_inst(FI_IP); $$->a1.p = $1; $$->aux = T_IP; }
- | term '.' RD { $$ = f_new_inst(FI_ROUTE_DISTINGUISHER); $$->a1.p = $1; $$->aux = T_RD; }
- | term '.' LEN { $$ = f_new_inst(FI_LENGTH); $$->a1.p = $1; }
- | term '.' MAXLEN { $$ = f_new_inst(FI_ROA_MAXLEN); $$->a1.p = $1; }
- | term '.' ASN { $$ = f_new_inst(FI_ROA_ASN); $$->a1.p = $1; }
- | term '.' SRC { $$ = f_new_inst(FI_SADR_SRC); $$->a1.p = $1; }
- | term '.' MASK '(' term ')' { $$ = f_new_inst(FI_IP_MASK); $$->a1.p = $1; $$->a2.p = $5; }
- | term '.' FIRST { $$ = f_new_inst(FI_AS_PATH_FIRST); $$->a1.p = $1; }
- | term '.' LAST  { $$ = f_new_inst(FI_AS_PATH_LAST); $$->a1.p = $1; }
- | term '.' LAST_NONAGGREGATED  { $$ = f_new_inst(FI_AS_PATH_LAST_NAG); $$->a1.p = $1; }
+ | term '.' f_object_method_simple { $$ = f_new_inst_method($1, $3); }
 
-/* Communities */
-/* This causes one shift/reduce conflict
- | rtadot dynamic_attr '.' ADD '(' term ')' { }
- | rtadot dynamic_attr '.' DELETE '(' term ')' { }
- | rtadot dynamic_attr '.' CONTAINS '(' term ')' { }
- | rtadot dynamic_attr '.' RESET{ }
-*/
+ | term '.' MASK '(' term ')' { $$ = f_new_inst(FI_IP_MASK); $$->a1.p = $1; $$->a2.p = $5; }
 
  | '+' EMPTY '+' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_PATH; }
  | '-' EMPTY '-' { $$ = f_new_inst(FI_EMPTY); $$->aux = T_CLIST; }
@@ -923,8 +909,6 @@ term:
  | ROA_CHECK '(' rtable ',' term ',' term ')' { $$ = f_generate_roa_check($3, $5, $7); }
 
  | FORMAT '(' term ')' {  $$ = f_new_inst(FI_FORMAT); $$->a1.p = $3; }
-
-/* | term '.' LEN { $$->code = P('P','l'); } */
 
 /* function_call is inlined here */
  | SYM '(' var_list ')' {

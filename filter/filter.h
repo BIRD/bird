@@ -14,6 +14,8 @@
 #include "nest/route.h"
 #include "nest/attrs.h"
 
+#include "filter/methods.h"
+
 /* Filter instruction types */
 
 #define FI__TWOCHAR(a,b)	((a<<8) | b)
@@ -36,8 +38,6 @@
   F(FI_MATCH,			  0, '~') \
   F(FI_NOT_MATCH,		'!', '~') \
   F(FI_DEFINED,			'd', 'e') \
-  F(FI_TYPE,			  0, 'T') \
-  F(FI_IS_V4,			'I', 'i') \
   F(FI_SET,			  0, 's') \
   F(FI_CONSTANT,		  0, 'c') \
   F(FI_VARIABLE,		  0, 'V') \
@@ -52,15 +52,7 @@
   F(FI_EA_SET,			'e', 'S') \
   F(FI_PREF_GET,		  0, 'P') \
   F(FI_PREF_SET,		'P', 'S') \
-  F(FI_LENGTH,			  0, 'L') \
-  F(FI_ROA_MAXLEN,		'R', 'M') \
-  F(FI_ROA_ASN,			'R', 'A') \
-  F(FI_SADR_SRC,		'n', 's') \
-  F(FI_IP,			'c', 'p') \
-  F(FI_ROUTE_DISTINGUISHER,	'R', 'D') \
-  F(FI_AS_PATH_FIRST,		'a', 'f') \
-  F(FI_AS_PATH_LAST,		'a', 'l') \
-  F(FI_AS_PATH_LAST_NAG,	'a', 'L') \
+  F(FI_METHOD,			'o', 'M') \
   F(FI_RETURN,			  0, 'r') \
   F(FI_CALL,			'c', 'a') \
   F(FI_CLEAR_LOCAL_VARS,	'c', 'V') \
@@ -152,6 +144,7 @@ struct filter {
 struct f_inst *f_new_inst(enum f_instruction_code fi_code);
 struct f_inst *f_new_inst_da(enum f_instruction_code fi_code, struct f_dynamic_attr da);
 struct f_inst *f_new_inst_sa(enum f_instruction_code fi_code, struct f_static_attr sa);
+struct f_inst *f_new_inst_method(struct f_inst *target, enum f_method method);
 static inline struct f_dynamic_attr f_new_dynamic_attr(int type, int f_type, int code) /* Type as core knows it, type as filters know it, and code of dynamic attribute */
 { return (struct f_dynamic_attr) { .type = type, .f_type = f_type, .ea_code = code }; }   /* f_type currently unused; will be handy for static type checking */
 static inline struct f_static_attr f_new_static_attr(int f_type, int code, int readonly)

@@ -51,6 +51,7 @@ CF_DECLS
   struct f_inst *x;
   struct f_dynamic_attr fda;
   struct f_static_attr fsa;
+  enum f_method efm;
   struct filter *f;
   struct f_tree *e;
   struct f_trie *trie;
