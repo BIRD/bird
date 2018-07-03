@@ -170,7 +170,7 @@ struct f_prefix {
 struct f_val {
   enum f_type type;		/* T_*  */
   union {
-    uint i;
+    u32 i;
     u64 ec;
     lcomm lc;
     ip_addr ip;
@@ -181,6 +181,13 @@ struct f_val {
     struct adata *ad;
     struct f_path_mask *path_mask;
   } val;
+};
+
+/* To allow direct copying between eattrs and f_val. */
+
+union f_val_eattr {
+  struct f_val f;
+  struct eattr e;
 };
 
 struct f_dynamic_attr {

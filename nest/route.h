@@ -456,16 +456,6 @@ static inline int rte_is_reachable(rte *r)
  *	Extended Route Attributes
  */
 
-typedef struct eattr {
-  word id;				/* EA_CODE(PROTOCOL_..., protocol-dependent ID) */
-  byte flags;				/* Protocol-dependent flags */
-  byte type;				/* Attribute type and several flags (EAF_...) */
-  union {
-    u32 data;
-    struct adata *ptr;			/* Attribute data elsewhere */
-  } u;
-} eattr;
-
 #define EA_CODE(proto,id) (((proto) << 8) | (id))
 #define EA_PROTO(ea) ((ea) >> 8)
 #define EA_ID(ea) ((ea) & 0xff)
@@ -476,22 +466,34 @@ typedef struct eattr {
 #define EA_ALLOW_UNDEF 0x10000		/* ea_find: allow EAF_TYPE_UNDEF */
 #define EA_BIT(n) ((n) << 24)		/* Used in bitfield accessors */
 
-#define EAF_TYPE_MASK 0x1f		/* Mask with this to get type */
-#define EAF_TYPE_INT 0x01		/* 32-bit unsigned integer number */
-#define EAF_TYPE_OPAQUE 0x02		/* Opaque byte string (not filterable) */
-#define EAF_TYPE_IP_ADDRESS 0x04	/* IP address */
-#define EAF_TYPE_ROUTER_ID 0x05		/* Router ID (IPv4 address) */
-#define EAF_TYPE_AS_PATH 0x06		/* BGP AS path (encoding per RFC 1771:4.3) */
-#define EAF_TYPE_BITFIELD 0x09		/* 32-bit embedded bitfield */
-#define EAF_TYPE_INT_SET 0x0a		/* Set of u32's (e.g., a community list) */
-#define EAF_TYPE_EC_SET 0x0e		/* Set of pairs of u32's - ext. community list */
-#define EAF_TYPE_LC_SET 0x12		/* Set of triplets of u32's - large community list */
-#define EAF_TYPE_UNDEF 0x1f		/* `force undefined' entry */
-#define EAF_EMBEDDED 0x01		/* Data stored in eattr.u.data (part of type spec) */
-#define EAF_VAR_LENGTH 0x02		/* Attribute length is variable (part of type spec) */
-#define EAF_ORIGINATED 0x20		/* The attribute has originated locally */
-#define EAF_FRESH 0x40			/* An uncached attribute (e.g. modified in export filter) */
-#define EAF_TEMP 0x80			/* A temporary attribute (the one stored in the tmp attr list) */
+enum ea_type {
+  EAF_TYPE_MASK = 0x1f,		/* Mask with this to get type */
+  EAF_TYPE_INT = 0x01,		/* 32-bit unsigned integer number */
+  EAF_TYPE_OPAQUE = 0x02,	/* Opaque byte string (not filterable) */
+  EAF_TYPE_IP_ADDRESS = 0x04,	/* IP address */
+  EAF_TYPE_ROUTER_ID = 0x05,	/* Router ID (IPv4 address) */
+  EAF_TYPE_AS_PATH = 0x06,	/* BGP AS path (encoding per RFC 1771:4.3) */
+  EAF_TYPE_BITFIELD = 0x09,	/* 32-bit embedded bitfield */
+  EAF_TYPE_INT_SET = 0x0a,	/* Set of u32's (e.g., a community list) */
+  EAF_TYPE_EC_SET = 0x0e,	/* Set of pairs of u32's - ext. community list */
+  EAF_TYPE_LC_SET = 0x12,	/* Set of triplets of u32's - large community list */
+  EAF_TYPE_UNDEF = 0x1f,	/* `force undefined' entry */
+  EAF_EMBEDDED = 0x01,		/* Data stored in eattr.u.data (part of type spec) */
+  EAF_VAR_LENGTH = 0x02,	/* Attribute length is variable (part of type spec) */
+  EAF_ORIGINATED = 0x20,	/* The attribute has originated locally */
+  EAF_FRESH = 0x40,		/* An uncached attribute (e.g. modified in export filter) */
+  EAF_TEMP = 0x80,		/* A temporary attribute (the one stored in the tmp attr list) */
+};
+
+typedef struct eattr {
+  enum ea_type type;			/* Attribute type and several flags (EAF_...) */
+  word id;				/* EA_CODE(PROTOCOL_..., protocol-dependent ID) */
+  byte flags;				/* Protocol-dependent flags */
+  union {
+    u32 data;
+    struct adata *ptr;			/* Attribute data elsewhere */
+  } u;
+} eattr;
 
 typedef struct adata {
   uint length;				/* Length of data */
