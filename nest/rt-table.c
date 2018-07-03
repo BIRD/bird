@@ -549,29 +549,30 @@ rt_notify_basic(struct channel *c, net *net, rte *new0, rte *old0, int refeed)
     c->stats.exp_withdraws_received++;
 
   /*
-   * This is a tricky part - we don't know whether route 'old' was
-   * exported to protocol 'p' or was filtered by the export filter.
-   * We try to run the export filter to know this to have a correct
-   * value in 'old' argument of rte_update (and proper filter value)
+   * This is a tricky part - we don't know whether route 'old' was exported to
+   * protocol 'p' or was filtered by the export filter. We try to run the export
+   * filter to know this to have a correct value in 'old' argument of rte_update
+   * (and proper filter value).
    *
-   * FIXME - this is broken because 'configure soft' may change
-   * filters but keep routes. Refeed is expected to be called after
-   * change of the filters and with old == new, therefore we do not
-   * even try to run the filter on an old route, This may lead to
-   * 'spurious withdraws' but ensure that there are no 'missing
+   * This is broken because 'configure soft' may change filters but keep routes.
+   * Refeed cycle is expected to be called after change of the filters and with
+   * old == new, therefore we do not even try to run the filter on an old route.
+   * This may lead to 'spurious withdraws' but ensure that there are no 'missing
    * withdraws'.
    *
-   * This is not completely safe as there is a window between
-   * reconfiguration and the end of refeed - if a newly filtered
-   * route disappears during this period, proper withdraw is not
-   * sent (because old would be also filtered) and the route is
-   * not refeeded (because it disappeared before that).
+   * This is not completely safe as there is a window between reconfiguration
+   * and the end of refeed - if a newly filtered route disappears during this
+   * period, proper withdraw is not sent (because old would be also filtered)
+   * and the route is not refeeded (because it disappeared before that).
+   * Therefore, we also do not try to run the filter on old routes that are
+   * older than the last filter change.
    */
 
   if (new)
     new = export_filter(c, new, &new_free, 0);
 
-  if (old && !refeed)
+  log("XXX %N %p %p %u %t %t", net->n.addr, old, new, refeed, old ? old->lastmod : 0, c->last_tx_filter_change);
+  if (old && !(refeed || (old->lastmod <= c->last_tx_filter_change)))
     old = export_filter(c, old, &old_free, 1);
 
   if (!new && !old)

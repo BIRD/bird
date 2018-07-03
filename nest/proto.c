@@ -165,6 +165,7 @@ proto_add_channel(struct proto *p, struct channel_config *cf)
   c->channel_state = CS_DOWN;
   c->export_state = ES_DOWN;
   c->last_state_change = current_time();
+  c->last_tx_filter_change = current_time();
   c->reloadable = 1;
 
   CALL(c->channel->init, c, cf);
@@ -556,6 +557,9 @@ channel_reconfigure(struct channel *c, struct channel_config *cf)
   c->in_keep_filtered = cf->in_keep_filtered;
 
   channel_verify_limits(c);
+
+  if (export_changed)
+    c->last_tx_filter_change = current_time();
 
   /* Execute channel-specific reconfigure hook */
   if (c->channel->reconfigure && !c->channel->reconfigure(c, cf))

@@ -536,6 +536,7 @@ struct channel {
   u8 gr_wait;				/* Route export to channel is postponed until graceful restart */
 
   btime last_state_change;		/* Time of last state transition */
+  btime last_tx_filter_change;
 };
 
 
