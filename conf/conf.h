@@ -105,7 +105,7 @@ extern int (*cf_read_hook)(byte *buf, uint max, int fd);
 struct symbol {
   struct symbol *next;
   struct sym_scope *scope;
-  int class;
+  uint class;
   int aux;
   void *aux2;
   void *def;

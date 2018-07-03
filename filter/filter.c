@@ -1103,7 +1103,7 @@ interpret(struct f_inst *what)
     {
       struct ea_list *l = lp_alloc(f_pool, sizeof(struct ea_list) + sizeof(eattr));
       u16 code = what->a2.i;
-      int f_type = what->aux >> 8;
+      enum f_type f_type = what->aux >> 8;
 
       l->next = NULL;
       l->flags = EALF_SORTED;

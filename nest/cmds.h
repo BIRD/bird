@@ -7,7 +7,7 @@
  */
 
 struct sym_show_data {
-	int	type;	/* Symbols type to show */
+	uint	type;	/* Symbols type to show */
 	struct symbol	*sym;
 };
 

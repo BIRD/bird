@@ -83,6 +83,57 @@ FI__LIST
 
 const char *f_instruction_name(enum f_instruction_code fi);
 
+enum f_type {
+/* Type numbers must be in 0..0xff range */
+  T_MASK = 0xff,
+
+/* Internal types */
+/* Do not use type of zero, that way we'll see errors easier. */
+  T_VOID = 1,
+
+/* User visible types, which fit in int */
+  T_INT = 0x10,
+  T_BOOL = 0x11,
+  T_PAIR = 0x12,  /*	Notice that pair is stored as integer: first << 16 | second */
+  T_QUAD = 0x13,
+
+/* Put enumerational types in 0x30..0x3f range */
+  T_ENUM_LO = 0x30,
+  T_ENUM_HI = 0x3f,
+
+  T_ENUM_RTS = 0x30,
+  T_ENUM_BGP_ORIGIN = 0x31,
+  T_ENUM_SCOPE = 0x32,
+  T_ENUM_RTC = 0x33,
+  T_ENUM_RTD = 0x34,
+  T_ENUM_ROA = 0x35,
+  T_ENUM_NETTYPE = 0x36,
+  T_ENUM_RA_PREFERENCE = 0x37,
+
+/* new enums go here */
+  T_ENUM_EMPTY = 0x3f,	/* Special hack for atomic_aggr */
+
+#define T_ENUM T_ENUM_LO ... T_ENUM_HI
+
+/* Bigger ones */
+  T_IP = 0x20,
+  T_NET = 0x21,
+  T_STRING = 0x22,
+  T_PATH_MASK = 0x23,	/* mask for BGP path */
+  T_PATH = 0x24,		/* BGP path */
+  T_CLIST = 0x25,		/* Community list */
+  T_EC = 0x26,		/* Extended community value, u64 */
+  T_ECLIST = 0x27,		/* Extended community list */
+  T_LC = 0x28,		/* Large community value, lcomm */
+  T_LCLIST = 0x29,		/* Large community list */
+  T_RD = 0x2a,		/* Route distinguisher for VPN addresses */
+
+  T_RETURN = 0x40,
+  T_SET = 0x80,
+  T_PREFIX_SET = 0x81,
+};
+
+
 struct f_inst {		/* Instruction */
   struct f_inst *next;	/* Structure is 16 bytes, anyway */
   enum f_instruction_code fi_code;
@@ -117,7 +168,7 @@ struct f_prefix {
 };
 
 struct f_val {
-  int type;		/* T_*  */
+  enum f_type type;		/* T_*  */
   union {
     uint i;
     u64 ec;
@@ -134,12 +185,12 @@ struct f_val {
 
 struct f_dynamic_attr {
   int type;
-  int f_type;
+  enum f_type f_type;
   int ea_code;
 };
 
 struct f_static_attr {
-  int f_type;
+  enum f_type f_type;
   int sa_code;
   int readonly;
 };
@@ -152,9 +203,9 @@ struct filter {
 struct f_inst *f_new_inst(enum f_instruction_code fi_code);
 struct f_inst *f_new_inst_da(enum f_instruction_code fi_code, struct f_dynamic_attr da);
 struct f_inst *f_new_inst_sa(enum f_instruction_code fi_code, struct f_static_attr sa);
-static inline struct f_dynamic_attr f_new_dynamic_attr(int type, int f_type, int code) /* Type as core knows it, type as filters know it, and code of dynamic attribute */
+static inline struct f_dynamic_attr f_new_dynamic_attr(int type, enum f_type f_type, int code) /* Type as core knows it, type as filters know it, and code of dynamic attribute */
 { return (struct f_dynamic_attr) { .type = type, .f_type = f_type, .ea_code = code }; }   /* f_type currently unused; will be handy for static type checking */
-static inline struct f_static_attr f_new_static_attr(int f_type, int code, int readonly)
+static inline struct f_static_attr f_new_static_attr(enum f_type f_type, int code, int readonly)
 { return (struct f_static_attr) { .f_type = f_type, .sa_code = code, .readonly = readonly }; }
 struct f_tree *f_new_tree(void);
 struct f_inst *f_generate_complex(int operation, int operation_aux, struct f_dynamic_attr da, struct f_inst *argument);
@@ -201,54 +252,6 @@ void val_format(struct f_val v, buffer *buf);
 #define FILTER_ACCEPT NULL
 #define FILTER_REJECT ((void *) 1)
 #define FILTER_UNDEF  ((void *) 2)	/* Used in BGP */
-
-/* Type numbers must be in 0..0xff range */
-#define T_MASK 0xff
-
-/* Internal types */
-/* Do not use type of zero, that way we'll see errors easier. */
-#define T_VOID 1
-
-/* User visible types, which fit in int */
-#define T_INT 0x10
-#define T_BOOL 0x11
-#define T_PAIR 0x12  /*	Notice that pair is stored as integer: first << 16 | second */
-#define T_QUAD 0x13
-
-/* Put enumerational types in 0x30..0x3f range */
-#define T_ENUM_LO 0x30
-#define T_ENUM_HI 0x3f
-
-#define T_ENUM_RTS 0x30
-#define T_ENUM_BGP_ORIGIN 0x31
-#define T_ENUM_SCOPE 0x32
-#define T_ENUM_RTC 0x33
-#define T_ENUM_RTD 0x34
-#define T_ENUM_ROA 0x35
-#define T_ENUM_NETTYPE 0x36
-#define T_ENUM_RA_PREFERENCE 0x37
-
-/* new enums go here */
-#define T_ENUM_EMPTY 0x3f	/* Special hack for atomic_aggr */
-
-#define T_ENUM T_ENUM_LO ... T_ENUM_HI
-
-/* Bigger ones */
-#define T_IP 0x20
-#define T_NET 0x21
-#define T_STRING 0x22
-#define T_PATH_MASK 0x23	/* mask for BGP path */
-#define T_PATH 0x24		/* BGP path */
-#define T_CLIST 0x25		/* Community list */
-#define T_EC 0x26		/* Extended community value, u64 */
-#define T_ECLIST 0x27		/* Extended community list */
-#define T_LC 0x28		/* Large community value, lcomm */
-#define T_LCLIST 0x29		/* Large community list */
-#define T_RD 0x2a		/* Route distinguisher for VPN addresses */
-
-#define T_RETURN 0x40
-#define T_SET 0x80
-#define T_PREFIX_SET 0x81
 
 
 #define SA_FROM		 1
