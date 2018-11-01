@@ -79,8 +79,12 @@ ospf_install_lsa(struct ospf_proto *p, struct ospf_lsa_header *lsa, u32 type, u3
    * then we have en->mode from the postponed LSA origination.
    */
 
-  OSPF_TRACE(D_EVENTS, "Installing LSA: Type: %04x, Id: %R, Rt: %R, Seq: %08x, Age: %u",
-	     en->lsa_type, en->lsa.id, en->lsa.rt, en->lsa.sn, en->lsa.age);
+  if (en->lsa.rt == p->router_id || (p->p.debug & D_EVENTS) ||
+      OSPF_FORCE_DEBUG)
+  {
+    log(L_INFO "Installing LSA: Type: %04x, Id: %R, Rt: %R, Seq: %08x, Age: %u",
+	en->lsa_type, en->lsa.id, en->lsa.rt, en->lsa.sn, en->lsa.age);
+  }
 
   if (change)
     ospf_schedule_rtcalc(p);
@@ -280,6 +284,14 @@ ospf_originate_lsa(struct ospf_proto *p, struct ospf_new_lsa *lsa)
 
   if (!en->nf || !en->lsa_body)
     en->nf = lsa->nf;
+
+  if (en->lsa_body && (en->lsa.age == LSA_MAXAGE))
+  {
+    /* en could be an unexpected self-originated lsa in which case nf is NULL */
+    log(L_INFO "%s: Found flushing LSA while originating %I/%d with fib: %p",
+        p->p.name, lsa->nf->fn.prefix, lsa->nf->fn.pxlen, en->nf);
+    en->nf = lsa->nf;
+  }
 
   if (en->nf != lsa->nf)
   {
