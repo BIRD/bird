@@ -58,7 +58,7 @@ subdir: $(lib-dest)
 
 $(lib-dest): $(objs)
 	rm -f $@
-	ar rcs $@ $^
+	$(AR) rcs $@ $^
 	$(RANLIB) $@
 
 else
