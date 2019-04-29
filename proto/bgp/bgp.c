@@ -1252,7 +1252,7 @@ bgp_shutdown(struct proto *P)
   if (message)
   {
     uint msg_len = strlen(message);
-    msg_len = MIN(msg_len, 128);
+    msg_len = MIN(msg_len, 255);
 
     /* Buffer will be freed automatically by protocol shutdown */
     data = mb_alloc(p->p.pool, msg_len + 1);
