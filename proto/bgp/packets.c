@@ -1507,7 +1507,7 @@ bgp_handle_message(struct bgp_proto *p, byte *data, uint len, byte **bp)
     return 1;
 
   /* Handle proper message */
-  if ((msg_len > 128) && (msg_len + 1 > len))
+  if ((msg_len > 255) && (msg_len + 1 > len))
     return 0;
 
   /* Some elementary cleanup */
