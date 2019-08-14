@@ -652,10 +652,6 @@ agreement").
 	on all interfaces that have address from 192.168.0.0/16, but not from
 	192.168.1.0/24.
 
-	<cf>interface -192.168.1.0/24, 192.168.0.0/16;</cf> - start the protocol
-	on all interfaces that have address from 192.168.0.0/16, but not from
-	192.168.1.0/24.
-
 	<cf>interface "eth*" 192.168.1.0/24;</cf> - start the protocol on all
 	ethernet interfaces that have address from 192.168.1.0/24.
 
