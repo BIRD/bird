@@ -509,13 +509,13 @@ nl_parse_multipath(struct krt_proto *p, struct rtattr *ra, int af)
     {
       /* Use RTNH_OK(nh,len) ?? */
       if ((len < sizeof(*nh)) || (len < nh->rtnh_len))
-        return NULL;
+	return NULL;
 
       if (nh_buf_used == nh_buf_size)
-        {
-          nh_buf_size = nh_buf_size ? (nh_buf_size * 2) : 4;
-          nh_buffer = xrealloc(nh_buffer, nh_buf_size * sizeof(struct mpnh));
-        }
+      {
+	nh_buf_size = nh_buf_size ? (nh_buf_size * 2) : 4;
+	nh_buffer = xrealloc(nh_buffer, nh_buf_size * sizeof(struct mpnh));
+      }
       *last = rv = nh_buffer + nh_buf_used++;
       rv->next = NULL;
       last = &(rv->next);
@@ -1303,7 +1303,7 @@ nl_parse_route(struct nl_parse_state *s, struct nlmsghdr *h)
 	  ra->nexthops = nl_parse_multipath(p, a[RTA_MULTIPATH], i->rtm_family);
 	  if (!ra->nexthops)
 	    {
-	      log(L_DEBUG "KRT: Received strange multipath route %I/%d",
+	      log(L_ERR "KRT: Received strange multipath route %I/%d",
 		  net->n.prefix, net->n.pxlen);
 	      return;
 	    }
@@ -1336,7 +1336,7 @@ nl_parse_route(struct nl_parse_state *s, struct nlmsghdr *h)
 			   (i->rtm_flags & RTNH_F_ONLINK) ? NEF_ONLINK : 0);
 	  if (!ng || (ng->scope == SCOPE_HOST))
 	    {
-	      log(L_ERR "KRT: Received route %I/%d with strange next-hop %I",
+	      log(L_DEBUG "KRT: Received route %I/%d with strange next-hop %I",
 		  net->n.prefix, net->n.pxlen, ra->gw);
 	      return;
 	    }
