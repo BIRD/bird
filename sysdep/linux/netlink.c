@@ -1303,7 +1303,7 @@ nl_parse_route(struct nl_parse_state *s, struct nlmsghdr *h)
 	  ra->nexthops = nl_parse_multipath(p, a[RTA_MULTIPATH], i->rtm_family);
 	  if (!ra->nexthops)
 	    {
-	      log(L_ERR "KRT: Received strange multipath route %I/%d",
+	      log(L_DEBUG "KRT: Received strange multipath route %I/%d",
 		  net->n.prefix, net->n.pxlen);
 	      return;
 	    }
