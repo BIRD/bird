@@ -1336,7 +1336,7 @@ nl_parse_route(struct nl_parse_state *s, struct nlmsghdr *h)
 			   (i->rtm_flags & RTNH_F_ONLINK) ? NEF_ONLINK : 0);
 	  if (!ng || (ng->scope == SCOPE_HOST))
 	    {
-	      log(L_ERR "KRT: Received route %I/%d with strange next-hop %I",
+	      log(L_DEBUG "KRT: Received route %I/%d with strange next-hop %I",
 		  net->n.prefix, net->n.pxlen, ra->gw);
 	      return;
 	    }
