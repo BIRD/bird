@@ -509,13 +509,13 @@ nl_parse_multipath(struct krt_proto *p, struct rtattr *ra, int af)
     {
       /* Use RTNH_OK(nh,len) ?? */
       if ((len < sizeof(*nh)) || (len < nh->rtnh_len))
-	return NULL;
+        return NULL;
 
       if (nh_buf_used == nh_buf_size)
-      {
-	nh_buf_size = nh_buf_size ? (nh_buf_size * 2) : 4;
-	nh_buffer = xrealloc(nh_buffer, nh_buf_size * sizeof(struct mpnh));
-      }
+        {
+          nh_buf_size = nh_buf_size ? (nh_buf_size * 2) : 4;
+          nh_buffer = xrealloc(nh_buffer, nh_buf_size * sizeof(struct mpnh));
+        }
       *last = rv = nh_buffer + nh_buf_used++;
       rv->next = NULL;
       last = &(rv->next);
