@@ -3706,6 +3706,7 @@ protocol rip [&lt;name&gt;] {
 		rx buffer &lt;number&gt;;
 		tx length &lt;number&gt;;
 		check link &lt;switch&gt;;
+		bfd &lt;switch&gt;;
 		authentication none|plaintext|cryptographic;
 		password "&lt;text&gt;";
 		password "&lt;text&gt;" {
